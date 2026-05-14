@@ -176,6 +176,45 @@ The constraint is important: eval should preserve Odin semantics exactly. If a
 form only works because `odin-clj` invented a hidden dynamic environment, that
 is the wrong direction.
 
+## Relationship to odineval
+
+`odineval` can be a useful base for OdinL tooling, but not for the OdinL
+language layer itself.
+
+The parts that should transfer well are execution and editor workflow:
+
+- package and project detection
+- temporary workspace generation
+- internal package eval by copying a package and injecting a scratch runner
+- Emacs result display, inline overlays, popup buffers, and build/check/test
+  commands
+- generated-code inspection and compiler failure handling
+
+The parts that should remain OdinL-specific are:
+
+- `.odinl` parsing
+- OdinL-to-Odin lowering
+- source mapping from `.odinl` locations to generated `.odin` locations
+- syntax decisions around `let`, literals, proc forms, implicit returns, and
+  raw Odin passthrough
+
+The likely architecture, if this project moves forward, is:
+
+```text
+odinl
+  parser/lowering: .odinl -> .odin
+
+odineval
+  execution harness: temp dirs, run/check/test, Emacs output UX
+
+shared later
+  package discovery, temp workspace, command runner, Emacs result display
+```
+
+Do not merge the projects prematurely. `odineval` is useful because it makes
+ordinary Odin more interactive. OdinL is a syntax experiment. Keeping them
+separate avoids contaminating a practical tool with speculative syntax work.
+
 ## Data Literals
 
 Inline data literals are valuable for editing comfort, but they should lower to

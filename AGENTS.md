@@ -39,6 +39,12 @@ The project goal is **Odin in parens**, not Clojure semantics on Odin.
 - Check generated Odin with `odin check <file>.odin -file`.
 - Future eval-selection support should generate a scratch Odin entry point and
   run/check that with Odin itself.
+- `odineval` may be reused as the execution/editor tooling base if OdinL is
+  pursued further: package/project detection, temp workspaces, internal package
+  eval, Emacs overlays, result buffers, and build/check/test commands are
+  relevant. Keep OdinL parsing/lowering/source mapping separate.
+- Do not merge OdinL into `odineval` prematurely. `odineval` should remain a
+  practical ordinary-Odin tool; OdinL is a syntax experiment.
 
 ## Style
 
