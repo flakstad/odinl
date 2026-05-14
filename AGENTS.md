@@ -12,7 +12,9 @@ The project goal is **Odin in parens**, not Clojure semantics on Odin.
 - Prefer mechanical syntax lowering over abstraction.
 - Treat `.odinl` as the source extension and `.odin` as generated or ordinary
   Odin.
-- Copy raw Odin through unchanged outside marked Lisp-Odin islands.
+- Copy raw Odin through unchanged outside detected Lisp-Odin top-level forms.
+- Do not require `#odinl` / `#end` markers for ordinary top-level forms unless
+  implementation experience proves they are needed.
 - Treat REPL-like tooling as temp Odin generation plus `odin run`, not as an
   interpreter.
 - Treat `[]` and `{}` as Odin literal sugar, not as Clojure collections.
@@ -47,6 +49,7 @@ The project goal is **Odin in parens**, not Clojure semantics on Odin.
 - Prefer Odin-shaped proc return syntax: `(proc name [...] -> type body...)`.
 - Prefer implicit final returns for non-void procs instead of explicit
   `(return ...)` in ordinary odinl code.
-- Prefer explicit `^type` literal hints such as `^[]int [...]`,
-  `^map[string]int {...}`, and `^Person {...}`.
-- Treat `^type` as compile-time lowering guidance, not as Clojure metadata.
+- Treat `let` as Clojure-style scoped binding syntax: `(let [x value] body...)`.
+- Do not use `^type` for type hints; `^` is Odin pointer syntax.
+- Use explicit type ascription for typed literal lowering. `(as Type literal)`
+  is the current placeholder until the syntax settles.

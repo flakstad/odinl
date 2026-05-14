@@ -17,7 +17,7 @@ The first milestone is a tiny translator that is pleasant enough for small
 files:
 
 - one `.odinl` file emits one `.odin` file
-- `.odinl` files may mix raw Odin and marked Lisp-Odin islands
+- `.odinl` files may mix raw Odin and Lisp-Odin top-level forms
 - forms map mechanically to Odin constructs
 - generated Odin stays readable and debuggable
 - Odin remains responsible for type checking, semantics, and diagnostics
@@ -43,12 +43,11 @@ package main
 
 import "core:fmt"
 
-#odinl
+(proc add [(a int) (b int)] -> int
+  (+ a b))
+
 (proc main []
-  (fmt.println "hello from odin-clj")
-  (let x int 41)
-  (fmt.println (+ x 1)))
-#end
+  (fmt.println (add 20 22)))
 ```
 
 emits:
@@ -58,10 +57,12 @@ package main
 
 import "core:fmt"
 
+add :: proc(a: int, b: int) -> int {
+    return a + b
+}
+
 main :: proc() {
-    fmt.println("hello from odin-clj")
-    x: int = 41
-    fmt.println(x + 1)
+    fmt.println(add(20, 22))
 }
 ```
 
@@ -75,8 +76,8 @@ odin check /tmp/hello.odin -file
 If `-o` is omitted, generated Odin is written to stdout.
 
 The current prototype still translates pure Lisp-Odin input. Mixed raw-Odin
-plus `#odinl` islands, Odin-style `->` proc return syntax, and implicit final
-returns are the intended next syntax step.
+passthrough, Odin-style `->` proc return syntax, and implicit final returns are
+the intended next syntax step.
 
 ## File Model
 
@@ -84,7 +85,12 @@ The intended source extension is `.odinl`.
 
 Normal `.odin` files should remain ordinary Odin and should not require this
 translator. `.odinl` files are mixed files: raw Odin is copied through, while
-Lisp-Odin islands are translated.
+Lisp-Odin top-level forms are translated.
+
+The default detection rule should be simple: at Odin top level, a balanced form
+starting with `(` is Lisp-Odin. Everything else is copied as raw Odin. Explicit
+markers can remain as an escape hatch later if ambiguous cases appear, but they
+should not be required for ordinary files.
 
 Example:
 
@@ -98,10 +104,8 @@ Point :: struct {
     y: int,
 }
 
-#odinl
 (proc add [(a int) (b int)] -> int
   (+ a b))
-#end
 
 main :: proc() {
     fmt.println(add(1, 2))
@@ -110,6 +114,40 @@ main :: proc() {
 
 The Odin compiler should only see generated `.odin` files. That keeps normal
 Odin tooling honest while still allowing mixed source in `.odinl`.
+
+## Syntax Shape
+
+The syntax should earn its keep. Merely moving parens around is not enough.
+Forms should make editing more Lisp-like where that has real value.
+
+`let` should be Clojure-like: a scoped expression with bindings, not just a
+renamed Odin declaration.
+
+```clojure
+(let [x 20
+      y 22]
+  (+ x y))
+```
+
+Inside a proc with a return type, the final expression should return
+implicitly:
+
+```clojure
+(proc answer [] -> int
+  (let [x 20
+        y 22]
+    (+ x y)))
+```
+
+emits:
+
+```odin
+answer :: proc() -> int {
+    x := 20
+    y := 22
+    return x + y
+}
+```
 
 ## REPL-Like Development
 
@@ -148,9 +186,9 @@ Useful targets:
 Examples of the intended shape:
 
 ```clojure
-^[]int [1 2 3]
-^map[string]int {"a" 1 "b" 2}
-^Person {:name "Andreas" :age 42}
+(as []int [1 2 3])
+(as map[string]int {"a" 1 "b" 2})
+(as Person {:name "Andreas" :age 42})
 ```
 
 These should lower to ordinary Odin constructs such as:
@@ -162,18 +200,80 @@ Person{name = "Andreas", age = 42}
 ```
 
 The rule is: `[]` and `{}` are syntax for Odin literals, not universal
-Clojure-style collections. Prefer explicit type hints over guessing.
+Clojure-style collections. Prefer explicit type ascription over guessing.
 
-The `^type` syntax is compile-time lowering guidance for `odinl`; it is not
-Clojure metadata. It says "emit this literal as this Odin type".
+Do not use Clojure-style `^type` hints for this. In Odin, `^` already means
+pointer, so using it for type hints would make the surface language harder to
+read.
+
+The exact type-ascription syntax is still provisional. `(as Type literal)` is
+the current documentation placeholder because it is explicit and avoids
+conflicting with Odin pointer syntax.
+
+## Odin Feature Sketches
+
+These examples are design sketches. They are here to make the proposed surface
+syntax concrete before the implementation commits too hard.
+
+Struct literals:
+
+```clojure
+Person :: struct {
+    name: string,
+    age: int,
+}
+
+(proc make-person [] -> Person
+  (as Person {:name "Andreas"
+              :age 42}))
+```
+
+Slices and loops:
+
+```clojure
+(proc sum [(xs []int)] -> int
+  (let [total 0]
+    (for-in x xs
+      (set! total (+ total x)))
+    total))
+```
+
+Pointers should keep Odin's spelling:
+
+```clojure
+(proc bump [(x ^int)]
+  (set! (^ x) (+ (^ x) 1)))
+```
+
+Conditionals as expressions when useful:
+
+```clojure
+(proc classify [(n int)] -> string
+  (if (< n 0)
+    "negative"
+    (if (== n 0)
+      "zero"
+      "positive")))
+```
+
+Raw Odin should remain available directly in `.odinl`:
+
+```odin
+Foreign_Handle :: distinct rawptr
+
+@(link_name = "foreign_call")
+foreign_call :: proc(handle: Foreign_Handle) ---
+
+(proc call [(handle Foreign_Handle)]
+  (foreign_call handle))
+```
 
 ## Target Forms
 
-- raw Odin outside `#odinl` / `#end` islands
+- raw Odin outside detected Lisp-Odin top-level forms
 - `(proc name [(arg type) ...] -> return-type body...)`
 - `(proc name [(arg type) ...] body...)`
-- `(let name type expr)` -> `name: type = expr`
-- `(let name expr)` -> `name := expr`
+- `(let [binding value ...] body...)` scoped expression/block
 - `(const name type expr)` -> `name: type : expr`
 - `(const name expr)` -> `name :: expr`
 - `(set! place expr)` -> `place = expr`
@@ -184,7 +284,7 @@ Clojure metadata. It says "emit this literal as this Odin type".
 - `(for-in name collection body...)`
 - `(block body...)`
 - `(odin "...")` raw Odin escape hatch
-- `^Type form` type hint for typed literal lowering
+- `(as Type form)` provisional typed literal lowering
 - calls: `(foo a b)` -> `foo(a, b)`
 - operators: `(+ a b)`, `(<= i 10)`, `(and a b)`, etc. emit infix
 
