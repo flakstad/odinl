@@ -71,6 +71,59 @@ odin check /tmp/hello.odin -file
 
 If `-o` is omitted, generated Odin is written to stdout.
 
+## REPL-Like Development
+
+Odin does not have a Lisp-style stateful REPL, but `odin-clj` can still aim for
+a useful eval-selection workflow.
+
+The idea is to make editor tooling that takes one selected form, generates a
+temporary Odin file around it, runs `odin run`, and prints the result. This is
+not an interpreter and not a persistent runtime. It is source generation plus
+Odin's normal compiler.
+
+Possible levels:
+
+- expression eval: wrap one expression in a generated `main` and print it
+- file-context eval: include package imports, constants, types, and procedures
+  from the current file before running the selected form
+- package eval: compile the current package plus a generated scratch entry point
+- watch/eval loop: keep the temp-file generation and `odin run` invocation fast
+  enough to feel interactive from Emacs
+
+The constraint is important: eval should preserve Odin semantics exactly. If a
+form only works because `odin-clj` invented a hidden dynamic environment, that
+is the wrong direction.
+
+## Data Literals
+
+Inline data literals are valuable for editing comfort, but they should lower to
+Odin literals rather than introduce a Clojure data model.
+
+Useful targets:
+
+- vector/list-looking syntax for Odin array or slice literals
+- map-looking syntax for Odin map literals when key/value types are explicit
+- map-looking syntax for Odin struct literals when a struct type is explicit
+
+Examples of the intended shape:
+
+```clojure
+(slice int [1 2 3])
+(map string int {"a" 1 "b" 2})
+(Person {:name "Andreas" :age 42})
+```
+
+These should lower to ordinary Odin constructs such as:
+
+```odin
+[]int{1, 2, 3}
+map[string]int{"a" = 1, "b" = 2}
+Person{name = "Andreas", age = 42}
+```
+
+The rule is: `[]` and `{}` are syntax for Odin literals, not universal
+Clojure-style collections. Prefer explicit type-directed forms over guessing.
+
 ## Current Forms
 
 - `(package name)`
