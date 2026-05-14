@@ -1,6 +1,7 @@
 # odin-clj
 
-An experiment in writing Odin with a small Clojure/Lisp-shaped syntax.
+An experiment in writing Odin with a small Clojure/Lisp-shaped syntax: Odin in
+parens, not Clojure on Odin.
 
 This is intentionally a source-to-source translator, not a new runtime or a
 new semantic layer. The goal is:
@@ -9,6 +10,30 @@ new semantic layer. The goal is:
 - write paren-shaped source for editing comfort
 - emit boring, readable `.odin`
 - use `odin check` as the real validator
+
+## Plan
+
+The first milestone is a tiny translator that is pleasant enough for small
+files:
+
+- one `.oclj` file emits one `.odin` file
+- forms map mechanically to Odin constructs
+- generated Odin stays readable and debuggable
+- Odin remains responsible for type checking, semantics, and diagnostics
+- raw `(odin "...")` escape hatches are available from the start
+
+The non-goals are just as important:
+
+- no Clojure data model
+- no persistent collections
+- no seq abstraction
+- no runtime library unless Odin interop absolutely needs a helper
+- no semantic gap between source and generated Odin
+
+If this grows, it should grow by covering more Odin syntax directly: structs,
+enums, unions, pointers, slices, arrays, `defer`, `using`, `when`, `or_return`,
+allocators, attributes, procedures, packages, and imports. It should not grow
+by inventing a new language on top of Odin.
 
 ## Example
 
@@ -67,3 +92,12 @@ If `-o` is omitted, generated Odin is written to stdout.
 - operators: `(+ a b)`, `(<= i 10)`, `(and a b)`, etc. emit infix
 
 This is deliberately incomplete. Add only forms that map cleanly to Odin.
+
+## Design Rules
+
+- Prefer transparent lowering over clever abstraction.
+- Keep generated Odin idiomatic enough to read and edit.
+- Use Odin syntax and names for types.
+- Add forms only when their Odin output is obvious.
+- Prefer an explicit raw Odin escape hatch over guessing.
+- Treat `odin check` as the source of truth.
