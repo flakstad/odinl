@@ -1,4 +1,4 @@
-# odin-clj
+# odinl
 
 An experiment in writing Odin with a small Clojure/Lisp-shaped syntax: Odin in
 parens, not Clojure on Odin.
@@ -16,7 +16,8 @@ new semantic layer. The goal is:
 The first milestone is a tiny translator that is pleasant enough for small
 files:
 
-- one `.oclj` file emits one `.odin` file
+- one `.odinl` file emits one `.odin` file
+- `.odinl` files may mix raw Odin and marked Lisp-Odin islands
 - forms map mechanically to Odin constructs
 - generated Odin stays readable and debuggable
 - Odin remains responsible for type checking, semantics, and diagnostics
@@ -37,15 +38,17 @@ by inventing a new language on top of Odin.
 
 ## Example
 
-```clojure
-(package main)
+```odin
+package main
 
-(import "core:fmt")
+import "core:fmt"
 
-(proc main [] void
+#odinl
+(proc main []
   (fmt.println "hello from odin-clj")
   (let x int 41)
   (fmt.println (+ x 1)))
+#end
 ```
 
 emits:
@@ -65,15 +68,52 @@ main :: proc() {
 ## Usage
 
 ```sh
-python3 -m src.odin_clj examples/hello.oclj -o /tmp/hello.odin
+python3 -m src.odin_clj examples/hello.odinl -o /tmp/hello.odin
 odin check /tmp/hello.odin -file
 ```
 
 If `-o` is omitted, generated Odin is written to stdout.
 
+The current prototype still translates pure Lisp-Odin input. Mixed raw-Odin
+plus `#odinl` islands, Odin-style `->` proc return syntax, and implicit final
+returns are the intended next syntax step.
+
+## File Model
+
+The intended source extension is `.odinl`.
+
+Normal `.odin` files should remain ordinary Odin and should not require this
+translator. `.odinl` files are mixed files: raw Odin is copied through, while
+Lisp-Odin islands are translated.
+
+Example:
+
+```odin
+package main
+
+import "core:fmt"
+
+Point :: struct {
+    x: int,
+    y: int,
+}
+
+#odinl
+(proc add [(a int) (b int)] -> int
+  (+ a b))
+#end
+
+main :: proc() {
+    fmt.println(add(1, 2))
+}
+```
+
+The Odin compiler should only see generated `.odin` files. That keeps normal
+Odin tooling honest while still allowing mixed source in `.odinl`.
+
 ## REPL-Like Development
 
-Odin does not have a Lisp-style stateful REPL, but `odin-clj` can still aim for
+Odin does not have a Lisp-style stateful REPL, but `odinl` can still aim for
 a useful eval-selection workflow.
 
 The idea is to make editor tooling that takes one selected form, generates a
@@ -124,20 +164,20 @@ Person{name = "Andreas", age = 42}
 The rule is: `[]` and `{}` are syntax for Odin literals, not universal
 Clojure-style collections. Prefer explicit type hints over guessing.
 
-The `^type` syntax is compile-time lowering guidance for `odin-clj`; it is not
+The `^type` syntax is compile-time lowering guidance for `odinl`; it is not
 Clojure metadata. It says "emit this literal as this Odin type".
 
-## Current Forms
+## Target Forms
 
-- `(package name)`
-- `(import "core:fmt")`
-- `(proc name [(arg type) ...] return-type body...)`
+- raw Odin outside `#odinl` / `#end` islands
+- `(proc name [(arg type) ...] -> return-type body...)`
+- `(proc name [(arg type) ...] body...)`
 - `(let name type expr)` -> `name: type = expr`
 - `(let name expr)` -> `name := expr`
 - `(const name type expr)` -> `name: type : expr`
 - `(const name expr)` -> `name :: expr`
 - `(set! place expr)` -> `place = expr`
-- `(return expr)`
+- final expression in a non-void proc emits `return <expr>`
 - `(if test then else)`
 - `(when test body...)`
 - `(for [init test post] body...)`
@@ -149,6 +189,10 @@ Clojure metadata. It says "emit this literal as this Odin type".
 - operators: `(+ a b)`, `(<= i 10)`, `(and a b)`, etc. emit infix
 
 This is deliberately incomplete. Add only forms that map cleanly to Odin.
+
+The current implementation also accepts the original pure Lisp-Odin bootstrap
+forms such as `(package main)`, `(import "core:fmt")`, and
+`(proc main [] void ...)` while the `.odinl` file model is being built.
 
 ## Design Rules
 
