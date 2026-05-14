@@ -1,0 +1,92 @@
+package examples
+
+import "base:runtime"
+import "core:fmt"
+import "core:strings"
+
+// Raw Odin top-level declarations stay raw.
+Method :: enum {
+    Get,
+    Post,
+    Delete,
+}
+
+URL :: struct {
+    raw: string,
+    path: string,
+    query: string,
+}
+
+Query_Entry :: struct {
+    key, value: string,
+}
+
+Router :: struct {
+    allocator: runtime.Allocator,
+    routes: map[Method][dynamic]Route,
+}
+
+Route :: struct {
+    method: Method,
+    pattern: string,
+}
+
+// Lisp-Odin starts at top-level parens.
+(proc add [(a int) (b int)] -> int
+  (+ a b))
+
+(proc answer [] -> int
+  (let [x 20
+        y 22]
+    (+ x y)))
+
+(proc classify [(n int)] -> string
+  (if (< n 0)
+    "negative"
+    (if (== n 0)
+      "zero"
+      "positive")))
+
+(proc method-string [(m Method)] -> string #no_bounds_check
+  (switch m
+    .Get    "GET"
+    .Post   "POST"
+    .Delete "DELETE"
+    :else   ""))
+
+(proc sum [(xs []int)] -> int
+  (let [total 0]
+    (for-in x xs
+      (set! total (+ total x)))
+    total))
+
+(proc route [(router ^Router) (method Method) (pattern string)]
+  (when (not-in method router.routes)
+    (set! (get router.routes method)
+          (make [dynamic]Route router.allocator)))
+  (append
+    (& (get router.routes method))
+    (as Route {:method method
+               :pattern pattern})))
+
+(proc query-get [(url URL) (key string)] -> (val string, ok bool) #optional_ok
+  (let [query url.query]
+    (for-in entry (query-iter (& query))
+      (when (== entry.key key)
+        (return entry.value true)))))
+
+(proc decoded-query [(url URL) (key string) (allocator runtime.Allocator)] -> (val string, ok bool)
+  (let [raw (or-return (query-get url key))]
+    (strings.clone raw allocator)))
+
+(proc bump [(x ^int)]
+  (set! (^ x) (+ (^ x) 1)))
+
+(proc use-literals [] -> Route
+  (let [methods (as []Method [.Get .Post])
+        names   (as []string ["GET" "POST"])
+        route   (as Route {:method .Get
+                           :pattern "/ping"})]
+    (fmt.println (get names 0))
+    route))
+

@@ -79,6 +79,10 @@ The current prototype still translates pure Lisp-Odin input. Mixed raw-Odin
 passthrough, Odin-style `->` proc return syntax, and implicit final returns are
 the intended next syntax step.
 
+See `examples/syntax-tour.odinl` and `examples/http-ish.odinl` for design
+examples of the target syntax across more typical Odin features. Those files
+are intentionally ahead of the current prototype.
+
 ## File Model
 
 The intended source extension is `.odinl`.
@@ -215,6 +219,35 @@ conflicting with Odin pointer syntax.
 These examples are design sketches. They are here to make the proposed surface
 syntax concrete before the implementation commits too hard.
 
+Common top-level Odin should usually stay raw because Odin's syntax is already
+compact and readable:
+
+```odin
+package http
+
+import "base:runtime"
+import "core:net"
+import http "../odin-http/"
+
+Requestline_Error :: enum {
+    None,
+    Method_Not_Implemented,
+    Not_Enough_Fields,
+    Invalid_Version_Format,
+}
+
+Requestline :: struct {
+    method: Method,
+    target: union {
+        string,
+        URL,
+    },
+    version: Version,
+}
+```
+
+The Lisp layer should focus first on procedure bodies and expression-heavy code.
+
 Struct literals:
 
 ```clojure
@@ -228,7 +261,32 @@ Person :: struct {
               :age 42}))
 ```
 
-Slices and loops:
+Maps, dynamic arrays, compound literals, and calls:
+
+```clojure
+(proc route-get [(router ^Router) (pattern string) (handler Handler)]
+  (route-add
+    router
+    .Get
+    (as Route {:handler handler
+               :pattern (strings.concatenate
+                          (as []string ["^" pattern "$"])
+                          router.allocator)})))
+```
+
+emits Odin-shaped code like:
+
+```odin
+route_get :: proc(router: ^Router, pattern: string, handler: Handler) {
+    route_add(
+        router,
+        .Get,
+        Route{handler = handler, pattern = strings.concatenate([]string{"^", pattern, "$"}, router.allocator)},
+    )
+}
+```
+
+Slices, loops, and mutation:
 
 ```clojure
 (proc sum [(xs []int)] -> int
@@ -238,11 +296,122 @@ Slices and loops:
     total))
 ```
 
+Named and multi-value returns:
+
+```clojure
+(proc query-get [(url URL) (key string)] -> (val string, ok bool) #optional_ok
+  (let [q url.query]
+    (for-in entry (#force_inline query-iter (& q))
+      (when (== entry.key key)
+        (return entry.value true)))))
+```
+
+This is one place where explicit `return` remains useful. Implicit final return
+is for the common final-expression case, not a ban on early returns.
+
+`or_return` should probably stay as an Odin postfix operator:
+
+```clojure
+(proc decoded [(url URL) (key string) (allocator runtime.Allocator)] -> (val string, ok bool)
+  (let [s (or-return (query-get url key))]
+    (net.percent-decode s allocator)))
+```
+
+or, if postfix forms prove clearer:
+
+```clojure
+(let [s (query-get url key or-return)]
+  ...)
+```
+
+This syntax is unsettled. The important point is that `or_return` is a core Odin
+control-flow feature and should not be hidden behind a fake exception/result
+abstraction.
+
 Pointers should keep Odin's spelling:
 
 ```clojure
 (proc bump [(x ^int)]
   (set! (^ x) (+ (^ x) 1)))
+```
+
+Address-of also needs a readable spelling:
+
+```clojure
+(headers-init (& r.headers) allocator)
+```
+
+Switch:
+
+```clojure
+(proc method-string [(m Method)] -> string #no_bounds_check
+  (switch m
+    .Get "GET"
+    .Post "POST"
+    .Delete "DELETE"
+    :else ""))
+```
+
+Type switches and partial switches need to preserve Odin's syntax closely:
+
+```clojure
+(switch-in t rline.target
+  string (io.write-string w t)
+  URL    (request-path-write w t))
+
+(#partial switch mode
+  .Flush
+  (do
+    (assert (not rw.ended))
+    (write-chunk b (slice rw.buf))))
+```
+
+Anonymous procs and callbacks:
+
+```clojure
+(http.route-get
+  (& router)
+  "/users/(%w+)/comments/(%d+)"
+  (http.handler
+    (proc [(req ^http.Request) (res ^http.Response)]
+      (http.respond-plain
+        res
+        (fmt.tprintf "user %s, comment: %s"
+                     (get req.url_params 0)
+                     (get req.url_params 1))))))
+```
+
+Generated Odin should remain a normal anonymous proc passed to `http.handler`.
+
+Attributes and directives should attach to the following form without forcing
+everything into parens:
+
+```clojure
+@(private)
+(proc route-add [(router ^Router) (method Method) (route Route)]
+  (when (not-in method router.routes)
+    (set! (get router.routes method)
+          (make [dynamic]Route router.allocator)))
+  (append (& (get router.routes method)) route))
+
+(proc headers-count [(h Headers)] -> int #force_inline
+  (len h._kv))
+```
+
+Some attributes/directives may be better left as raw Odin until the syntax is
+obvious.
+
+`defer` and conditional defer:
+
+```clojure
+(proc header-parse [(headers ^Headers) (line string) (allocator runtime.Allocator)] -> (key string, ok bool)
+  (let [value (strings.trim-space (slice line (+ colon 1)))
+        key   (sanitize-key (^ headers) (slice line 0 colon))]
+    (defer
+      (when (not ok)
+        (delete key allocator)
+        (set! key "")))
+    ...))
 ```
 
 Conditionals as expressions when useful:
