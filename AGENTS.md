@@ -39,5 +39,6 @@ The project goal is **Odin in parens**, not Clojure semantics on Odin.
 - Keep raw escape hatch support via `(odin "...")`.
 - Favor simple, explicit syntax over clever inference.
 - Keep examples small and executable.
-- Prefer explicit type-directed literal forms such as `(slice int [...])`,
-  `(map string int {...})`, and `(Person {...})`.
+- Prefer explicit `^type` literal hints such as `^[]int [...]`,
+  `^map[string]int {...}`, and `^Person {...}`.
+- Treat `^type` as compile-time lowering guidance, not as Clojure metadata.

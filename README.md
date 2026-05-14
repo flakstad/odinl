@@ -108,9 +108,9 @@ Useful targets:
 Examples of the intended shape:
 
 ```clojure
-(slice int [1 2 3])
-(map string int {"a" 1 "b" 2})
-(Person {:name "Andreas" :age 42})
+^[]int [1 2 3]
+^map[string]int {"a" 1 "b" 2}
+^Person {:name "Andreas" :age 42}
 ```
 
 These should lower to ordinary Odin constructs such as:
@@ -122,7 +122,10 @@ Person{name = "Andreas", age = 42}
 ```
 
 The rule is: `[]` and `{}` are syntax for Odin literals, not universal
-Clojure-style collections. Prefer explicit type-directed forms over guessing.
+Clojure-style collections. Prefer explicit type hints over guessing.
+
+The `^type` syntax is compile-time lowering guidance for `odin-clj`; it is not
+Clojure metadata. It says "emit this literal as this Odin type".
 
 ## Current Forms
 
@@ -141,6 +144,7 @@ Clojure-style collections. Prefer explicit type-directed forms over guessing.
 - `(for-in name collection body...)`
 - `(block body...)`
 - `(odin "...")` raw Odin escape hatch
+- `^Type form` type hint for typed literal lowering
 - calls: `(foo a b)` -> `foo(a, b)`
 - operators: `(+ a b)`, `(<= i 10)`, `(and a b)`, etc. emit infix
 
