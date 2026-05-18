@@ -70,6 +70,11 @@ eval_output=$(./odinl eval examples/higher-order.odinl '(reduce add 0 (new []int
 assert_eq "6" "$eval_output" "eval output"
 assert_file_nonempty "$tmp_dir/eval.odin" "eval generated output"
 
+printf 'tooling: eval tap output\n'
+tap_output=$(./odinl eval examples/tap.odinl '(tap> :answer 42)')
+tap_expected=$(printf 'answer: 42\n42')
+assert_eq "$tap_expected" "$tap_output" "tap eval output"
+
 printf 'tooling: eval file-backed dev helpers\n'
 cat > "$tmp_dir/dev-io.odinl" <<'EOF'
 (package main)
@@ -200,6 +205,9 @@ assert_eq "3" "$(./odinl eval examples/sequences.odinl '(status-run-count)')" "s
 assert_eq "2" "$(./odinl eval examples/sequences.odinl '(active-status-group-count)')" "active-status-group-count"
 assert_eq "2" "$(./odinl eval examples/data-literals.odinl '(temp-buffer-len)')" "temp-buffer-len"
 assert_eq "3" "$(./odinl eval examples/data-literals.odinl '(temp-scoped-buffer-len)')" "temp-scoped-buffer-len"
+tap_age_output=$(./odinl eval examples/tap.odinl '(inspected-age)')
+tap_age_expected=$(printf 'user: User{name = "Ada", age = 36}\nage: 36\n36')
+assert_eq "$tap_age_expected" "$tap_age_output" "inspected-age"
 assert_eq "-1" "$(./odinl eval examples/data-literals.odinl '(lookup-missing-default)')" "lookup-missing-default"
 assert_eq "51" "$(./odinl eval examples/data-literals.odinl '(merged-lookup-total)')" "merged-lookup-total"
 assert_eq "51" "$(./odinl eval examples/data-literals.odinl '(merge-in-place-total)')" "merge-in-place-total"

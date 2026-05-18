@@ -60,6 +60,7 @@ compile_all_examples :: proc(t: ^testing.T) {
         "examples/proc-values.odinl",
         "examples/sequence-helpers.odinl",
         "examples/sequences.odinl",
+        "examples/tap.odinl",
         "examples/unions.odinl",
     }
 
@@ -1069,6 +1070,50 @@ compile_save_json_helper :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "data, marshal_err = json.marshal(value)"), true)
     testing.expect_value(t, strings.contains(output, "defer delete(data)"), true)
     testing.expect_value(t, strings.contains(output, "write_err = os.write_entire_file(path, data)"), true)
+}
+
+@(test)
+compile_tap_helper :: proc(t: ^testing.T) {
+    source := `(package main)
+(import "core:fmt")
+
+(proc main []
+  (let [answer (tap> :answer 42)
+        owned (tap> "owned" (new [dynamic]int [1 2 3]))]
+    (defer (delete owned))
+    (fmt.println answer)))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "answer := odinl_tap_labeled(\"answer\", 42)"), true)
+    testing.expect_value(t, strings.contains(output, "owned := odinl_tap_labeled(\"owned\", [dynamic]int{1, 2, 3})"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_tap :: proc(value: $T) -> T"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_tap_labeled :: proc(label: string, value: $T) -> T"), true)
+    testing.expect_value(t, strings.contains(output, "fmt.print(label)"), true)
+    testing.expect_value(t, strings.contains(output, "fmt.println(value)"), true)
+}
+
+@(test)
+reject_tap_thread_step_for_now :: proc(t: ^testing.T) {
+    source := `(package main)
+(import "core:fmt")
+
+(proc main []
+  (let [answer (-> 41
+                   (+ 1)
+                   (tap> :answer))]
+    (fmt.println answer)))`
+
+    _, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, false)
+    defer delete(err.message)
+    testing.expect_value(t, err.message, "tap> is not supported as a thread step yet; bind the value before tapping")
 }
 
 @(test)

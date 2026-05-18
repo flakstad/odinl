@@ -1578,6 +1578,18 @@ but those features should be explicit editor/CLI workflows around generated
 Odin. A fresh process should be able to reproduce the same result from source
 files and saved data files.
 
+The first tap form is deliberately simple:
+
+```clojure
+(tap> value)
+(tap> :label value)
+```
+
+It lowers through generated helpers that call `fmt.print` / `fmt.println` and
+return the tapped value. The `core:fmt` import is explicit. `tap>` is not
+currently a thread step because owned threaded pipelines need a more precise
+ownership design.
+
 See `docs/TOOLING.md` for the current plan around tap-style inspection,
 file-backed dev values, watches, and Emacs integration.
 

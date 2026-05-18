@@ -116,18 +116,31 @@ Useful workflows to design:
 ### Tap
 
 A tap system should help inspect values during eval and normal runs without
-changing program semantics. Possible spellings:
+changing program semantics. The initial spelling is:
 
 ```clojure
 (tap> value)
 (tap> :label value)
 ```
 
-The likely implementation is a tiny generated helper or explicit tooling hook
-that prints or writes a tagged representation to a known file/socket/stdout
-channel. It should be opt-in and obvious in generated Odin. It should not depend
-on a global dynamic tap registry unless that registry is just a normal explicit
-Odin value.
+This currently lowers through tiny generated helpers that print to stdout with
+`fmt` and return the tapped value. Source files must import `core:fmt`
+explicitly. That is intentionally modest: it works in normal runs and editor
+evals, it is visible in the generated Odin, and it does not depend on a hidden
+global tap registry.
+
+`tap>` is not supported as a `->` / `->>` thread step yet. Bind the value first
+when ownership matters:
+
+```clojure
+(let [active (filter active? users)]
+  (defer (delete active))
+  (tap> :active-count (len active))
+  ...)
+```
+
+A richer tap sink can come later as an explicit CLI/editor option or ordinary
+Odin value, not as ambient language state.
 
 ### Watches
 
