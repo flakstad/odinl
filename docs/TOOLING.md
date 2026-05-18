@@ -269,6 +269,14 @@ This is intentionally text-oriented. For structured values, prefer explicit
 `spit`, `slurp`, and `save-json` in OdinL source so ownership and format choices
 stay visible.
 
+The Emacs tooling exposes this through ordinary CLI calls:
+
+- `odinl-save-form-result` (`C-c C-w`) evals a form and saves stdout with
+  `odinl eval --save`;
+- `odinl-cache-list` (`C-c C-l`) lists saved cache names;
+- `odinl-cache-open` (`C-c C-o`) opens a saved cache file;
+- `odinl-cache-rm` (`C-c C-d`) removes a saved cache file.
+
 Useful future `odinl` commands or flags:
 
 - `odinl eval file.odinl FORM --tap`

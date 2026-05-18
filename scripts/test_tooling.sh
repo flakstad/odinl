@@ -286,7 +286,7 @@ if command -v emacs >/dev/null 2>&1; then
     rm -f emacs/odinl-mode.elc emacs/odinl-eval.elc
 
     printf 'tooling: emacs keybindings and eval comment\n'
-    emacs -Q --batch --eval \
+    ODINL_CACHE_DIR="$tmp_dir/emacs-cache" emacs -Q --batch --eval \
         "(progn
            (defvar clojure-mode-map (make-sparse-keymap))
            (defvar cider-mode nil)
@@ -310,7 +310,11 @@ if command -v emacs >/dev/null 2>&1; then
                                           (cons \"C-c C-v\" (quote odinl-check-buffer))
                                           (cons \"C-c C-b\" (quote odinl-build-buffer))
                                           (cons \"C-c C-m\" (quote odinl-expand-form-at-point))
-                                          (cons \"C-c M-m\" (quote odinl-macroexpand-form-at-point))))
+                                          (cons \"C-c M-m\" (quote odinl-macroexpand-form-at-point))
+                                          (cons \"C-c C-w\" (quote odinl-save-form-result))
+                                          (cons \"C-c C-l\" (quote odinl-cache-list))
+                                          (cons \"C-c C-o\" (quote odinl-cache-open))
+                                          (cons \"C-c C-d\" (quote odinl-cache-rm))))
                      (unless (eq (key-binding (kbd (car binding))) (cdr binding))
                        (error \"Missing binding %s\" (car binding))))
                    (goto-char (point-min))
@@ -339,6 +343,24 @@ if command -v emacs >/dev/null 2>&1; then
                    (goto-char (point-min))
                    (unless (search-forward \";; => 3\" nil t)
                      (error \"Expected inserted eval comment\"))
+                   (goto-char (point-min))
+                   (search-forward \"(add 1 2)\")
+                   (odinl-save-form-result \"emacs-sum\")
+                   (let ((cache-path (expand-file-name \"emacs-sum\" \"$tmp_dir/emacs-cache\")))
+                     (unless (file-exists-p cache-path)
+                       (error \"Expected saved eval cache file\"))
+                     (with-temp-buffer
+                       (insert-file-contents cache-path)
+                       (unless (equal (buffer-string) \"3\\n\")
+                         (error \"Expected saved eval cache content\"))))
+                   (odinl-cache-list)
+                   (let ((cache-list (with-current-buffer odinl-result-buffer-name
+                                       (buffer-substring-no-properties (point-min) (point-max)))))
+                     (unless (string-match-p \"emacs-sum\" cache-list)
+                       (error \"Expected saved eval cache listing\")))
+                   (odinl-cache-rm \"emacs-sum\")
+                   (when (file-exists-p (expand-file-name \"emacs-sum\" \"$tmp_dir/emacs-cache\"))
+                     (error \"Expected removed eval cache file\"))
                    (goto-char (point-min))
                    (search-forward \"(main)\")
                    (call-interactively (quote odinl-insert-form-result))
