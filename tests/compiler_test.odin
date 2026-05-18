@@ -1277,12 +1277,16 @@ compile_with_delete_scope :: proc(t: ^testing.T) {
 (proc inc [x: int] -> int
   (+ x 1))
 
+(proc even? [x: int] -> bool
+  (== (% x 2) 0))
+
 (proc add [acc: int, x: int] -> int
   (+ acc x))
 
 (proc total [xs: []int] -> int
-  (with-delete [mapped (map inc xs)]
-    (reduce add 0 mapped)))`
+  (with-delete [mapped (map inc xs)
+                filtered (filter even? mapped)]
+    (reduce add 0 filtered)))`
 
     output, err, ok := odinl.compile_source(source)
     testing.expect_value(t, ok, true)
@@ -1294,7 +1298,9 @@ compile_with_delete_scope :: proc(t: ^testing.T) {
 
     testing.expect_value(t, strings.contains(output, "mapped := odinl_map(inc, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "defer delete(mapped)"), true)
-    testing.expect_value(t, strings.contains(output, "return odinl_reduce(add, 0, (mapped)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "filtered := odinl_filter(even_p, (mapped)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "defer delete(filtered)"), true)
+    testing.expect_value(t, strings.contains(output, "return odinl_reduce(add, 0, (filtered)[:])"), true)
 }
 
 @(test)
@@ -1410,6 +1416,27 @@ macroexpand_with_delete_scope :: proc(t: ^testing.T) {
   (let [xs (map inc users)]
     (defer (delete xs))
     (count xs)))
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+macroexpand_with_delete_multiple_bindings :: proc(t: ^testing.T) {
+    output, err, ok := odinl.macroexpand_source(`(with-delete [xs (map inc users) ys (filter even? xs)]
+  (count ys))`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `(do
+  (let [xs (map inc users)
+        ys (filter even? xs)]
+    (defer (delete xs))
+    (defer (delete ys))
+    (count ys)))
 `
     testing.expect_value(t, output, expected)
 }

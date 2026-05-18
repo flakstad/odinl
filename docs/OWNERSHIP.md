@@ -249,12 +249,16 @@ escapes such as returning `(map f xs)` from a `with-temp-allocator` body.
 ```clojure
 (with-delete [active (filter active? users)]
   (count active))
+
+(with-delete [active (filter active? users)
+              names (map :name active)]
+  (count names))
 ```
 
-It lowers to a scope with a binding and `defer delete(active)`. Use it when the
-owned value is local to the body. Do not return the bound value from the body;
-if ownership should pass to the caller, return the owned expression directly
-without `with-delete`.
+It lowers to a scope with bindings and matching `defer delete(...)` calls. Use
+it when the owned values are local to the body. Do not return a bound value from
+the body; if ownership should pass to the caller, return the owned expression
+directly without `with-delete`.
 
 ## Returning Owned Values
 

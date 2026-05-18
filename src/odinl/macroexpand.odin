@@ -114,20 +114,37 @@ macroexpand_with_delete :: proc(form: CST_Form) -> (output: string, err: Compile
         return "", Compile_Error{message = "with-delete expects binding vector and body", span = form.span}, false
     }
     binding := form.items[1]
-    if len(binding.items) != 2 || binding.items[0].kind != .Symbol {
-        return "", Compile_Error{message = "with-delete expects [name value] binding", span = binding.span}, false
+    if len(binding.items) < 2 || len(binding.items)%2 != 0 {
+        return "", Compile_Error{message = "with-delete expects [name value ...] bindings", span = binding.span}, false
     }
-
-    binding_name := binding.items[0].text
-    value_expr := macro_form_text(binding.items[1])
-    defer delete(value_expr)
 
     builder := strings.builder_make()
     defer strings.builder_destroy(&builder)
 
     fmt.sbprintf(&builder, "(do\n")
-    fmt.sbprintf(&builder, "  (let [%s %s]\n", binding_name, value_expr)
-    fmt.sbprintf(&builder, "    (defer (delete %s))", binding_name)
+    fmt.sbprintf(&builder, "  (let [")
+    i := 0
+    for i < len(binding.items) {
+        if binding.items[i].kind != .Symbol {
+            return "", Compile_Error{message = "with-delete binding name must be a symbol", span = binding.items[i].span}, false
+        }
+        binding_name := binding.items[i].text
+        value_expr := macro_form_text(binding.items[i+1])
+        defer delete(value_expr)
+        if i == 0 {
+            fmt.sbprintf(&builder, "%s %s", binding_name, value_expr)
+        } else {
+            fmt.sbprintf(&builder, "\n        %s %s", binding_name, value_expr)
+        }
+        i += 2
+    }
+    fmt.sbprintf(&builder, "]")
+    i = 0
+    for i < len(binding.items) {
+        binding_name := binding.items[i].text
+        fmt.sbprintf(&builder, "\n    (defer (delete %s))", binding_name)
+        i += 2
+    }
     for item in form.items[2:] {
         item_text := macro_form_text(item)
         defer delete(item_text)

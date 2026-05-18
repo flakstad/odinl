@@ -60,8 +60,9 @@
 
 (proc with-delete-total [] -> int
   (let [xs (new []int [1 2 3])]
-    (with-delete [doubled (map double xs)]
-      (reduce add 0 doubled))))
+    (with-delete [doubled (map double xs)
+                  evens (filter even? doubled)]
+      (reduce add 0 evens))))
 
 (proc age-for-grace [] -> int
   (let [names (new []string ["Ada" "Lin" "Grace"])

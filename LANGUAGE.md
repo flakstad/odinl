@@ -1684,6 +1684,10 @@ For the common "bind owned value, delete at scope exit" shape, use:
 ```clojure
 (with-delete [active (filter active? users)]
   ...)
+
+(with-delete [active (filter active? users)
+              names (map :name active)]
+  ...)
 ```
 
 It lowers to the moral equivalent of:
@@ -1697,7 +1701,7 @@ It lowers to the moral equivalent of:
 ```
 
 This is intentionally not an ownership transfer form. Do not return the bound
-value from the body; return it directly without `with-delete`, or copy the data
+values from the body; return them directly without `with-delete`, or copy the data
 into a different owned result first.
 
 Other `with-*` forms are still attractive because they can expand into

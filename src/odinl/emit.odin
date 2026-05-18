@@ -3282,13 +3282,22 @@ emit_with_temp_allocator_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc:
     return {}, true
 }
 
-with_delete_return_error :: proc(body: []CST_Form, binding_name: string, last_in_proc: bool, returns: Return_Spec) -> (Compile_Error, bool) {
+with_delete_names_contains :: proc(binding_names: []string, name: string) -> bool {
+    for binding_name in binding_names {
+        if binding_name == name {
+            return true
+        }
+    }
+    return false
+}
+
+with_delete_return_error :: proc(body: []CST_Form, binding_names: []string, last_in_proc: bool, returns: Return_Spec) -> (Compile_Error, bool) {
     for item in body {
         if item.kind != .List || len(item.items) == 0 || item.items[0].kind != .Symbol || item.items[0].text != "return" {
             continue
         }
         for returned in item.items[1:] {
-            if returned.kind == .Symbol && map_name(returned.text) == binding_name {
+            if returned.kind == .Symbol && with_delete_names_contains(binding_names, map_name(returned.text)) {
                 return Compile_Error{
                     message = "with-delete binding cannot be returned; return it without with-delete or copy it before returning",
                     span = returned.span,
@@ -3298,7 +3307,7 @@ with_delete_return_error :: proc(body: []CST_Form, binding_name: string, last_in
     }
     if last_in_proc && returns.kind != .None && len(body) > 0 {
         final_form := body[len(body)-1]
-        if final_form.kind == .Symbol && map_name(final_form.text) == binding_name {
+        if final_form.kind == .Symbol && with_delete_names_contains(binding_names, map_name(final_form.text)) {
             return Compile_Error{
                 message = "with-delete binding cannot be returned; return it without with-delete or copy it before returning",
                 span = final_form.span,
@@ -3313,28 +3322,47 @@ emit_with_delete_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, r
         return Compile_Error{message = "with-delete expects binding vector and body", span = form.span}, false
     }
     binding := form.items[1]
-    if binding.kind != .Vector || len(binding.items) != 2 || binding.items[0].kind != .Symbol {
-        return Compile_Error{message = "with-delete expects [name value] binding", span = binding.span}, false
+    if binding.kind != .Vector || len(binding.items) < 2 || len(binding.items)%2 != 0 {
+        return Compile_Error{message = "with-delete expects [name value ...] bindings", span = binding.span}, false
     }
-    binding_name := map_name(binding.items[0].text)
-    value, err_value, ok_value := emit_expr(e, binding.items[1])
-    if !ok_value {
-        return err_value, false
+
+    binding_names: [dynamic]string
+    i := 0
+    for i < len(binding.items) {
+        if binding.items[i].kind != .Symbol {
+            return Compile_Error{message = "with-delete binding name must be a symbol", span = binding.items[i].span}, false
+        }
+        append(&binding_names, map_name(binding.items[i].text))
+        i += 2
     }
 
     body: [dynamic]CST_Form
     for item in form.items[2:] {
         append(&body, item)
     }
-    err_return, bad_return := with_delete_return_error(body[:], binding_name, last_in_proc, returns)
+    err_return, bad_return := with_delete_return_error(body[:], binding_names[:], last_in_proc, returns)
     if bad_return {
         return err_return, false
     }
 
     emit_line(e, "{")
     e.indent += 1
-    emit_prefixed_expr(e, fmt.tprintf("%s := ", binding_name), value)
-    emit_line(e, fmt.tprintf("defer delete(%s)", binding_name))
+    i = 0
+    for i < len(binding.items) {
+        binding_name := binding_names[i/2]
+        value_form := binding.items[i+1]
+        err_owned, bad_owned := owned_result_usage_error(value_form, true)
+        if bad_owned {
+            return err_owned, false
+        }
+        value, err_value, ok_value := emit_expr(e, value_form)
+        if !ok_value {
+            return err_value, false
+        }
+        emit_prefixed_expr(e, fmt.tprintf("%s := ", binding_name), value)
+        emit_line(e, fmt.tprintf("defer delete(%s)", binding_name))
+        i += 2
+    }
 
     err_body, ok_body := emit_body_forms(e, body[:], returns_when_final(last_in_proc, returns))
     if !ok_body {
