@@ -952,6 +952,10 @@ about Odin's no-capturing-closures model.
 separate future design project once the core language, procedure types, and
 allocation model are more settled.
 
+See `docs/SEQUENCES.md` for the current sequence helper roadmap. The short
+version is: helpers should be eager, Odin-shaped, and explicit about whether
+they return slice views or owned dynamic arrays.
+
 ## Literals and Construction
 
 The current direction is:

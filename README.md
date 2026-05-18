@@ -118,6 +118,8 @@ is `cmd/odinl/main.odin`.
 
 Tooling notes for the post-compiler Emacs/eval work are in
 [docs/TOOLING.md](docs/TOOLING.md).
+The eager sequence helper direction is documented in
+[docs/SEQUENCES.md](docs/SEQUENCES.md).
 Emacs support is in [emacs/odinl-mode.el](emacs/odinl-mode.el) and
 [emacs/odinl-eval.el](emacs/odinl-eval.el).
 
