@@ -32,6 +32,7 @@ These forms return owned values in normal OdinL code:
 (keep f xs)
 (mapcat f xs)
 (concat xs ys)
+(into [dynamic]int xs)
 (interpose sep xs)
 (interleave xs ys)
 (reverse xs)

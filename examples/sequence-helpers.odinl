@@ -237,6 +237,12 @@
     (into! xs more)
     (reduce add 0 xs)))
 
+(proc copied-total [] -> int
+  (let [xs (new []int [1 2 3])
+        copied (into [dynamic]int xs)]
+    (defer (delete copied))
+    (reduce add 0 copied)))
+
 (proc distinct-total [] -> int
   (let [xs (new []int [1 2 2 3 3])
         unique (distinct xs)]
@@ -371,6 +377,9 @@
 
   (appended-total)
   ;; => 10
+
+  (copied-total)
+  ;; => 6
 
   (distinct-total)
   ;; => 6

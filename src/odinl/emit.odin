@@ -20,6 +20,7 @@ Emitter_Features :: struct {
     core_keep:        bool,
     core_mapcat:      bool,
     core_concat:      bool,
+    core_into:        bool,
     core_interpose:   bool,
     core_interleave:  bool,
     core_reverse:     bool,
@@ -180,6 +181,12 @@ mark_core_mapcat :: proc(e: ^Emitter) {
 mark_core_concat :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_concat = true
+    }
+}
+
+mark_core_into :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_into = true
     }
 }
 
@@ -823,6 +830,20 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             mark_core_concat(e)
             return emit_call_text("odinl_concat", []string{slice_all_expr_text(current), slice_all_expr_text(rhs)}), {}, true
         }
+        if thread_last && head.text == "into" {
+            if len(step.items) != 2 {
+                return "", Compile_Error{message = "into thread step expects one dynamic array type argument", span = step.span}, false
+            }
+            type_text, err_type, ok_type := parse_type_text(step.items[1])
+            if !ok_type {
+                return "", err_type, false
+            }
+            if !type_text_is_dynamic_array(type_text) {
+                return "", Compile_Error{message = "into currently expects a dynamic array type", span = step.items[1].span}, false
+            }
+            mark_core_into(e)
+            return emit_call_text("odinl_into", []string{type_text, slice_all_expr_text(current)}), {}, true
+        }
         if thread_last && head.text == "interpose" {
             if len(step.items) != 2 {
                 return "", Compile_Error{message = "interpose thread step expects one separator argument", span = step.span}, false
@@ -1106,7 +1127,8 @@ thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Res
         if thread_last && (head.text == "map" || head.text == "filter" ||
                            head.text == "remove" || head.text == "map-indexed" ||
                            head.text == "keep" || head.text == "mapcat" ||
-                           head.text == "concat" || head.text == "interpose" ||
+                           head.text == "concat" || head.text == "into" ||
+                           head.text == "interpose" ||
                            head.text == "interleave" ||
                            head.text == "reverse" || head.text == "shuffle" ||
                            head.text == "sort" ||
@@ -1198,7 +1220,7 @@ owned_sequence_head :: proc(name: string) -> bool {
     switch name {
     case "map", "filter", "remove", "map-indexed", "keep", "mapcat",
          "concat", "reverse", "sort", "sort-by",
-         "interpose", "interleave", "shuffle",
+         "into", "interpose", "interleave", "shuffle",
          "partition", "partition-all", "partition-by",
          "zipmap", "index-by", "group-by", "frequencies",
          "distinct", "distinct-by",
@@ -1392,6 +1414,10 @@ field_from_keyword :: proc(form: CST_Form) -> (field: string, ok: bool) {
 
 field_type_expr_text :: proc(collection, field: string) -> string {
     return fmt.tprintf("type_of((%s)[0].%s)", collection, field)
+}
+
+type_text_is_dynamic_array :: proc(text: string) -> bool {
+    return len(text) >= 9 && text[:9] == "[dynamic]"
 }
 
 emit_map_callback_call :: proc(e: ^Emitter, callback: CST_Form, collection: string) -> (string, Compile_Error, bool) {
@@ -1972,6 +1998,25 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
             return "", err_collection, false
         }
         return emit_call_text("append", []string{address_of_expr_text(target), fmt.tprintf("..%s", slice_all_expr_text(collection))}), {}, true
+    }
+
+    if head.text == "into" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "into expects dynamic array type and collection", span = form.span}, false
+        }
+        type_text, err_type, ok_type := parse_type_text(form.items[1])
+        if !ok_type {
+            return "", err_type, false
+        }
+        if !type_text_is_dynamic_array(type_text) {
+            return "", Compile_Error{message = "into currently expects a dynamic array type", span = form.items[1].span}, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[2])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        mark_core_into(e)
+        return emit_call_text("odinl_into", []string{type_text, slice_all_expr_text(collection)}), {}, true
     }
 
     if head.text == "concat" {
@@ -3725,6 +3770,16 @@ emit_core_concat_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_into_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_into :: proc($Out: typeid, xs: []$T) -> Out {")
+    e.indent += 1
+    emit_line(e, "out := make(Out, 0, len(xs))")
+    emit_line(e, "append(&out, ..xs)")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_interpose_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_interpose :: proc(sep: $T, xs: []T) -> [dynamic]T {")
     e.indent += 1
@@ -4537,7 +4592,7 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_take_while || features.core_drop_while ||
            features.core_find || features.core_some || features.core_every ||
            features.core_remove || features.core_map_indexed || features.core_keep ||
-           features.core_mapcat || features.core_concat ||
+           features.core_mapcat || features.core_concat || features.core_into ||
            features.core_interpose || features.core_interleave ||
            features.core_reverse || features.core_reverse_in_place ||
            features.core_shuffle ||
@@ -4651,6 +4706,10 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_concat {
         emit_core_helper_separator(e, &emitted)
         emit_core_concat_helper(e)
+    }
+    if features.core_into {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_into_helper(e)
     }
     if features.core_interpose {
         emit_core_helper_separator(e, &emitted)

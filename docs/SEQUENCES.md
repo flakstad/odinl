@@ -40,6 +40,7 @@ These helpers are already in scope and should remain small:
 (keep f xs)
 (mapcat f xs)
 (concat xs ys)
+(into [dynamic]T xs)
 (interpose sep xs)
 (interleave xs ys)
 (reverse xs)
@@ -103,9 +104,10 @@ lowers to `len`. `rest`, `take`, `drop`, `take-while`, and `drop-while` return
 non-owning slice views.
 
 Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
-`mapcat`, `concat`, `interpose`, `interleave`, `reverse`, `shuffle`, `range`,
-`repeat`, `repeatedly`, `iterate`, and bounded `cycle` return owned dynamic arrays.
-`distinct` and `distinct-by` also
+`mapcat`, `concat`, `into`, `interpose`, `interleave`, `reverse`, `shuffle`,
+`range`, `repeat`, `repeatedly`, `iterate`, and bounded `cycle` return owned
+dynamic arrays. `into` is currently only for explicit dynamic-array targets,
+for example `(into [dynamic]int xs)`. `distinct` and `distinct-by` also
 return owned dynamic arrays and use a temporary `map[key]bool` internally, so
 the value or key must be valid as an Odin map key. `zipmap`, `index-by`, and
 `frequencies` return owned maps. `group-by` returns an owned map whose values
@@ -202,7 +204,6 @@ For hot paths, prefer one of these shapes:
 The eager sequence library is close to complete enough for ordinary code. The
 remaining pre-transducer work should stay small and direct:
 
-- non-bang `into`: construct a new owned target once the target syntax is clear.
 - broaden `into!` beyond dynamic arrays only when the target representation
   stays obvious, such as a direct map merge.
 
@@ -216,18 +217,16 @@ These are valuable, but each needs one deliberate design choice before
 implementation:
 
 ```clojure
-(into target xs)
 (into! target xs)
 ```
 
 The main questions are:
 
-- `into!` currently means dynamic-array append and lowers directly to
+- `into` currently constructs an owned dynamic array from a borrowed collection,
+  and `into!` currently means dynamic-array append lowering directly to
   `append(&target, ..xs)`. Maps could later merge key/value pairs, and sets
   would first need a concrete Odin representation. Treat this as explicit eager
-  mutation, not a polymorphic collection protocol. Non-bang `(into Type xs)`
-  remains reserved for constructing a new owned target once that shape is worth
-  adding.
+  construction or mutation, not a polymorphic collection protocol.
 - `shuffle` is implemented with an explicit picker callback. A later
   `shuffle!` would be reasonable if in-place randomization becomes common
   enough to justify another bang helper.
