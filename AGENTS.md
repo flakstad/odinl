@@ -32,10 +32,12 @@ The project goal is **Odin in parens**, not Clojure semantics on Odin.
 
 ## Implementation
 
-- Main translator: `src/odin_clj.py`.
-- Tests: `tests/test_odin_clj.py`.
+- Main compiler: `src/odinl/*.odin`.
+- CLI entry point: `cmd/odinl/main.odin`.
+- Tests: `tests/compiler_test.odin`.
 - Examples: `examples/*.odinl`.
-- Run tests with `python3 -m unittest discover -s tests`.
+- Run tests with `odin test tests`.
+- Build the compiler with `odin build cmd/odinl`.
 - Check generated Odin with `odin check <file>.odin -file`.
 - Future eval-selection support should generate a scratch Odin entry point and
   run/check that with Odin itself.
@@ -49,6 +51,8 @@ The project goal is **Odin in parens**, not Clojure semantics on Odin.
 ## Style
 
 - Add forms only when the Odin output is obvious.
+- Use 4 spaces for indentation in Odin `.odin` source files. Do not use tabs.
+- Use Clojure-like 2-space indentation in `.odinl` source and examples.
 - Keep raw escape hatch support via `(odin "...")`.
 - Favor simple, explicit syntax over clever inference.
 - Keep examples small and executable.

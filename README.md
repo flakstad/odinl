@@ -3,6 +3,8 @@
 An experiment in writing Odin with a small Clojure/Lisp-shaped syntax: Odin in
 parens, not Clojure on Odin.
 
+The current language draft is [LANGUAGE.md](LANGUAGE.md).
+
 This is intentionally a source-to-source translator, not a new runtime or a
 new semantic layer. The goal is:
 
@@ -13,15 +15,16 @@ new semantic layer. The goal is:
 
 ## Plan
 
-The first milestone is a tiny translator that is pleasant enough for small
-files:
+The first milestone is a small Odin compiler/transpiler that is pleasant enough
+for small pure `.odinl` files:
 
 - one `.odinl` file emits one `.odin` file
-- `.odinl` files may mix raw Odin and Lisp-Odin top-level forms
+- `.odinl` files use OdinL forms rather than mixed raw Odin top-level text
 - forms map mechanically to Odin constructs
 - generated Odin stays readable and debuggable
 - Odin remains responsible for type checking, semantics, and diagnostics
-- raw `(odin "...")` escape hatches are available from the start
+- raw `(odin "...")` escape hatches are available when explicit interop is
+  clearer than a dedicated surface form
 
 The non-goals are just as important:
 
@@ -31,19 +34,18 @@ The non-goals are just as important:
 - no runtime library unless Odin interop absolutely needs a helper
 - no semantic gap between source and generated Odin
 
-If this grows, it should grow by covering more Odin syntax directly: structs,
-enums, unions, pointers, slices, arrays, `defer`, `using`, `when`, `or_return`,
-allocators, attributes, procedures, packages, and imports. It should not grow
-by inventing a new language on top of Odin.
+If this grows, it should grow by covering more Odin syntax directly where the
+lowering remains obvious: structs, enums, unions, pointers, slices, arrays,
+`defer`, `when`, procedures, packages, and imports. It should not grow by
+inventing a new language on top of Odin.
 
 ## Example
 
 ```odin
-package main
+(package main)
+(import "core:fmt")
 
-import "core:fmt"
-
-(proc add [(a int) (b int)] -> int
+(proc add [a: int, b: int] -> int
   (+ a b))
 
 (proc main []
@@ -69,55 +71,85 @@ main :: proc() {
 ## Usage
 
 ```sh
-python3 -m src.odin_clj examples/hello.odinl -o /tmp/hello.odin
+odin build cmd/odinl
+./odinl examples/hello.odinl -o /tmp/hello.odin
 odin check /tmp/hello.odin -file
 ```
 
 If `-o` is omitted, generated Odin is written to stdout.
+Pass `--map /tmp/hello.map` to also write a declaration-level source map:
 
-The current prototype still translates pure Lisp-Odin input. Mixed raw-Odin
-passthrough, Odin-style `->` proc return syntax, and implicit final returns are
-the intended next syntax step.
+```sh
+./odinl examples/hello.odinl -o /tmp/hello.odin --map /tmp/hello.map
+```
 
-See `examples/syntax-tour.odinl` and `examples/http-ish.odinl` for design
-examples of the target syntax across more typical Odin features. Those files
-are intentionally ahead of the current prototype.
+Run the executable examples through OdinL and then `odin check` with:
+
+```sh
+./scripts/check_examples.sh
+```
+
+Run CLI and Emacs-tooling integration checks with:
+
+```sh
+./scripts/test_tooling.sh
+```
+
+Generate a scratch runner for one selected form with:
+
+```sh
+./odinl eval examples/higher-order.odinl '(reduce-int (new [dynamic]int [1 2 3]) 0 add)'
+```
+
+The CLI can also invoke Odin for generated files directly:
+
+```sh
+./odinl check examples/hello.odinl
+./odinl run examples/hello.odinl
+```
+
+The examples cover control flow, collection literals, procedure values,
+map/filter/reduce-style higher-order helpers, pointer/raw interop,
+source-level procedure directives, named returns, and flat multi-return
+destructuring.
+
+The compiler implementation is in Odin under `src/odinl`; the CLI entry point
+is `cmd/odinl/main.odin`.
+
+Tooling notes for the post-compiler Emacs/eval work are in
+[docs/TOOLING.md](docs/TOOLING.md).
+Emacs support is in [emacs/odinl-mode.el](emacs/odinl-mode.el) and
+[emacs/odinl-eval.el](emacs/odinl-eval.el).
 
 ## File Model
 
 The intended source extension is `.odinl`.
 
 Normal `.odin` files should remain ordinary Odin and should not require this
-translator. `.odinl` files are mixed files: raw Odin is copied through, while
-Lisp-Odin top-level forms are translated.
-
-The default detection rule should be simple: at Odin top level, a balanced form
-starting with `(` is Lisp-Odin. Everything else is copied as raw Odin. Explicit
-markers can remain as an escape hatch later if ambiguous cases appear, but they
-should not be required for ordinary files.
+translator. For v0.1, `.odinl` files are pure OdinL source. Raw Odin is
+available through explicit `(odin "...")` escape hatches rather than implicit
+passthrough.
 
 Example:
 
 ```odin
-package main
+(package main)
+(import "core:fmt")
 
-import "core:fmt"
+(struct Point {
+  :x int
+  :y int
+})
 
-Point :: struct {
-    x: int,
-    y: int,
-}
-
-(proc add [(a int) (b int)] -> int
+(proc add [a: int, b: int] -> int
   (+ a b))
 
-main :: proc() {
-    fmt.println(add(1, 2))
-}
+(proc main []
+  (fmt.println (add 1 2)))
 ```
 
 The Odin compiler should only see generated `.odin` files. That keeps normal
-Odin tooling honest while still allowing mixed source in `.odinl`.
+Odin tooling honest while OdinL remains a source-to-source layer.
 
 ## Syntax Shape
 
@@ -173,7 +205,7 @@ Possible levels:
   enough to feel interactive from Emacs
 
 The constraint is important: eval should preserve Odin semantics exactly. If a
-form only works because `odin-clj` invented a hidden dynamic environment, that
+form only works because `odinl` invented a hidden dynamic environment, that
 is the wrong direction.
 
 ## Relationship to odineval
@@ -196,20 +228,25 @@ The parts that should remain OdinL-specific are:
 - OdinL-to-Odin lowering
 - source mapping from `.odinl` locations to generated `.odin` locations
 - syntax decisions around `let`, literals, proc forms, implicit returns, and
-  raw Odin passthrough
+  raw Odin escape hatches
 
 The likely architecture, if this project moves forward, is:
 
 ```text
 odinl
   parser/lowering: .odinl -> .odin
+  basic execution: compile/check/run/eval generated Odin
 
 odineval
-  execution harness: temp dirs, run/check/test, Emacs output UX
+  reference implementation and inspiration for richer Odin eval workflows
 
 shared later
   package discovery, temp workspace, command runner, Emacs result display
 ```
+
+The current `odinl` CLI already owns the basic eval/check/run loop so editor
+tooling can call one tool. `odineval` remains useful as a design reference for
+larger package-aware workflows and polished editor interaction.
 
 Do not merge the projects prematurely. `odineval` is useful because it makes
 ordinary Odin more interactive. OdinL is a syntax experiment. Keeping them
@@ -229,9 +266,9 @@ Useful targets:
 Examples of the intended shape:
 
 ```clojure
-(as []int [1 2 3])
-(as map[string]int {"a" 1 "b" 2})
-(as Person {:name "Andreas" :age 42})
+(new []int [1 2 3])
+(new map[string]int {"a" 1 "b" 2})
+(Person {:name "Andreas" :age 42})
 ```
 
 These should lower to ordinary Odin constructs such as:
@@ -249,9 +286,8 @@ Do not use Clojure-style `^type` hints for this. In Odin, `^` already means
 pointer, so using it for type hints would make the surface language harder to
 read.
 
-The exact type-ascription syntax is still provisional. `(as Type literal)` is
-the current documentation placeholder because it is explicit and avoids
-conflicting with Odin pointer syntax.
+Use named constructors for nominal types and `new` for anonymous typed
+composite literals.
 
 ## Odin Feature Sketches
 
@@ -435,6 +471,9 @@ everything into parens:
 
 (proc headers-count [(h Headers)] -> int #force_inline
   (len h._kv))
+
+(let [entry (#force_inline query-iter (& q))]
+  ...)
 ```
 
 Some attributes/directives may be better left as raw Odin until the syntax is
@@ -478,29 +517,35 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 
 ## Target Forms
 
-- raw Odin outside detected Lisp-Odin top-level forms
-- `(proc name [(arg type) ...] -> return-type body...)`
-- `(proc name [(arg type) ...] body...)`
-- `(let [binding value ...] body...)` scoped expression/block
-- `(const name type expr)` -> `name: type : expr`
+- `(package name)`, `(import "path")`, `(import alias "path")`
 - `(const name expr)` -> `name :: expr`
+- `(const name type expr)` -> `name: type : expr`
+- `(struct Name {:field Type ...})`
+- `(enum Name [A B C])` and `(enum Name {:A 1 :B 2})`
+- `(union Name {:variant Type ...})`
+- `(proc name [arg: type, ...] -> return-type body...)`
+- top-level and statement `(odin "...")` raw escape hatches
+- `(let [binding value ...] body...)` scoped expression/block
 - `(set! place expr)` -> `place = expr`
 - final expression in a non-void proc emits `return <expr>`
 - `(if test then else)`
 - `(when test body...)`
-- `(for [init test post] body...)`
-- `(for-in name collection body...)`
-- `(block body...)`
-- `(odin "...")` raw Odin escape hatch
-- `(as Type form)` provisional typed literal lowering
+- `(for test body...)`
+- `(each name collection body...)`
+- `(do body...)`
+- `(new Type literal)` typed composite literals
+- `(make Type args...)` runtime/allocator-backed construction
+- `(:field value)`, `(get value key)`, and `(-> value steps...)`
+- `(^ ptr)` and `(& place)`
+- numbers, booleans, `nil`, and `(nil? value)`
 - calls: `(foo a b)` -> `foo(a, b)`
 - operators: `(+ a b)`, `(<= i 10)`, `(and a b)`, etc. emit infix
 
-This is deliberately incomplete. Add only forms that map cleanly to Odin.
+Current pragmatic Odin conveniences beyond the original core target include
+`(in ...)`, `(not-in ...)`, `(break)`, `(continue)`, and directive expression
+wrappers like `(#force_inline call arg)`.
 
-The current implementation also accepts the original pure Lisp-Odin bootstrap
-forms such as `(package main)`, `(import "core:fmt")`, and
-`(proc main [] void ...)` while the `.odinl` file model is being built.
+This is deliberately incomplete. Add only forms that map cleanly to Odin.
 
 ## Design Rules
 
