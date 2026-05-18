@@ -117,6 +117,7 @@ assert_eq "404" "$(./odinl eval examples/declarations.odinl '(shorthand-status-c
 assert_eq "36" "$(./odinl eval examples/sequences.odinl '(age-for-ada)')" "age-for-ada"
 assert_eq "3" "$(./odinl eval examples/sequences.odinl '(status-run-count)')" "status-run-count"
 assert_eq "2" "$(./odinl eval examples/sequences.odinl '(active-status-group-count)')" "active-status-group-count"
+assert_eq "2" "$(./odinl eval examples/data-literals.odinl '(temp-buffer-len)')" "temp-buffer-len"
 assert_eq "Lin" "$(./odinl eval examples/sequences.odinl '(youngest-user-name)')" "youngest-user-name"
 assert_eq "Lin" "$(./odinl eval examples/sequences.odinl '(youngest-user-name-in-place)')" "youngest-user-name-in-place"
 

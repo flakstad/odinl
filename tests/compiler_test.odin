@@ -1046,6 +1046,43 @@ main :: proc() {
 }
 
 @(test)
+compile_with_allocator_scope :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc main []
+  (with-allocator [allocator context.temp_allocator]
+    (let [buffer (make [dynamic]int)]
+      (defer (delete buffer))
+      (into! buffer (new []int [1 2]))
+      (return))))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+main :: proc() {
+    {
+        allocator := context.temp_allocator
+        odinl_old_allocator_1 := context.allocator
+        context.allocator = allocator
+        defer context.allocator = odinl_old_allocator_1
+        buffer := make([dynamic]int)
+        defer delete(buffer)
+        append(&(buffer), ..[]int{1, 2})
+        return
+    }
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 compile_proc_types_and_literals :: proc(t: ^testing.T) {
     source := `(package main)
 

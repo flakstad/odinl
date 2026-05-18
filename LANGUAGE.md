@@ -1556,21 +1556,35 @@ runtime facility.
 
 ### `with-*` forms
 
-Allocator-oriented `with-*` forms are a strong candidate for macros rather than
-primitive language forms.
+Allocator-oriented `with-*` forms should behave like macro-expanded resource
+scopes over ordinary Odin. `with-allocator` is supported directly while the
+general macro system is still pending.
 
-Examples of the shape worth exploring later:
+The implemented shape is:
 
 ```clojure
-(with-arena [arena (make-arena allocator)]
-  ...)
-
 (with-allocator [allocator some-allocator-expr]
   ...)
 ```
 
-These are attractive because they can expand into combinations of existing core
-forms such as:
+It lowers to the moral equivalent of:
+
+```odin
+{
+    allocator := some_allocator_expr
+    old_allocator := context.allocator
+    context.allocator = allocator
+    defer context.allocator = old_allocator
+    ...
+}
+```
+
+This is intentionally simple: the allocator value is visible, the old allocator
+is restored by `defer`, and ordinary `delete` calls in the body run before the
+allocator is restored.
+
+Other `with-*` forms are still attractive because they can expand into
+combinations of existing core forms such as:
 
 - `let`
 - `defer`
@@ -1587,11 +1601,16 @@ ordinary explicit Odin-shaped control flow.
 For example, allocator helpers should keep ownership visible:
 
 ```clojure
+(with-allocator [allocator context.temp_allocator]
+  (let [buffer (make [dynamic]int)]
+    (defer (delete buffer))
+    ...))
+
 (with-arena [arena (make-arena allocator)]
   (work (:allocator arena)))
 ```
 
-should expand to the moral equivalent of:
+An arena helper should expand to the moral equivalent of:
 
 ```clojure
 (let [arena (make-arena allocator)]

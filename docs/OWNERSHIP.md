@@ -167,6 +167,23 @@ dynamic array because they compact and resize the existing storage:
   (len xs))
 ```
 
+## Allocator Scopes
+
+`with-allocator` temporarily changes `context.allocator` for a lexical block:
+
+```clojure
+(with-allocator [allocator context.temp_allocator]
+  (let [xs (make [dynamic]int)]
+    (defer (delete xs))
+    ...))
+```
+
+The generated Odin stores the old allocator, assigns the requested allocator,
+and restores the old allocator with `defer`. Defers created inside the body run
+before the restore defer, so local `delete` calls still use the scoped
+allocator. Values returned from the block transfer ownership to the caller, so
+the caller must delete them with the matching allocator discipline.
+
 ## Returning Owned Values
 
 If a proc returns an owned value, do not delete it locally:

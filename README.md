@@ -532,6 +532,8 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - top-level and statement `(odin "...")` raw escape hatches
 - `(let [binding value ...] body...)` scoped expression/block, including
   multi-return and struct-field destructuring
+- `(with-allocator [allocator expr] body...)` scoped `context.allocator`
+  override with `defer` restoration
 - `(set! place expr)` -> `place = expr`
 - final expression in a non-void proc emits `return <expr>`
 - `(if test then else)`
