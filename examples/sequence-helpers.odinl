@@ -13,43 +13,55 @@
     (return (* x x) true)
     (return 0 false)))
 
-(proc main []
+(proc split-front-length [] -> int
   (let [xs (new []int [1 2 3 4])
-        ys (new []int [10 20])
-        names (new []string ["Ada" "Lin" "Grace"])
+        [front _] (split-at 2 xs)]
+    (len front)))
+
+(proc first-kept-square [] -> int
+  (let [xs (new []int [1 2 3 4])
+        kept (keep square-even xs)]
+    (defer (delete kept))
+    (first kept)))
+
+(proc age-for-grace [] -> int
+  (let [names (new []string ["Ada" "Lin" "Grace"])
         ages (new []int [36 17 45])
-        [front back] (split-at 2 xs)
-        without-evens (remove even? xs)
-        indexed (map-indexed add-index xs)
-        kept (keep square-even xs)
-        joined (concat without-evens ys)
-        reversed (reverse joined)
-        chunks (partition 2 xs)
-        chunks-all (partition-all 3 xs)
-        ages-by-name (zipmap names ages)
+        ages-by-name (zipmap names ages)]
+    (defer (delete ages-by-name))
+    (get ages-by-name "Grace")))
+
+(proc chunk-count [] -> int
+  (let [xs (new []int [1 2 3 4])
+        chunks (partition 2 xs)]
+    (defer (delete chunks))
+    (len chunks)))
+
+(proc threaded-first [] -> int
+  (let [xs (new []int [1 2 3 4])
         threaded (->> xs
                       (remove even?)
                       (map-indexed add-index)
-                      (reverse))
-        threaded-chunks (->> xs
-                             (remove even?)
-                             (partition-all 1))]
-    (defer (delete without-evens))
-    (defer (delete indexed))
-    (defer (delete kept))
-    (defer (delete joined))
-    (defer (delete reversed))
-    (defer (delete chunks))
-    (defer (delete chunks-all))
-    (defer (delete ages-by-name))
+                      (reverse))]
     (defer (delete threaded))
-    (defer (delete threaded-chunks))
-    (fmt.println (len front) (first back))
-    (fmt.println (first without-evens) (last without-evens) (empty? (drop 2 without-evens)))
-    (fmt.println (get indexed 0) (get indexed 3))
-    (fmt.println (get kept 0) (get kept 1))
-    (fmt.println (first reversed) (last reversed))
-    (fmt.println (len chunks) (first (get chunks 0)) (last (get chunks 1)))
-    (fmt.println (len chunks-all) (len (last chunks-all)))
-    (fmt.println (get ages-by-name "Grace"))
-    (fmt.println (first threaded) (last threaded) (first (get threaded-chunks 0)))))
+    (first threaded)))
+
+(proc main []
+  (fmt.println (age-for-grace)))
+
+(comment
+  (split-front-length)
+  ;; => 2
+
+  (first-kept-square)
+  ;; => 4
+
+  (age-for-grace)
+  ;; => 45
+
+  (chunk-count)
+  ;; => 2
+
+  (threaded-first)
+  ;; => 4
+)
