@@ -200,8 +200,8 @@ For hot paths, prefer one of these shapes:
 - use slice-view helpers such as `take`, `drop`, `rest`, and `split-at` when a
   borrowed view is enough;
 - use bang helpers such as `sort!`, `reverse!`, `shuffle!`, `map!`, `filter!`,
-  `remove!`, `keep!`, and `into!` when mutating existing storage is the right
-  Odin choice;
+  `remove!`, `keep!`, `into!`, and `merge!` when mutating existing storage is the
+  right Odin choice;
 - write an explicit `each` loop when one pass and no intermediate collection is
   needed;
 - later, use transducer-style lowering once it exists to fuse pipelines into one
@@ -210,10 +210,9 @@ For hot paths, prefer one of these shapes:
 ## Completion Before Transducers
 
 The eager sequence library is close to complete enough for ordinary code. The
-remaining pre-transducer work should stay small and direct:
-
-- broaden `into!` beyond dynamic arrays only when the target representation
-  stays obvious, such as a direct map merge.
+remaining pre-transducer work should stay small and direct. Dynamic-array append
+is covered by `into!`; map merge is covered by explicit `merge` and `merge!`.
+Avoid broadening these into a polymorphic collection protocol.
 
 Avoid helpers that imply lazy sequence semantics, nil-as-empty behavior, or a
 collection protocol. Prefer an explicit loop in user code when a helper's
@@ -224,15 +223,11 @@ lowering would be surprising.
 These are valuable, but each needs one deliberate design choice before
 implementation:
 
-```clojure
-(into! target xs)
-```
-
 The main questions are:
 
 - `into` currently constructs an owned dynamic array from a borrowed collection,
   and `into!` currently means dynamic-array append lowering directly to
-  `append(&target, ..xs)`. Maps could later merge key/value pairs, and sets
+  `append(&target, ..xs)`. Map combination is explicit `merge`/`merge!`. Sets
   would first need a concrete Odin representation. Treat this as explicit eager
   construction or mutation, not a polymorphic collection protocol.
 - `shuffle` and `shuffle!` are implemented with an explicit picker callback. The
