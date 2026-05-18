@@ -156,8 +156,20 @@ Initial support should stay boring:
 
 ```clojure
 (spit "tmp/users.json" text)
-(slurp "tmp/users.json")
+(let [[data err] (slurp "tmp/users.json")]
+  (if (!= err nil)
+    0
+    (do
+      (defer (delete data))
+      (len data))))
 ```
+
+These forms are now intentionally thin wrappers over `core:os`; source files
+must import it explicitly with `(import os "core:os")`. `(spit path data)`
+lowers to `os.write_entire_file(path, data)` and returns `os.Error`. `(slurp
+path)` lowers to `os.read_entire_file(path, context.allocator)` and returns
+owned `[]byte` plus `os.Error`; callers delete the bytes or return them to
+transfer ownership.
 
 For structured data, require explicit format and type decisions rather than
 inventing a universal printer/reader:
@@ -198,10 +210,10 @@ if err == nil {
 }
 ```
 
-Those names are placeholders. The design constraint is the important part:
-serialization should be explicit, file-backed, and reproducible from a fresh
-process. The editor can make the workflow feel REPL-like by remembering recent
-paths and commands, but the compiled Odin should remain ordinary.
+The JSON helper names are placeholders. The design constraint is the important
+part: serialization should be explicit, file-backed, and reproducible from a
+fresh process. The editor can make the workflow feel REPL-like by remembering
+recent paths and commands, but the compiled Odin should remain ordinary.
 
 JSON should be the first supported structured format because users can inspect
 and edit it. CBOR is a reasonable later option for larger caches. Odin's custom

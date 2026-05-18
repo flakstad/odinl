@@ -70,6 +70,25 @@ eval_output=$(./odinl eval examples/higher-order.odinl '(reduce add 0 (new []int
 assert_eq "6" "$eval_output" "eval output"
 assert_file_nonempty "$tmp_dir/eval.odin" "eval generated output"
 
+printf 'tooling: eval file-backed dev helpers\n'
+cat > "$tmp_dir/dev-io.odinl" <<'EOF'
+(package main)
+(import os "core:os")
+
+(proc write-read-count [path: string] -> int
+  (let [write-err (spit path "odinl")]
+    (if (!= write-err nil)
+      0
+      (let [[data read-err] (slurp path)]
+        (if (!= read-err nil)
+          0
+          (do
+            (defer (delete data))
+            (len data)))))))
+EOF
+file_eval_output=$(./odinl eval "$tmp_dir/dev-io.odinl" "(write-read-count \"$tmp_dir/odinl-cache.txt\")")
+assert_eq "5" "$file_eval_output" "file-backed eval output"
+
 printf 'tooling: expand command\n'
 ./odinl expand examples/data-literals.odinl '(temp-buffer-len)' -o "$tmp_dir/expand.odin"
 assert_file_nonempty "$tmp_dir/expand.odin" "expand generated output"

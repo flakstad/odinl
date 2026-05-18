@@ -1281,7 +1281,8 @@ owned_sequence_head :: proc(name: string) -> bool {
          "partition", "partition-all", "partition-by",
          "zipmap", "index-by", "group-by", "frequencies", "keys", "vals",
          "distinct", "distinct-by",
-         "range", "repeat", "repeatedly", "iterate", "cycle":
+         "range", "repeat", "repeatedly", "iterate", "cycle",
+         "slurp":
         return true
     }
     return false
@@ -1525,7 +1526,7 @@ with_temp_allocator_escape_error :: proc(body: []CST_Form, last_in_proc: bool, r
         }
     }
 
-    if last_in_proc && returns.kind == .Single && len(body) > 0 {
+    if last_in_proc && returns.kind != .None && len(body) > 0 {
         final_form := body[len(body)-1]
         if form_is_owned_temp_escape_result(final_form) {
             return Compile_Error{
@@ -2003,6 +2004,32 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
             return "", err_target, false
         }
         return fmt.tprintf("(%s) == nil", target), {}, true
+    }
+
+    if head.text == "slurp" {
+        if len(form.items) != 2 {
+            return "", Compile_Error{message = "slurp expects path", span = form.span}, false
+        }
+        path, err_path, ok_path := emit_expr(e, form.items[1])
+        if !ok_path {
+            return "", err_path, false
+        }
+        return emit_call_text("os.read_entire_file", []string{path, "context.allocator"}), {}, true
+    }
+
+    if head.text == "spit" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "spit expects path and data", span = form.span}, false
+        }
+        path, err_path, ok_path := emit_expr(e, form.items[1])
+        if !ok_path {
+            return "", err_path, false
+        }
+        data, err_data, ok_data := emit_expr(e, form.items[2])
+        if !ok_data {
+            return "", err_data, false
+        }
+        return emit_call_text("os.write_entire_file", []string{path, data}), {}, true
     }
 
     if head.text == "map" || head.text == "filter" || head.text == "remove" {
@@ -3299,7 +3326,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         if !ok_expr {
             return err_expr, false
         }
-        if last_in_proc && returns.kind == .Single {
+        if last_in_proc && returns.kind != .None {
             emit_prefixed_expr(e, "return ", expr)
         } else {
             emit_prefixed_expr(e, "", expr)
@@ -3316,7 +3343,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         if !ok_expr {
             return err_expr, false
         }
-        if last_in_proc && returns.kind == .Single {
+        if last_in_proc && returns.kind != .None {
             emit_prefixed_expr(e, "return ", expr)
         } else {
             emit_prefixed_expr(e, "", expr)
@@ -3329,7 +3356,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         return Compile_Error{message = "unsupported statement head", span = head.span}, false
     }
 
-    if last_in_proc && returns.kind == .Single {
+    if last_in_proc && returns.kind != .None {
         err_thread_return, bad_thread_return := thread_return_error(form)
         if bad_thread_return {
             return err_thread_return, false
@@ -3365,7 +3392,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         for item in form.items[2:] {
             append(&body, item)
         }
-        if last_in_proc && returns.kind == .Single {
+        if last_in_proc && returns.kind != .None {
             err_let_return, bad_let_return := let_return_error(bindings[:], body[:])
             if bad_let_return {
                 return err_let_return, false
@@ -3655,7 +3682,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         emit_prefixed_expr(e, "", raw)
         return {}, true
     case:
-        allow_root_owned := last_in_proc && returns.kind == .Single
+        allow_root_owned := last_in_proc && returns.kind != .None
         err_owned, bad_owned := owned_sequence_usage_error(form, allow_root_owned)
         if bad_owned {
             return err_owned, false
@@ -3664,7 +3691,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         if !ok_expr {
             return err_expr, false
         }
-        if last_in_proc && returns.kind == .Single {
+        if last_in_proc && returns.kind != .None {
             emit_prefixed_expr(e, "return ", expr)
         } else {
             emit_prefixed_expr(e, "", expr)

@@ -52,6 +52,7 @@ compile_all_examples :: proc(t: ^testing.T) {
         "examples/control-flow.odinl",
         "examples/data-literals.odinl",
         "examples/declarations.odinl",
+        "examples/dev-io.odinl",
         "examples/hello.odinl",
         "examples/higher-order.odinl",
         "examples/interop-directives.odinl",
@@ -1003,6 +1004,41 @@ main :: proc() {
 }
 
 @(test)
+compile_file_dev_helpers :: proc(t: ^testing.T) {
+    source := `(package main)
+(import os "core:os")
+
+(proc read-file [path: string] -> [data: []byte, err: os.Error]
+  (slurp path))
+
+(proc write-text [path: string, text: string] -> os.Error
+  (spit path text))
+
+(proc read-count [path: string] -> int
+  (let [[data err] (slurp path)]
+    (if (!= err nil)
+      0
+      (do
+        (defer (delete data))
+        (len data)))))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, `import os "core:os"`), true)
+    testing.expect_value(t, strings.contains(output, "read_file :: proc(path: string) -> (data: []byte, err: os.Error)"), true)
+    testing.expect_value(t, strings.contains(output, "return os.read_entire_file(path, context.allocator)"), true)
+    testing.expect_value(t, strings.contains(output, "return os.write_entire_file(path, text)"), true)
+    testing.expect_value(t, strings.contains(output, "data, err := os.read_entire_file(path, context.allocator)"), true)
+    testing.expect_value(t, strings.contains(output, "defer delete(data)"), true)
+}
+
+@(test)
 compile_struct_field_destructuring :: proc(t: ^testing.T) {
     source := `(package main)
 
@@ -1135,6 +1171,22 @@ reject_returning_owned_result_from_with_temp_allocator :: proc(t: ^testing.T) {
 (proc bad [xs: []int] -> [dynamic]int
   (with-temp-allocator [allocator]
     (map inc xs)))`
+
+    _, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, false)
+    defer delete(err.message)
+    testing.expect_value(t, err.message, "owned value cannot escape with-temp-allocator; allocate it outside the temp scope or copy it before returning")
+}
+
+@(test)
+reject_returning_slurp_result_from_with_temp_allocator :: proc(t: ^testing.T) {
+    source := `(package main)
+(import os "core:os")
+(import runtime "base:runtime")
+
+(proc bad [path: string] -> [data: []byte, err: os.Error]
+  (with-temp-allocator [allocator]
+    (slurp path)))`
 
     _, err, ok := odinl.compile_source(source)
     testing.expect_value(t, ok, false)

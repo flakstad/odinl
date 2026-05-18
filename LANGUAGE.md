@@ -1006,6 +1006,28 @@ See `docs/SEQUENCES.md` for the current sequence helper roadmap. The short
 version is: helpers should be eager, Odin-shaped, and explicit about whether
 they return slice views or owned dynamic arrays.
 
+### File-backed development values
+
+OdinL supports the first small piece of a disk-backed iterative workflow with
+thin `core:os` forms:
+
+```clojure
+(import os "core:os")
+
+(spit "tmp/users.json" text)
+(let [[data err] (slurp "tmp/users.json")]
+  (if (!= err nil)
+    0
+    (do
+      (defer (delete data))
+      (len data))))
+```
+
+`spit` lowers to `os.write_entire_file(path, data)` and returns `os.Error`.
+`slurp` lowers to `os.read_entire_file(path, context.allocator)` and returns
+owned `[]byte` plus `os.Error`. The caller must delete the bytes when keeping
+the value local, or return them to transfer ownership.
+
 ## Literals and Construction
 
 The current direction is:

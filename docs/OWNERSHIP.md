@@ -59,6 +59,7 @@ These forms return owned values in normal OdinL code:
 (repeatedly n f)
 (iterate n f x)
 (cycle n xs)
+(slurp path)
 ```
 
 Use `defer delete` for local owned values:
@@ -79,6 +80,22 @@ array. The chunks inside are borrowed slices and must not be deleted:
   (defer (delete chunks))
   (first (get chunks 0)))
 ```
+
+`slurp` lowers to `os.read_entire_file(path, context.allocator)`. It returns
+owned bytes plus an `os.Error`, so delete the bytes once the successful read is
+no longer needed:
+
+```clojure
+(let [[data err] (slurp path)]
+  (if (!= err nil)
+    0
+    (do
+      (defer (delete data))
+      (len data))))
+```
+
+If a proc returns the bytes from `slurp`, ownership transfers to the caller and
+the callee must not delete them.
 
 ## Do Not Delete These
 
@@ -106,7 +123,11 @@ These are scalar values, plain values, or borrowed views:
 (empty? xs)
 (count xs)
 (contains? collection key)
+(spit path data)
 ```
+
+`spit` lowers to `os.write_entire_file(path, data)` and returns `os.Error`. It
+does not allocate an owned result.
 
 `split-at` returns two borrowed slices:
 
