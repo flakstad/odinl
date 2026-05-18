@@ -39,6 +39,13 @@
         verified-users (filter :verified users)
         first-active (take 1 active-users)
         remaining-active (drop 1 active-users)
+        tail-users (rest users)
+        first-user (first users)
+        second-user (second users)
+        third-user (nth users 2)
+        threaded-third (->> users
+                            (rest)
+                            (second))
         young-prefix (take-while young? users)
         after-young-prefix (drop-while young? users)
         active-names (->> users
@@ -62,4 +69,6 @@
     (fmt.println has-archived? active-users-adults?)
     (fmt.println has-verified?)
     (fmt.println (len first-active) (len remaining-active))
+    (fmt.println (:name first-user) (:name second-user) (:name third-user) (:name threaded-third))
+    (fmt.println (len tail-users))
     (fmt.println (len young-prefix) (:name (get after-young-prefix 0)))))

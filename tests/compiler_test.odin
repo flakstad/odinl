@@ -1160,6 +1160,44 @@ compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
 }
 
 @(test)
+compile_sequence_indexing_helpers :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc main []
+  (let [xs (new []int [10 20 30])
+        a (first xs)
+        b (second xs)
+        c (nth xs 2)
+        tail (rest xs)
+        threaded (->> xs
+                      (rest)
+                      (first))]
+    (return)))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+main :: proc() {
+    xs := []int{10, 20, 30}
+    a := ((xs)[:])[0]
+    b := ((xs)[:])[1]
+    c := ((xs)[:])[2]
+    tail := ((xs)[:])[1:]
+    threaded := ((((xs)[:])[1:])[:])[0]
+    return
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 compile_collection_type_forms_and_make_new :: proc(t: ^testing.T) {
     source := `(package main)
 

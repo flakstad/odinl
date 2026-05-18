@@ -550,6 +550,29 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             }
             return fmt.tprintf("(%s)[%s:%s]", current, start, end), {}, true
         }
+        if thread_last && (head.text == "first" || head.text == "second" || head.text == "rest") {
+            if len(step.items) != 1 {
+                return "", Compile_Error{message = fmt.tprintf("%s thread step expects no arguments", head.text), span = step.span}, false
+            }
+            collection := slice_all_expr_text(current)
+            if head.text == "first" {
+                return fmt.tprintf("(%s)[0]", collection), {}, true
+            }
+            if head.text == "second" {
+                return fmt.tprintf("(%s)[1]", collection), {}, true
+            }
+            return fmt.tprintf("(%s)[1:]", collection), {}, true
+        }
+        if thread_last && head.text == "nth" {
+            if len(step.items) != 2 {
+                return "", Compile_Error{message = "nth thread step expects one index argument", span = step.span}, false
+            }
+            index, err_index, ok_index := emit_expr(e, step.items[1])
+            if !ok_index {
+                return "", err_index, false
+            }
+            return fmt.tprintf("(%s)[%s]", slice_all_expr_text(current), index), {}, true
+        }
         args: [dynamic]string
         if !thread_last {
             append(&args, current)
@@ -1035,6 +1058,39 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
             return emit_predicate_callback_call(e, "odinl_some_p", form.items[1], collection, mark_core_some, mark_core_some_field)
         }
         return emit_predicate_callback_call(e, "odinl_every_p", form.items[1], collection, mark_core_every, mark_core_every_field)
+    }
+
+    if head.text == "first" || head.text == "second" || head.text == "rest" {
+        if len(form.items) != 2 {
+            return "", Compile_Error{message = fmt.tprintf("%s expects collection", head.text), span = form.span}, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[1])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        collection = slice_all_expr_text(collection)
+        if head.text == "first" {
+            return fmt.tprintf("(%s)[0]", collection), {}, true
+        }
+        if head.text == "second" {
+            return fmt.tprintf("(%s)[1]", collection), {}, true
+        }
+        return fmt.tprintf("(%s)[1:]", collection), {}, true
+    }
+
+    if head.text == "nth" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "nth expects collection and index", span = form.span}, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[1])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        index, err_index, ok_index := emit_expr(e, form.items[2])
+        if !ok_index {
+            return "", err_index, false
+        }
+        return fmt.tprintf("(%s)[%s]", slice_all_expr_text(collection), index), {}, true
     }
 
     if head.text == "slice" {
