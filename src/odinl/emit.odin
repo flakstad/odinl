@@ -24,6 +24,8 @@ Emitter_Features :: struct {
     core_partition:   bool,
     core_partition_all: bool,
     core_zipmap:      bool,
+    core_index_by:    bool,
+    core_frequencies: bool,
     map_fields:       [dynamic]string,
     filter_fields:    [dynamic]string,
     remove_fields:    [dynamic]string,
@@ -171,6 +173,18 @@ mark_core_partition_all :: proc(e: ^Emitter) {
 mark_core_zipmap :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_zipmap = true
+    }
+}
+
+mark_core_index_by :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_index_by = true
+    }
+}
+
+mark_core_frequencies :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_frequencies = true
     }
 }
 
@@ -625,6 +639,24 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             mark_core_zipmap(e)
             return emit_call_text("odinl_zipmap", []string{slice_all_expr_text(keys), slice_all_expr_text(current)}), {}, true
         }
+        if thread_last && head.text == "index-by" {
+            if len(step.items) != 2 {
+                return "", Compile_Error{message = "index-by thread step expects one key function argument", span = step.span}, false
+            }
+            f, err_f, ok_f := emit_expr(e, step.items[1])
+            if !ok_f {
+                return "", err_f, false
+            }
+            mark_core_index_by(e)
+            return emit_call_text("odinl_index_by", []string{f, slice_all_expr_text(current)}), {}, true
+        }
+        if thread_last && head.text == "frequencies" {
+            if len(step.items) != 1 {
+                return "", Compile_Error{message = "frequencies thread step expects no arguments", span = step.span}, false
+            }
+            mark_core_frequencies(e)
+            return emit_call_text("odinl_frequencies", []string{slice_all_expr_text(current)}), {}, true
+        }
         if thread_last && head.text == "reduce" {
             if len(step.items) != 3 {
                 return "", Compile_Error{message = "reduce thread step expects function and initial value", span = step.span}, false
@@ -773,7 +805,8 @@ thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Res
         if thread_last && (head.text == "map" || head.text == "filter" ||
                            head.text == "remove" || head.text == "map-indexed" ||
                            head.text == "keep" || head.text == "concat" ||
-                           head.text == "reverse" || head.text == "zipmap") {
+                           head.text == "reverse" || head.text == "zipmap" ||
+                           head.text == "index-by" || head.text == "frequencies") {
             return .Owned
         }
         if thread_last && (head.text == "partition" || head.text == "partition-all") {
@@ -1432,6 +1465,34 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         }
         mark_core_zipmap(e)
         return emit_call_text("odinl_zipmap", []string{slice_all_expr_text(keys), slice_all_expr_text(values)}), {}, true
+    }
+
+    if head.text == "index-by" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "index-by expects key function and collection", span = form.span}, false
+        }
+        f, err_f, ok_f := emit_expr(e, form.items[1])
+        if !ok_f {
+            return "", err_f, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[2])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        mark_core_index_by(e)
+        return emit_call_text("odinl_index_by", []string{f, slice_all_expr_text(collection)}), {}, true
+    }
+
+    if head.text == "frequencies" {
+        if len(form.items) != 2 {
+            return "", Compile_Error{message = "frequencies expects collection", span = form.span}, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[1])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        mark_core_frequencies(e)
+        return emit_call_text("odinl_frequencies", []string{slice_all_expr_text(collection)}), {}, true
     }
 
     if head.text == "reduce" {
@@ -2754,6 +2815,34 @@ emit_core_zipmap_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_index_by_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_index_by :: proc(f: proc(x: $T) -> $K, xs: []T) -> map[K]T {")
+    e.indent += 1
+    emit_line(e, "out := make(map[K]T)")
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, "out[f(x)] = x")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_frequencies_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_frequencies :: proc(xs: []$T) -> map[T]int {")
+    e.indent += 1
+    emit_line(e, "out := make(map[T]int)")
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, "out[x] += 1")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_reduce_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_reduce :: proc(f: proc(acc: $U, x: $T) -> U, init: U, xs: []T) -> U {")
     e.indent += 1
@@ -2985,6 +3074,7 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_concat || features.core_reverse ||
            features.core_split_at || features.core_partition ||
            features.core_partition_all || features.core_zipmap ||
+           features.core_index_by || features.core_frequencies ||
            len(features.map_fields) > 0 || len(features.filter_fields) > 0 ||
            len(features.remove_fields) > 0 ||
            len(features.take_while_fields) > 0 || len(features.drop_while_fields) > 0 ||
@@ -3061,6 +3151,14 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_zipmap {
         emit_core_helper_separator(e, &emitted)
         emit_core_zipmap_helper(e)
+    }
+    if features.core_index_by {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_index_by_helper(e)
+    }
+    if features.core_frequencies {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_frequencies_helper(e)
     }
     if features.core_reduce {
         emit_core_helper_separator(e, &emitted)

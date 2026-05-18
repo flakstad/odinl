@@ -39,6 +39,8 @@ These helpers are already in scope and should remain small:
 (partition n xs)
 (partition-all n xs)
 (zipmap keys vals)
+(index-by f xs)
+(frequencies xs)
 (take n xs)
 (drop n xs)
 (take-while pred xs)
@@ -60,10 +62,10 @@ lowers to `len`. `rest`, `take`, `drop`, `take-while`, and `drop-while` return
 non-owning slice views.
 
 Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
-`concat`, and `reverse` return owned dynamic arrays. `zipmap` returns an owned
-map. `partition` and `partition-all` return owned dynamic arrays of borrowed
-slice chunks. `keep` is Odin-shaped: the callback returns `(value, ok)`, and
-only `ok` values are appended.
+`concat`, and `reverse` return owned dynamic arrays. `zipmap`, `index-by`, and
+`frequencies` return owned maps. `partition` and `partition-all` return owned
+dynamic arrays of borrowed slice chunks. `keep` is Odin-shaped: the callback
+returns `(value, ok)`, and only `ok` values are appended.
 
 Keyword callbacks are field-access shorthand in the supported higher-order
 helpers:
@@ -99,9 +101,7 @@ implementation:
 
 ```clojure
 (partition-by f xs)
-(frequencies xs)
 (group-by f xs)
-(index-by f xs)
 (mapcat f xs)
 (sort xs)
 (sort-by f xs)
@@ -236,7 +236,7 @@ Sequence helpers need an explicit ownership story:
   `keep`, `concat`, and `reverse` allocate and return owned dynamic arrays.
 - Chunking helpers `partition` and `partition-all` allocate the outer dynamic
   array, but its slice chunks borrow the input collection.
-- `zipmap` allocates and returns an owned map.
+- `zipmap`, `index-by`, and `frequencies` allocate and return owned maps.
 - Examples that use allocating helpers should show `defer delete(...)` when the
   result lives beyond a trivial expression.
 - Future helper docs should clearly mark whether a helper returns a view or an

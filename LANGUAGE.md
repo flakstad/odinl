@@ -892,6 +892,8 @@ The intended surface style can still be familiar:
 (partition 2 xs)
 (partition-all 3 xs)
 (zipmap names ages)
+(index-by key-fn xs)
+(frequencies xs)
 (take 10 xs)
 (drop 2 xs)
 (first xs)

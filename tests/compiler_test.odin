@@ -1342,6 +1342,35 @@ compile_chunking_and_zipmap_sequence_helpers :: proc(t: ^testing.T) {
 }
 
 @(test)
+compile_map_constructing_sequence_helpers :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc identity [x: int] -> int
+  x)
+
+(proc main []
+  (let [xs (new []int [1 2 2 3])
+        by-value (index-by identity xs)
+        counts (frequencies xs)]
+    (defer (delete by-value))
+    (defer (delete counts))
+    (return)))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "by_value := odinl_index_by(identity, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "counts := odinl_frequencies((xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_index_by :: proc(f: proc(x: $T) -> $K, xs: []T) -> map[K]T"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_frequencies :: proc(xs: []$T) -> map[T]int"), true)
+}
+
+@(test)
 compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
     source := `(package main)
 

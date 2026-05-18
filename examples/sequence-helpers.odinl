@@ -8,6 +8,12 @@
 (proc add-index [i: int, x: int] -> int
   (+ i x))
 
+(proc identity-int [x: int] -> int
+  x)
+
+(proc name-key [name: string] -> string
+  name)
+
 (proc square-even [x: int] -> [value: int, ok: bool]
   (if (even? x)
     (return (* x x) true)
@@ -37,6 +43,18 @@
     (defer (delete chunks))
     (len chunks)))
 
+(proc repeated-two-count [] -> int
+  (let [xs (new []int [1 2 2 3])
+        counts (frequencies xs)]
+    (defer (delete counts))
+    (get counts 2)))
+
+(proc indexed-name-count [] -> int
+  (let [names (new []string ["Ada" "Lin" "Grace"])
+        by-name (index-by name-key names)]
+    (defer (delete by-name))
+    (len by-name)))
+
 (proc threaded-first [] -> int
   (let [xs (new []int [1 2 3 4])
         threaded (->> xs
@@ -61,6 +79,12 @@
 
   (chunk-count)
   ;; => 2
+
+  (repeated-two-count)
+  ;; => 2
+
+  (indexed-name-count)
+  ;; => 3
 
   (threaded-first)
   ;; => 4

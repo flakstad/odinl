@@ -35,6 +35,8 @@ These forms return owned values in normal OdinL code:
 (partition n xs)
 (partition-all n xs)
 (zipmap keys vals)
+(index-by f xs)
+(frequencies xs)
 ```
 
 Use `defer delete` for local owned values:
