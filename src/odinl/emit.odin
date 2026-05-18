@@ -15,8 +15,14 @@ Emitter_Features :: struct {
     core_find:        bool,
     core_some:        bool,
     core_every:       bool,
+    core_remove:      bool,
+    core_map_indexed: bool,
+    core_keep:        bool,
+    core_concat:      bool,
+    core_reverse:     bool,
     map_fields:       [dynamic]string,
     filter_fields:    [dynamic]string,
+    remove_fields:    [dynamic]string,
     take_while_fields: [dynamic]string,
     drop_while_fields: [dynamic]string,
     find_fields:      [dynamic]string,
@@ -109,6 +115,36 @@ mark_core_every :: proc(e: ^Emitter) {
     }
 }
 
+mark_core_remove :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_remove = true
+    }
+}
+
+mark_core_map_indexed :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_map_indexed = true
+    }
+}
+
+mark_core_keep :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_keep = true
+    }
+}
+
+mark_core_concat :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_concat = true
+    }
+}
+
+mark_core_reverse :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_reverse = true
+    }
+}
+
 append_unique_string :: proc(items: ^[dynamic]string, value: string) {
     for item in items^ {
         if item == value {
@@ -127,6 +163,12 @@ mark_core_map_field :: proc(e: ^Emitter, field: string) {
 mark_core_filter_field :: proc(e: ^Emitter, field: string) {
     if e.features != nil {
         append_unique_string(&e.features.filter_fields, field)
+    }
+}
+
+mark_core_remove_field :: proc(e: ^Emitter, field: string) {
+    if e.features != nil {
+        append_unique_string(&e.features.remove_fields, field)
     }
 }
 
@@ -478,7 +520,7 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
         if head.kind != .Symbol {
             return "", Compile_Error{message = "thread list step expects symbol or keyword head", span = head.span}, false
         }
-        if thread_last && (head.text == "map" || head.text == "filter") {
+        if thread_last && (head.text == "map" || head.text == "filter" || head.text == "remove") {
             if len(step.items) != 2 {
                 return "", Compile_Error{message = fmt.tprintf("%s thread step expects one function argument", head.text), span = step.span}, false
             }
@@ -486,7 +528,43 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             if head.text == "map" {
                 return emit_map_callback_call(e, step.items[1], collection)
             }
+            if head.text == "remove" {
+                return emit_predicate_callback_call(e, "odinl_remove", step.items[1], collection, mark_core_remove, mark_core_remove_field)
+            }
             return emit_predicate_callback_call(e, "odinl_filter", step.items[1], collection, mark_core_filter, mark_core_filter_field)
+        }
+        if thread_last && (head.text == "map-indexed" || head.text == "keep") {
+            if len(step.items) != 2 {
+                return "", Compile_Error{message = fmt.tprintf("%s thread step expects one function argument", head.text), span = step.span}, false
+            }
+            f, err_f, ok_f := emit_expr(e, step.items[1])
+            if !ok_f {
+                return "", err_f, false
+            }
+            if head.text == "map-indexed" {
+                mark_core_map_indexed(e)
+                return emit_call_text("odinl_map_indexed", []string{f, slice_all_expr_text(current)}), {}, true
+            }
+            mark_core_keep(e)
+            return emit_call_text("odinl_keep", []string{f, slice_all_expr_text(current)}), {}, true
+        }
+        if thread_last && head.text == "concat" {
+            if len(step.items) != 2 {
+                return "", Compile_Error{message = "concat thread step expects one collection argument", span = step.span}, false
+            }
+            rhs, err_rhs, ok_rhs := emit_expr(e, step.items[1])
+            if !ok_rhs {
+                return "", err_rhs, false
+            }
+            mark_core_concat(e)
+            return emit_call_text("odinl_concat", []string{slice_all_expr_text(current), slice_all_expr_text(rhs)}), {}, true
+        }
+        if thread_last && head.text == "reverse" {
+            if len(step.items) != 1 {
+                return "", Compile_Error{message = "reverse thread step expects no arguments", span = step.span}, false
+            }
+            mark_core_reverse(e)
+            return emit_call_text("odinl_reverse", []string{slice_all_expr_text(current)}), {}, true
         }
         if thread_last && head.text == "reduce" {
             if len(step.items) != 3 {
@@ -558,7 +636,7 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             }
             return fmt.tprintf("(%s)[%s:%s]", current, start, end), {}, true
         }
-        if thread_last && (head.text == "first" || head.text == "second" || head.text == "rest") {
+        if thread_last && (head.text == "first" || head.text == "second" || head.text == "last" || head.text == "rest" || head.text == "empty?") {
             if len(step.items) != 1 {
                 return "", Compile_Error{message = fmt.tprintf("%s thread step expects no arguments", head.text), span = step.span}, false
             }
@@ -568,6 +646,12 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             }
             if head.text == "second" {
                 return fmt.tprintf("(%s)[1]", collection), {}, true
+            }
+            if head.text == "last" {
+                return fmt.tprintf("(%s)[len(%s)-1]", collection, collection), {}, true
+            }
+            if head.text == "empty?" {
+                return fmt.tprintf("len(%s) == 0", collection), {}, true
             }
             return fmt.tprintf("(%s)[1:]", collection), {}, true
         }
@@ -627,7 +711,10 @@ thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Res
         if head.kind != .Symbol {
             return .Unknown
         }
-        if thread_last && (head.text == "map" || head.text == "filter") {
+        if thread_last && (head.text == "map" || head.text == "filter" ||
+                           head.text == "remove" || head.text == "map-indexed" ||
+                           head.text == "keep" || head.text == "concat" ||
+                           head.text == "reverse") {
             return .Owned
         }
         if thread_last && (head.text == "take" || head.text == "drop" ||
@@ -638,7 +725,8 @@ thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Res
         if thread_last && (head.text == "reduce" || head.text == "find" ||
                            head.text == "some?" || head.text == "every?" ||
                            head.text == "first" || head.text == "second" ||
-                           head.text == "nth") {
+                           head.text == "last" || head.text == "nth" ||
+                           head.text == "empty?") {
             return .Scalar
         }
     }
@@ -1172,7 +1260,7 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         return fmt.tprintf("(%s) == nil", target), {}, true
     }
 
-    if head.text == "map" || head.text == "filter" {
+    if head.text == "map" || head.text == "filter" || head.text == "remove" {
         if len(form.items) != 3 {
             return "", Compile_Error{message = fmt.tprintf("%s expects function and collection", head.text), span = form.span}, false
         }
@@ -1184,7 +1272,59 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         if head.text == "map" {
             return emit_map_callback_call(e, form.items[1], collection)
         }
+        if head.text == "remove" {
+            return emit_predicate_callback_call(e, "odinl_remove", form.items[1], collection, mark_core_remove, mark_core_remove_field)
+        }
         return emit_predicate_callback_call(e, "odinl_filter", form.items[1], collection, mark_core_filter, mark_core_filter_field)
+    }
+
+    if head.text == "map-indexed" || head.text == "keep" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = fmt.tprintf("%s expects function and collection", head.text), span = form.span}, false
+        }
+        f, err_f, ok_f := emit_expr(e, form.items[1])
+        if !ok_f {
+            return "", err_f, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[2])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        collection = slice_all_expr_text(collection)
+        if head.text == "map-indexed" {
+            mark_core_map_indexed(e)
+            return emit_call_text("odinl_map_indexed", []string{f, collection}), {}, true
+        }
+        mark_core_keep(e)
+        return emit_call_text("odinl_keep", []string{f, collection}), {}, true
+    }
+
+    if head.text == "concat" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "concat expects two collections", span = form.span}, false
+        }
+        lhs, err_lhs, ok_lhs := emit_expr(e, form.items[1])
+        if !ok_lhs {
+            return "", err_lhs, false
+        }
+        rhs, err_rhs, ok_rhs := emit_expr(e, form.items[2])
+        if !ok_rhs {
+            return "", err_rhs, false
+        }
+        mark_core_concat(e)
+        return emit_call_text("odinl_concat", []string{slice_all_expr_text(lhs), slice_all_expr_text(rhs)}), {}, true
+    }
+
+    if head.text == "reverse" {
+        if len(form.items) != 2 {
+            return "", Compile_Error{message = "reverse expects collection", span = form.span}, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[1])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        mark_core_reverse(e)
+        return emit_call_text("odinl_reverse", []string{slice_all_expr_text(collection)}), {}, true
     }
 
     if head.text == "reduce" {
@@ -1253,7 +1393,7 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         return emit_predicate_callback_call(e, "odinl_every_p", form.items[1], collection, mark_core_every, mark_core_every_field)
     }
 
-    if head.text == "first" || head.text == "second" || head.text == "rest" {
+    if head.text == "first" || head.text == "second" || head.text == "last" || head.text == "rest" || head.text == "empty?" {
         if len(form.items) != 2 {
             return "", Compile_Error{message = fmt.tprintf("%s expects collection", head.text), span = form.span}, false
         }
@@ -1267,6 +1407,12 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         }
         if head.text == "second" {
             return fmt.tprintf("(%s)[1]", collection), {}, true
+        }
+        if head.text == "last" {
+            return fmt.tprintf("(%s)[len(%s)-1]", collection, collection), {}, true
+        }
+        if head.text == "empty?" {
+            return fmt.tprintf("len(%s) == 0", collection), {}, true
         }
         return fmt.tprintf("(%s)[1:]", collection), {}, true
     }
@@ -2324,6 +2470,100 @@ emit_core_filter_field_helper :: proc(e: ^Emitter, field: string) {
     emit_line(e, "}")
 }
 
+emit_core_remove_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_remove :: proc(pred: proc(x: $T) -> bool, xs: []T) -> [dynamic]T {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T)")
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, "if !pred(x) {")
+    e.indent += 1
+    emit_line(e, "append(&out, x)")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_remove_field_helper :: proc(e: ^Emitter, field: string) {
+    emit_line(e, fmt.tprintf("odinl_remove_field_%s :: proc(xs: []$T) -> [dynamic]T %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T)")
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("if !x.%s %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "append(&out, x)")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_map_indexed_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_map_indexed :: proc(f: proc(i: int, x: $T) -> $U, xs: []T) -> [dynamic]U {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]U)")
+    emit_line(e, "for x, i in xs {")
+    e.indent += 1
+    emit_line(e, "append(&out, f(i, x))")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_keep_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_keep :: proc(f: proc(x: $T) -> ($U, bool), xs: []T) -> [dynamic]U {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]U)")
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, "value, ok := f(x)")
+    emit_line(e, "if ok {")
+    e.indent += 1
+    emit_line(e, "append(&out, value)")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_concat_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_concat :: proc(xs, ys: []$T) -> [dynamic]T {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T, 0, len(xs)+len(ys))")
+    emit_line(e, "append(&out, ..xs)")
+    emit_line(e, "append(&out, ..ys)")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_reverse_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_reverse :: proc(xs: []$T) -> [dynamic]T {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T, 0, len(xs))")
+    emit_line(e, "for i := len(xs)-1; i >= 0; i -= 1 {")
+    e.indent += 1
+    emit_line(e, "append(&out, xs[i])")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_reduce_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_reduce :: proc(f: proc(acc: $U, x: $T) -> U, init: U, xs: []T) -> U {")
     e.indent += 1
@@ -2551,7 +2791,10 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_take || features.core_drop ||
            features.core_take_while || features.core_drop_while ||
            features.core_find || features.core_some || features.core_every ||
+           features.core_remove || features.core_map_indexed || features.core_keep ||
+           features.core_concat || features.core_reverse ||
            len(features.map_fields) > 0 || len(features.filter_fields) > 0 ||
+           len(features.remove_fields) > 0 ||
            len(features.take_while_fields) > 0 || len(features.drop_while_fields) > 0 ||
            len(features.find_fields) > 0 || len(features.some_fields) > 0 ||
            len(features.every_fields) > 0
@@ -2586,6 +2829,30 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     for field in features.filter_fields {
         emit_core_helper_separator(e, &emitted)
         emit_core_filter_field_helper(e, field)
+    }
+    if features.core_remove {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_remove_helper(e)
+    }
+    for field in features.remove_fields {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_remove_field_helper(e, field)
+    }
+    if features.core_map_indexed {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_map_indexed_helper(e)
+    }
+    if features.core_keep {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_keep_helper(e)
+    }
+    if features.core_concat {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_concat_helper(e)
+    }
+    if features.core_reverse {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_reverse_helper(e)
     }
     if features.core_reduce {
         emit_core_helper_separator(e, &emitted)

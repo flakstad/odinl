@@ -1,0 +1,38 @@
+// Exercises additional eager sequence helpers and ownership cleanup.
+(package main)
+(import "core:fmt")
+
+(proc even? [x: int] -> bool
+  (== (% x 2) 0))
+
+(proc add-index [i: int, x: int] -> int
+  (+ i x))
+
+(proc square-even [x: int] -> [value: int, ok: bool]
+  (if (even? x)
+    (return (* x x) true)
+    (return 0 false)))
+
+(proc main []
+  (let [xs (new []int [1 2 3 4])
+        ys (new []int [10 20])
+        without-evens (remove even? xs)
+        indexed (map-indexed add-index xs)
+        kept (keep square-even xs)
+        joined (concat without-evens ys)
+        reversed (reverse joined)
+        threaded (->> xs
+                      (remove even?)
+                      (map-indexed add-index)
+                      (reverse))]
+    (defer (delete without-evens))
+    (defer (delete indexed))
+    (defer (delete kept))
+    (defer (delete joined))
+    (defer (delete reversed))
+    (defer (delete threaded))
+    (fmt.println (first without-evens) (last without-evens) (empty? (drop 2 without-evens)))
+    (fmt.println (get indexed 0) (get indexed 3))
+    (fmt.println (get kept 0) (get kept 1))
+    (fmt.println (first reversed) (last reversed))
+    (fmt.println (first threaded) (last threaded))))

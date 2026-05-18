@@ -29,7 +29,12 @@ These helpers are already in scope and should remain small:
 ```clojure
 (map f xs)
 (filter pred xs)
+(remove pred xs)
 (reduce f init xs)
+(map-indexed f xs)
+(keep f xs)
+(concat xs ys)
+(reverse xs)
 (take n xs)
 (drop n xs)
 (take-while pred xs)
@@ -39,13 +44,20 @@ These helpers are already in scope and should remain small:
 (every? pred xs)
 (first xs)
 (second xs)
+(last xs)
 (nth xs n)
 (rest xs)
+(empty? xs)
 ```
 
 The access and trimming helpers use the direct Odin representation where
-possible. `first`, `second`, and `nth` lower to indexing. `rest`, `take`,
-`drop`, `take-while`, and `drop-while` return non-owning slice views.
+possible. `first`, `second`, `last`, and `nth` lower to indexing. `empty?`
+lowers to `len`. `rest`, `take`, `drop`, `take-while`, and `drop-while` return
+non-owning slice views.
+
+Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
+`concat`, and `reverse` return owned dynamic arrays. `keep` is Odin-shaped: the
+callback returns `(value, ok)`, and only `ok` values are appended.
 
 Keyword callbacks are field-access shorthand in the supported higher-order
 helpers:
@@ -53,6 +65,7 @@ helpers:
 ```clojure
 (map :name users)
 (filter :verified users)
+(remove :archived users)
 (->> users
      (filter :verified)
      (map :name))
@@ -66,22 +79,11 @@ not general keyword-as-function map lookup.
 These fit the current eager model well:
 
 ```clojure
-(last xs)
-(empty? xs)
-(remove pred xs)
-(map-indexed f xs)
-(keep f xs)
 (split-at n xs)
-(concat xs ys)
-(reverse xs)
 ```
 
 Expected lowering:
 
-- `last`, `empty?`, and simple access helpers lower to indexing, slicing, and
-  `len`.
-- `remove`, `map-indexed`, `keep`, `concat`, and `reverse` lower to generic
-  helpers that allocate dynamic arrays.
 - `split-at` should return two slices when the input is sliceable, because that
   is the direct Odin representation and does not allocate.
 
@@ -229,8 +231,8 @@ Sequence helpers need an explicit ownership story:
 
 - Slice-view helpers such as `rest`, `take`, `drop`, `take-while`,
   `drop-while`, and likely `split-at` do not own data and must not be deleted.
-- Dynamic-array helpers such as `map`, `filter`, `remove`, and `reverse`
-  allocate and return owned dynamic arrays.
+- Dynamic-array helpers such as `map`, `filter`, `remove`, `map-indexed`,
+  `keep`, `concat`, and `reverse` allocate and return owned dynamic arrays.
 - Examples that use allocating helpers should show `defer delete(...)` when the
   result lives beyond a trivial expression.
 - Future helper docs should clearly mark whether a helper returns a view or an
