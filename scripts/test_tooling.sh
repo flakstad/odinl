@@ -93,6 +93,7 @@ assert_eq "40" "$(./odinl eval examples/sequence-helpers.odinl '(rest-second-emp
 assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(concat-reversed-first)')" "concat-reversed-first"
 assert_eq "26" "$(./odinl eval examples/sequence-helpers.odinl '(interposed-total)')" "interposed-total"
 assert_eq "33" "$(./odinl eval examples/sequence-helpers.odinl '(interleaved-total)')" "interleaved-total"
+assert_eq "2" "$(./odinl eval examples/sequence-helpers.odinl '(shuffled-first)')" "shuffled-first"
 assert_eq "2" "$(./odinl eval examples/sequence-helpers.odinl '(sorted-second)')" "sorted-second"
 assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(descending-first)')" "descending-first"
 assert_eq "1" "$(./odinl eval examples/sequence-helpers.odinl '(sorted-in-place-first)')" "sorted-in-place-first"

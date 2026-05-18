@@ -43,6 +43,7 @@ These helpers are already in scope and should remain small:
 (interpose sep xs)
 (interleave xs ys)
 (reverse xs)
+(shuffle pick xs)
 (sort xs)
 (sort-by f xs)
 (sort-by :field xs)
@@ -102,8 +103,8 @@ lowers to `len`. `rest`, `take`, `drop`, `take-while`, and `drop-while` return
 non-owning slice views.
 
 Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
-`mapcat`, `concat`, `interpose`, `interleave`, `reverse`, `range`, `repeat`,
-`repeatedly`, `iterate`, and bounded `cycle` return owned dynamic arrays.
+`mapcat`, `concat`, `interpose`, `interleave`, `reverse`, `shuffle`, `range`,
+`repeat`, `repeatedly`, `iterate`, and bounded `cycle` return owned dynamic arrays.
 `distinct` and `distinct-by` also
 return owned dynamic arrays and use a temporary `map[key]bool` internally, so
 the value or key must be valid as an Odin map key. `zipmap`, `index-by`, and
@@ -117,6 +118,20 @@ owned dynamic array.
 
 `sort` and `sort-by` copy before sorting. They do not mutate the input
 collection, and their result is owned.
+
+`shuffle` also copies before shuffling. It takes an explicit picker function
+instead of hiding a random generator:
+
+```clojure
+(proc pick [n: int] -> int
+  (rand.int-max n))
+
+(shuffle pick xs)
+```
+
+The picker must return an index in `[0, n)`. This keeps generated code simple
+and lets user code choose whether the random source is deterministic, seeded,
+or the current Odin context generator.
 
 Bang helpers are explicitly mutating statement forms. `reverse!`, `sort!`,
 `sort-by!`, `map!`, and `map-indexed!` mutate the passed slice or dynamic array
@@ -190,7 +205,6 @@ remaining pre-transducer work should stay small and direct:
 - non-bang `into`: construct a new owned target once the target syntax is clear.
 - broaden `into!` beyond dynamic arrays only when the target representation
   stays obvious, such as a direct map merge.
-- `shuffle`: eager copy plus shuffle with an explicit random source.
 
 Avoid helpers that imply lazy sequence semantics, nil-as-empty behavior, or a
 collection protocol. Prefer an explicit loop in user code when a helper's
@@ -204,7 +218,6 @@ implementation:
 ```clojure
 (into target xs)
 (into! target xs)
-(shuffle rng xs)
 ```
 
 The main questions are:
@@ -215,8 +228,9 @@ The main questions are:
   mutation, not a polymorphic collection protocol. Non-bang `(into Type xs)`
   remains reserved for constructing a new owned target once that shape is worth
   adding.
-- `shuffle` should probably require an explicit random source rather than hide
-  one.
+- `shuffle` is implemented with an explicit picker callback. A later
+  `shuffle!` would be reasonable if in-place randomization becomes common
+  enough to justify another bang helper.
 - `distinct` and `distinct-by` are implemented with temporary `map[key]bool`
   storage. Broader set-like helpers should keep using ordinary Odin map-backed
   representations unless a better concrete Odin shape appears.

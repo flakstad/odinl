@@ -1272,6 +1272,9 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
 (proc neg [x: int] -> int
   (- x))
 
+(proc pick-first [n: int] -> int
+  0)
+
 (proc main []
   (let [xs (new []int [1 2 3])
         mutable (new [dynamic]int [1 2 3])
@@ -1284,6 +1287,7 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
         interposed (interpose 0 xs)
         interleaved (interleave xs ys)
         reversed (reverse joined)
+        shuffled (shuffle pick-first joined)
         sorted (sort joined)
         descending (sort-by neg joined)
         threaded-flat (->> xs
@@ -1303,6 +1307,7 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
     (defer (delete interposed))
     (defer (delete interleaved))
     (defer (delete reversed))
+    (defer (delete shuffled))
     (defer (delete sorted))
     (defer (delete descending))
     (defer (delete threaded-flat))
@@ -1334,6 +1339,7 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "interposed := odinl_interpose(0, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "interleaved := odinl_interleave((xs)[:], (ys)[:])"), true)
     testing.expect_value(t, strings.contains(output, "reversed := odinl_reverse((joined)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "shuffled := odinl_shuffle(pick_first, (joined)[:])"), true)
     testing.expect_value(t, strings.contains(output, "sorted := odinl_sort((joined)[:])"), true)
     testing.expect_value(t, strings.contains(output, "descending := odinl_sort_by(neg, (joined)[:])"), true)
     testing.expect_value(t, strings.contains(output, "odinl_thread_1 := odinl_mapcat(pair, (xs)[:])"), true)
@@ -1359,6 +1365,7 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "odinl_mapcat :: proc(f: proc(x: $T) -> []$U, xs: []T) -> [dynamic]U"), true)
     testing.expect_value(t, strings.contains(output, "odinl_interpose :: proc(sep: $T, xs: []T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_interleave :: proc(xs, ys: []$T) -> [dynamic]T"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_shuffle :: proc(pick: proc(n: int) -> int, xs: []$T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_sort :: proc(xs: []$T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_sort_by :: proc(f: proc(x: $T) -> $K, xs: []T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_reverse_in_place :: proc(xs: []$T)"), true)

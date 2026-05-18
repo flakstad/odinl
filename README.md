@@ -546,7 +546,7 @@ foreign_call :: proc(handle: Foreign_Handle) ---
   `(second xs)`, `(last xs)`, `(nth xs n)`, `(rest xs)`, `(empty? xs)`,
   `(remove pred xs)`, `(map-indexed f xs)`, `(keep f xs)`, `(mapcat f xs)`,
   `(concat xs ys)`, `(interpose sep xs)`, `(interleave xs ys)`,
-  `(reverse xs)`, `(sort xs)`, `(sort-by f xs)`,
+  `(reverse xs)`, `(shuffle pick xs)`, `(sort xs)`, `(sort-by f xs)`,
   `(sort-by :field xs)`, mutating `(reverse! xs)`, `(sort! xs)`,
   `(sort-by! f xs)`, `(sort-by! :field xs)`, `(map! f xs)`,
   `(map-indexed! f xs)`, `(filter! pred xs)`, `(filter! :field xs)`,

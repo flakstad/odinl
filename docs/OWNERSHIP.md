@@ -35,6 +35,7 @@ These forms return owned values in normal OdinL code:
 (interpose sep xs)
 (interleave xs ys)
 (reverse xs)
+(shuffle pick xs)
 (sort xs)
 (sort-by f xs)
 (sort-by :field xs)
