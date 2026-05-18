@@ -66,7 +66,7 @@ run_output=$(./odinl run examples/hello.odinl)
 assert_eq "hello from odinl" "$run_output" "run output"
 
 printf 'tooling: eval command\n'
-eval_output=$(./odinl eval examples/higher-order.odinl '(reduce-int (new [dynamic]int [1 2 3]) 0 add)' --generated "$tmp_dir/eval.odin")
+eval_output=$(./odinl eval examples/higher-order.odinl '(reduce add 0 (new []int [1 2 3]))' --generated "$tmp_dir/eval.odin")
 assert_eq "6" "$eval_output" "eval output"
 assert_file_nonempty "$tmp_dir/eval.odin" "eval generated output"
 
@@ -75,7 +75,7 @@ main_eval_output=$(./odinl eval examples/hello.odinl '(main)')
 assert_eq "hello from odinl" "$main_eval_output" "eval main output"
 
 printf 'tooling: eval check command\n'
-./odinl eval examples/higher-order.odinl '(reduce-int (new [dynamic]int [1 2 3]) 0 add)' --check
+./odinl eval examples/higher-order.odinl '(reduce add 0 (new []int [1 2 3]))' --check
 
 printf 'tooling: eval declaration form\n'
 cat > "$tmp_dir/decl-eval.odinl" <<'EOF'
@@ -105,7 +105,7 @@ if ! grep -q 'examples/higher-order.odinl:<eval>:1:1 Error: Cannot convert' "$tm
 fi
 
 printf 'tooling: legacy eval compile path\n'
-./odinl examples/higher-order.odinl --eval '(reduce-int (new [dynamic]int [1 2 3]) 0 add)' -o "$tmp_dir/legacy-eval.odin"
+./odinl examples/higher-order.odinl --eval '(reduce add 0 (new []int [1 2 3]))' -o "$tmp_dir/legacy-eval.odin"
 legacy_output=$(odin run "$tmp_dir/legacy-eval.odin" -file)
 assert_eq "6" "$legacy_output" "legacy eval output"
 

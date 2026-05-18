@@ -98,7 +98,7 @@ Run CLI and Emacs-tooling integration checks with:
 Generate a scratch runner for one selected form with:
 
 ```sh
-./odinl eval examples/higher-order.odinl '(reduce-int (new [dynamic]int [1 2 3]) 0 add)'
+./odinl eval examples/higher-order.odinl '(reduce add 0 (new []int [1 2 3]))'
 ```
 
 The CLI can also invoke Odin for generated files directly:
@@ -535,7 +535,8 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - `(do body...)`
 - `(new Type literal)` typed composite literals
 - `(make Type args...)` runtime/allocator-backed construction
-- `(:field value)`, `(get value key)`, and `(-> value steps...)`
+- `(map f xs)`, `(filter pred xs)`, and `(reduce f init xs)` core eager helpers
+- `(:field value)`, `(get value key)`, `(-> value steps...)`, and `(->> value steps...)`
 - `(^ ptr)` and `(& place)`
 - numbers, booleans, `nil`, and `(nil? value)`
 - calls: `(foo a b)` -> `foo(a, b)`

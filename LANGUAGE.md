@@ -509,7 +509,7 @@ The planned core expression forms are:
 - `set!`
 - `get`
 - keyword field access: `(:field expr)`
-- threading: `->`
+- threading: `->` and `->>`
 - `return`
 - `defer`
 - `for`
@@ -885,10 +885,11 @@ The intended surface style can still be familiar:
 (reduce combine init xs)
 ```
 
-But the collection-processing model is intentionally not locked down yet. In
-particular, OdinL should not prematurely commit to:
+These are now core eager helpers that lower to generated generic Odin
+procedures in the same output file. The broader collection-processing model is
+still intentionally not locked down yet. In particular, OdinL should not
+prematurely commit to:
 
-- eager collection helpers as the final abstraction
 - `*-into` helper families
 - seq semantics
 - lazy semantics
