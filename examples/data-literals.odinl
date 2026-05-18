@@ -45,6 +45,23 @@
     (defer (delete lookup))
     (contains? lookup "one")))
 
+(proc merged-lookup-total [] -> int
+  (let [base (new map[string]int {"one" 1 "two" 2})
+        overrides (new map[string]int {"two" 20 "three" 30})
+        merged (merge base overrides)]
+    (defer (delete base))
+    (defer (delete overrides))
+    (defer (delete merged))
+    (+ (get merged "one") (get merged "two") (get merged "three"))))
+
+(proc merge-in-place-total [] -> int
+  (let [lookup (new map[string]int {"one" 1 "two" 2})
+        overrides (new map[string]int {"two" 20 "three" 30})]
+    (defer (delete lookup))
+    (defer (delete overrides))
+    (merge! lookup overrides)
+    (+ (get lookup "one") (get lookup "two") (get lookup "three"))))
+
 (proc fixed-middle [] -> int
   (let [fixed (new [3]int [5 8 13])]
     (get fixed 1)))
@@ -70,6 +87,12 @@
 
   (lookup-has-one?)
   ;; => true
+
+  (merged-lookup-total)
+  ;; => 51
+
+  (merge-in-place-total)
+  ;; => 51
 
   (fixed-middle)
   ;; => 8

@@ -911,6 +911,7 @@ The intended surface style can still be familiar:
 (map-indexed attach-index xs)
 (keep maybe-useful xs)
 (concat xs ys)
+(merge defaults overrides)
 (reverse xs)
 (shuffle pick xs)
 (shuffle! pick xs)

@@ -40,6 +40,7 @@ These helpers are already in scope and should remain small:
 (keep f xs)
 (mapcat f xs)
 (concat xs ys)
+(merge a b)
 (into [dynamic]T xs)
 (interpose sep xs)
 (interleave xs ys)
@@ -61,6 +62,7 @@ These helpers are already in scope and should remain small:
 (remove! :field xs)
 (keep! f xs)
 (into! target xs)
+(merge! target source)
 (split-at n xs)
 (partition n xs)
 (partition-all n xs)
@@ -111,8 +113,10 @@ dynamic arrays. `into` is currently only for explicit dynamic-array targets,
 for example `(into [dynamic]int xs)`. `distinct` and `distinct-by` also
 return owned dynamic arrays and use a temporary `map[key]bool` internally, so
 the value or key must be valid as an Odin map key. `zipmap`, `index-by`, and
-`frequencies` return owned maps. `group-by` returns an owned map whose values
-are owned dynamic arrays; delete each group before deleting the map.
+`frequencies` return owned maps. `merge` returns an owned map that combines two
+input maps, with right-hand values replacing duplicate keys. `group-by` returns
+an owned map whose values are owned dynamic arrays; delete each group before
+deleting the map.
 `partition`, `partition-all`, and `partition-by` return owned dynamic arrays of
 borrowed slice chunks. `keep` is Odin-shaped: the callback returns `(value,
 ok)`, and only `ok` values are appended. `mapcat` is also Odin-shaped: the
@@ -352,7 +356,8 @@ Sequence helpers need an explicit ownership story:
   allocate and return owned dynamic arrays.
 - Chunking helpers `partition`, `partition-all`, and `partition-by` allocate the
   outer dynamic array, but their slice chunks borrow the input collection.
-- `zipmap`, `index-by`, and `frequencies` allocate and return owned maps.
+- `merge`, `zipmap`, `index-by`, and `frequencies` allocate and return owned
+  maps.
 - `group-by` allocates an owned map and one owned dynamic array per key. Delete
   the groups, then delete the map.
 - Owned helper results must be bound or returned. Nested owned results such as

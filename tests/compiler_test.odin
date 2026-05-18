@@ -1553,7 +1553,10 @@ compile_map_constructing_sequence_helpers :: proc(t: ^testing.T) {
         by-group (group-by identity xs)
         threaded (->> xs
                       (group-by identity))
-        counts (frequencies xs)]
+        counts (frequencies xs)
+        base (new map[string]int {"a" 1 "b" 2})
+        overrides (new map[string]int {"b" 20 "c" 30})
+        merged (merge base overrides)]
     (defer (delete by-value))
     (defer
       (each [_ group by-group]
@@ -1564,6 +1567,10 @@ compile_map_constructing_sequence_helpers :: proc(t: ^testing.T) {
         (delete group))
       (delete threaded))
     (defer (delete counts))
+    (defer (delete base))
+    (defer (delete overrides))
+    (defer (delete merged))
+    (merge! base overrides)
     (return)))`
 
     output, err, ok := odinl.compile_source(source)
@@ -1578,9 +1585,13 @@ compile_map_constructing_sequence_helpers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "by_group := odinl_group_by(identity, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "threaded := odinl_group_by(identity, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "counts := odinl_frequencies((xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "merged := odinl_merge(base, overrides)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_merge_in_place(&(base), overrides)"), true)
     testing.expect_value(t, strings.contains(output, "odinl_index_by :: proc(f: proc(x: $T) -> $K, xs: []T) -> map[K]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_group_by :: proc(f: proc(x: $T) -> $K, xs: []T) -> map[K][dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_frequencies :: proc(xs: []$T) -> map[T]int"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_merge :: proc(lhs, rhs: map[$K]$V) -> map[K]V"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_merge_in_place :: proc(target: ^map[$K]$V, source: map[K]V)"), true)
 }
 
 @(test)
