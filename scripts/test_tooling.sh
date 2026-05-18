@@ -118,6 +118,8 @@ if command -v emacs >/dev/null 2>&1; then
     emacs -Q --batch --eval \
         "(progn
            (defvar clojure-mode-map (make-sparse-keymap))
+           (defvar cider-mode nil)
+           (defvar clj-refactor-mode nil)
            (define-derived-mode clojure-mode prog-mode \"Clojure\")
            (defun clojure--put-indentation-spec (&rest _args) nil)
            (provide (quote clojure-mode))

@@ -38,6 +38,29 @@
 
 (defvar odinl--last-source-buffer nil)
 
+(defvar odinl-eval-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c C-e") #'odinl-eval-form-at-point)
+    (define-key map (kbd "C-c C-p") #'odinl-popup-form-at-point)
+    (define-key map (kbd "C-c C-i") #'odinl-insert-form-result)
+    (define-key map (kbd "C-c C-r") #'odinl-eval-region)
+    (define-key map (kbd "C-c C-c") #'odinl-eval-top-level-form)
+    (define-key map (kbd "C-c C-x") #'odinl-eval-comment-form)
+    (define-key map (kbd "C-c C-k") #'odinl-check-form-at-point)
+    (define-key map (kbd "C-c C-a") #'odinl-run-buffer)
+    (define-key map (kbd "C-c C-b") #'odinl-build-buffer)
+    (define-key map (kbd "C-c C-v") #'odinl-check-buffer)
+    (define-key map (kbd "C-c C-s") #'odinl-toggle-show-generated)
+    (define-key map (kbd "C-c C-z") #'odinl-switch-to-result)
+    map)
+  "Keymap for `odinl-eval-mode'.")
+
+;;;###autoload
+(define-minor-mode odinl-eval-mode
+  "Minor mode for OdinL eval keybindings."
+  :lighter " OdinL-Eval"
+  :keymap odinl-eval-mode-map)
+
 (defun odinl-clear-inline-results ()
   "Delete OdinL inline result overlays in the current buffer."
   (remove-overlays (point-min) (point-max) 'odinl-result-overlay t))
@@ -478,7 +501,14 @@ With prefix argument NO-PRINT, treat the form as a statement."
 ;;;###autoload
 (defun odinl-setup-mode-keys ()
   "Install default OdinL eval key bindings in the current OdinL buffer."
+  (when (and (bound-and-true-p cider-mode)
+             (fboundp 'cider-mode))
+    (cider-mode -1))
+  (when (and (bound-and-true-p clj-refactor-mode)
+             (fboundp 'clj-refactor-mode))
+    (clj-refactor-mode -1))
   (odinl--enable-inline-result-clearing)
+  (odinl-eval-mode 1)
   (local-set-key (kbd "C-c C-e") #'odinl-eval-form-at-point)
   (local-set-key (kbd "C-c C-p") #'odinl-popup-form-at-point)
   (local-set-key (kbd "C-c C-i") #'odinl-insert-form-result)
