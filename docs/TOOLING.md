@@ -237,25 +237,41 @@ if err == nil {
 }
 ```
 
-The JSON helper names are placeholders. The design constraint is the important
-part: serialization should be explicit, file-backed, and reproducible from a
-fresh process. The editor can make the workflow feel REPL-like by remembering
-recent paths and commands, but the compiled Odin should remain ordinary.
+The JSON load helper name is a placeholder. The design constraint is the
+important part: serialization should be explicit, file-backed, and reproducible
+from a fresh process. The editor can make the workflow feel REPL-like by
+remembering recent paths and commands, but the compiled Odin should remain
+ordinary.
 
 JSON should be the first supported structured format because users can inspect
 and edit it. CBOR is a reasonable later option for larger caches. Odin's custom
 marshalers/unmarshalers should remain available for special types rather than
 OdinL inventing a parallel serialization protocol.
 
-### CLI Shape
+### CLI Cache
+
+The CLI has a small text cache for eval output:
+
+```sh
+odinl eval file.odinl FORM --save NAME
+odinl cache path NAME
+odinl cache list
+odinl cache rm NAME
+```
+
+The default cache directory is project-local `.odinl-cache`, which is gitignored.
+Set `ODINL_CACHE_DIR` when editor tooling or tests need an isolated cache. Cache
+names are simple file names: letters, digits, `_`, `-`, and `.` only. `--save`
+writes the exact stdout from a successful eval run to the named cache file and
+still prints stdout normally.
+
+This is intentionally text-oriented. For structured values, prefer explicit
+`spit`, `slurp`, and `save-json` in OdinL source so ownership and format choices
+stay visible.
 
 Useful future `odinl` commands or flags:
 
-- `odinl eval file.odinl FORM --save NAME`
 - `odinl eval file.odinl FORM --tap`
-- `odinl cache list`
-- `odinl cache path NAME`
-- `odinl cache rm NAME`
 - `odinl watch file.odinl FORM`
 
 The exact CLI can change, but it should keep the source of truth on disk so a

@@ -75,6 +75,17 @@ tap_output=$(./odinl eval examples/tap.odinl '(tap> :answer 42)')
 tap_expected=$(printf 'answer: 42\n42')
 assert_eq "$tap_expected" "$tap_output" "tap eval output"
 
+printf 'tooling: eval save cache\n'
+cache_dir="$tmp_dir/cache"
+saved_output=$(ODINL_CACHE_DIR="$cache_dir" ./odinl eval examples/higher-order.odinl '(reduce add 0 (new []int [1 2 3]))' --save sum)
+assert_eq "6" "$saved_output" "saved eval output"
+saved_path=$(ODINL_CACHE_DIR="$cache_dir" ./odinl cache path sum)
+assert_eq "$cache_dir/sum" "$saved_path" "cache path"
+assert_eq "6" "$(cat "$saved_path")" "saved cache content"
+assert_eq "sum" "$(ODINL_CACHE_DIR="$cache_dir" ./odinl cache list)" "cache list"
+ODINL_CACHE_DIR="$cache_dir" ./odinl cache rm sum
+assert_eq "" "$(ODINL_CACHE_DIR="$cache_dir" ./odinl cache list)" "cache list after rm"
+
 printf 'tooling: eval file-backed dev helpers\n'
 cat > "$tmp_dir/dev-io.odinl" <<'EOF'
 (package main)
