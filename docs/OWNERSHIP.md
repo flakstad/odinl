@@ -111,6 +111,16 @@ These are scalar values, plain values, or borrowed views:
 
 Do not delete `front` or `back`.
 
+`distinct` and `distinct-by` return owned dynamic arrays. They use temporary
+maps internally and clean those maps inside the helper, but the returned dynamic
+array belongs to the caller:
+
+```clojure
+(let [users (distinct-by :id rows)]
+  (defer (delete users))
+  ...)
+```
+
 ## Mutating Helpers
 
 Bang helpers mutate existing storage and do not create owned results:

@@ -67,6 +67,9 @@ These helpers are already in scope and should remain small:
 (group-by f xs)
 (group-by :field xs)
 (frequencies xs)
+(distinct xs)
+(distinct-by f xs)
+(distinct-by :field xs)
 (range end)
 (range start end)
 (range start end step)
@@ -98,7 +101,9 @@ non-owning slice views.
 
 Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
 `mapcat`, `concat`, `reverse`, `range`, `repeat`, `repeatedly`, `iterate`, and
-bounded `cycle` return owned dynamic arrays. `zipmap`, `index-by`, and
+bounded `cycle` return owned dynamic arrays. `distinct` and `distinct-by` also
+return owned dynamic arrays and use a temporary `map[key]bool` internally, so
+the value or key must be valid as an Odin map key. `zipmap`, `index-by`, and
 `frequencies` return owned maps. `group-by` returns an owned map whose values
 are owned dynamic arrays; delete each group before deleting the map.
 `partition`, `partition-all`, and `partition-by` return owned dynamic arrays of
@@ -128,6 +133,7 @@ helpers:
 (index-by :id users)
 (group-by :status users)
 (partition-by :status users)
+(distinct-by :id users)
 (sort-by :age users)
 (sort-by! :age users)
 (filter :verified users)
@@ -182,8 +188,6 @@ remaining pre-transducer work should stay small and direct:
 - broaden `into!` beyond dynamic arrays only when the target representation
   stays obvious, such as a direct map merge.
 - `shuffle`: eager copy plus shuffle with an explicit random source.
-- possibly `distinct` and `distinct-by`: owned dynamic-array result backed by a
-  temporary map/set, with clear allocation and cleanup.
 - possibly `interpose` and `interleave`: owned dynamic-array builders when the
   output type remains obvious.
 
@@ -200,8 +204,6 @@ implementation:
 (into target xs)
 (into! target xs)
 (shuffle rng xs)
-(distinct xs)
-(distinct-by f xs)
 ```
 
 The main questions are:
@@ -214,8 +216,9 @@ The main questions are:
   adding.
 - `shuffle` should probably require an explicit random source rather than hide
   one.
-- `distinct` needs a set representation. `map[T]bool` is the likely boring Odin
-  answer for comparable keys, but it should be documented as an allocation.
+- `distinct` and `distinct-by` are implemented with temporary `map[key]bool`
+  storage. Broader set-like helpers should keep using ordinary Odin map-backed
+  representations unless a better concrete Odin shape appears.
 
 ## Bounded Producers
 

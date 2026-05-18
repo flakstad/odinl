@@ -555,7 +555,8 @@ foreign_call :: proc(handle: Foreign_Handle) ---
   `(partition n xs)`, `(partition-all n xs)`, `(partition-by f xs)`,
   `(partition-by :field xs)`, `(zipmap keys vals)`, `(index-by f xs)`,
   `(index-by :field xs)`, `(group-by f xs)`, `(group-by :field xs)`,
-  and `(frequencies xs)`, plus bounded producers
+  `(frequencies xs)`, `(distinct xs)`, `(distinct-by f xs)`,
+  and `(distinct-by :field xs)`, plus bounded producers
   `(range ...)`, `(repeat n x)`, `(repeatedly n f)`, `(iterate n f x)`,
   and `(cycle n xs)`
 - keywords can stand in for field callbacks in those helpers, e.g. `(map :name users)`,
