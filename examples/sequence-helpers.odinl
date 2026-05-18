@@ -5,6 +5,9 @@
 (proc even? [x: int] -> bool
   (== (% x 2) 0))
 
+(proc small? [x: int] -> bool
+  (< x 4))
+
 (proc add-index [i: int, x: int] -> int
   (+ i x))
 
@@ -84,6 +87,38 @@
     (defer (delete xs))
     (last xs)))
 
+(proc trimmed-sum [] -> int
+  (let [xs (new []int [1 2 3 4 5])
+        head (take 3 xs)
+        tail (drop 2 xs)
+        smalls (take-while small? xs)
+        bigs (drop-while small? xs)]
+    (+ (+ (last head) (first tail))
+       (+ (len smalls) (first bigs)))))
+
+(proc rest-second-empty-score [] -> int
+  (let [xs (new []int [10 20 30])
+        tail (rest xs)
+        empty-tail (drop 3 xs)]
+    (if (empty? empty-tail)
+      (+ (first tail) (second xs))
+      0)))
+
+(proc concat-reversed-first [] -> int
+  (let [xs (new []int [1 2])
+        ys (new []int [3 4])
+        joined (concat xs ys)
+        reversed (reverse joined)]
+    (defer (delete joined))
+    (defer (delete reversed))
+    (first reversed)))
+
+(proc ragged-chunk-size [] -> int
+  (let [xs (new []int [1 2 3 4 5])
+        chunks (partition-all 2 xs)]
+    (defer (delete chunks))
+    (len (last chunks))))
+
 (proc threaded-first [] -> int
   (let [xs (new []int [1 2 3 4])
         threaded (->> xs
@@ -126,6 +161,18 @@
 
   (iterated-last)
   ;; => 8
+
+  (trimmed-sum)
+  ;; => 13
+
+  (rest-second-empty-score)
+  ;; => 40
+
+  (concat-reversed-first)
+  ;; => 4
+
+  (ragged-chunk-size)
+  ;; => 1
 
   (threaded-first)
   ;; => 4
