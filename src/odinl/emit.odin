@@ -26,6 +26,7 @@ Emitter_Features :: struct {
     core_reverse:     bool,
     core_reverse_in_place: bool,
     core_shuffle:     bool,
+    core_shuffle_in_place: bool,
     core_map_in_place: bool,
     core_map_indexed_in_place: bool,
     core_filter_in_place: bool,
@@ -217,6 +218,12 @@ mark_core_reverse_in_place :: proc(e: ^Emitter) {
 mark_core_shuffle :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_shuffle = true
+    }
+}
+
+mark_core_shuffle_in_place :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_shuffle_in_place = true
     }
 }
 
@@ -2117,6 +2124,22 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         return emit_call_text("odinl_reverse_in_place", []string{slice_all_expr_text(collection)}), {}, true
     }
 
+    if head.text == "shuffle!" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "shuffle! expects picker function and collection", span = form.span}, false
+        }
+        pick, err_pick, ok_pick := emit_expr(e, form.items[1])
+        if !ok_pick {
+            return "", err_pick, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[2])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        mark_core_shuffle_in_place(e)
+        return emit_call_text("odinl_shuffle_in_place", []string{pick, slice_all_expr_text(collection)}), {}, true
+    }
+
     if head.text == "sort" {
         if len(form.items) != 2 {
             return "", Compile_Error{message = "sort expects collection", span = form.span}, false
@@ -3977,6 +4000,19 @@ emit_core_shuffle_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_shuffle_in_place_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_shuffle_in_place :: proc(pick: proc(n: int) -> int, xs: []$T) {")
+    e.indent += 1
+    emit_line(e, "for i := len(xs)-1; i > 0; i -= 1 {")
+    e.indent += 1
+    emit_line(e, "j := pick(i+1)")
+    emit_line(e, "xs[i], xs[j] = xs[j], xs[i]")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_sort_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_sort :: proc(xs: []$T) -> [dynamic]T {")
     e.indent += 1
@@ -4707,7 +4743,7 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_mapcat || features.core_concat || features.core_into ||
            features.core_interpose || features.core_interleave ||
            features.core_reverse || features.core_reverse_in_place ||
-           features.core_shuffle ||
+           features.core_shuffle || features.core_shuffle_in_place ||
            features.core_map_in_place || features.core_map_indexed_in_place ||
            features.core_filter_in_place || features.core_remove_in_place ||
            features.core_keep_in_place ||
@@ -4842,6 +4878,10 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_shuffle {
         emit_core_helper_separator(e, &emitted)
         emit_core_shuffle_helper(e)
+    }
+    if features.core_shuffle_in_place {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_shuffle_in_place_helper(e)
     }
     if features.core_sort {
         emit_core_helper_separator(e, &emitted)

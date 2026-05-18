@@ -49,6 +49,7 @@ These helpers are already in scope and should remain small:
 (sort-by f xs)
 (sort-by :field xs)
 (reverse! xs)
+(shuffle! pick xs)
 (sort! xs)
 (sort-by! f xs)
 (sort-by! :field xs)
@@ -192,8 +193,9 @@ For hot paths, prefer one of these shapes:
 
 - use slice-view helpers such as `take`, `drop`, `rest`, and `split-at` when a
   borrowed view is enough;
-- use bang helpers such as `sort!`, `reverse!`, `map!`, `filter!`, `remove!`,
-  `keep!`, and `into!` when mutating existing storage is the right Odin choice;
+- use bang helpers such as `sort!`, `reverse!`, `shuffle!`, `map!`, `filter!`,
+  `remove!`, `keep!`, and `into!` when mutating existing storage is the right
+  Odin choice;
 - write an explicit `each` loop when one pass and no intermediate collection is
   needed;
 - later, use transducer-style lowering once it exists to fuse pipelines into one
@@ -227,9 +229,8 @@ The main questions are:
   `append(&target, ..xs)`. Maps could later merge key/value pairs, and sets
   would first need a concrete Odin representation. Treat this as explicit eager
   construction or mutation, not a polymorphic collection protocol.
-- `shuffle` is implemented with an explicit picker callback. A later
-  `shuffle!` would be reasonable if in-place randomization becomes common
-  enough to justify another bang helper.
+- `shuffle` and `shuffle!` are implemented with an explicit picker callback. The
+  caller owns the randomness policy; OdinL only performs the swaps.
 - `distinct` and `distinct-by` are implemented with temporary `map[key]bool`
   storage. Broader set-like helpers should keep using ordinary Odin map-backed
   representations unless a better concrete Odin shape appears.
@@ -347,8 +348,8 @@ Sequence helpers need an explicit ownership story:
 - Slice-view helpers such as `rest`, `take`, `drop`, `take-while`,
   `drop-while`, and `split-at` do not own data and must not be deleted.
 - Dynamic-array helpers such as `map`, `filter`, `remove`, `map-indexed`,
-  `keep`, `mapcat`, `concat`, `reverse`, `sort`, and `sort-by` allocate and
-  return owned dynamic arrays.
+  `keep`, `mapcat`, `concat`, `reverse`, `shuffle`, `sort`, and `sort-by`
+  allocate and return owned dynamic arrays.
 - Chunking helpers `partition`, `partition-all`, and `partition-by` allocate the
   outer dynamic array, but their slice chunks borrow the input collection.
 - `zipmap`, `index-by`, and `frequencies` allocate and return owned maps.

@@ -912,6 +912,8 @@ The intended surface style can still be familiar:
 (keep maybe-useful xs)
 (concat xs ys)
 (reverse xs)
+(shuffle pick xs)
+(shuffle! pick xs)
 (split-at 2 xs)
 (partition 2 xs)
 (partition-all 3 xs)

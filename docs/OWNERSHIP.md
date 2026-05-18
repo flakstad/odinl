@@ -131,6 +131,7 @@ Bang helpers mutate existing storage and do not create owned results:
 
 ```clojure
 (reverse! xs)
+(shuffle! pick xs)
 (sort! xs)
 (sort-by! f xs)
 (sort-by! :field xs)
