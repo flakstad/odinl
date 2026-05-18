@@ -30,9 +30,17 @@ Emitter :: struct {
     unions:                    [dynamic]Union_Decl,
     features:                  ^Emitter_Features,
     line:                      int,
+    temp_counter:              int,
     attach_next_decl:          bool,
     pending_prefix_directives: [dynamic]string,
     pending_suffix_directives: [dynamic]string,
+}
+
+Thread_Result_Kind :: enum {
+    Unknown,
+    Owned,
+    View,
+    Scalar,
 }
 
 mark_dynamic_literals :: proc(e: ^Emitter) {
@@ -592,6 +600,191 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
         return "", Compile_Error{message = "unsupported thread step", span = step.span}, false
     }
     return "", Compile_Error{message = "unsupported thread step", span = step.span}, false
+}
+
+thread_temp_name :: proc(e: ^Emitter) -> string {
+    e.temp_counter += 1
+    return fmt.tprintf("odinl_thread_%d", e.temp_counter)
+}
+
+thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Result_Kind {
+    #partial switch step.kind {
+    case .Keyword:
+        return .Scalar
+    case .Symbol:
+        if thread_last && step.text == "slice" {
+            return .View
+        }
+        return .Unknown
+    case .List:
+        if len(step.items) == 0 {
+            return .Unknown
+        }
+        head := step.items[0]
+        if head.kind == .Keyword {
+            return .Scalar
+        }
+        if head.kind != .Symbol {
+            return .Unknown
+        }
+        if thread_last && (head.text == "map" || head.text == "filter") {
+            return .Owned
+        }
+        if thread_last && (head.text == "take" || head.text == "drop" ||
+                           head.text == "take-while" || head.text == "drop-while" ||
+                           head.text == "slice" || head.text == "rest") {
+            return .View
+        }
+        if thread_last && (head.text == "reduce" || head.text == "find" ||
+                           head.text == "some?" || head.text == "every?" ||
+                           head.text == "first" || head.text == "second" ||
+                           head.text == "nth") {
+            return .Scalar
+        }
+    }
+    return .Unknown
+}
+
+is_thread_form :: proc(form: CST_Form, thread_last: bool) -> bool {
+    if form.kind != .List || len(form.items) == 0 || form.items[0].kind != .Symbol {
+        return false
+    }
+    if thread_last {
+        return form.items[0].text == "->>"
+    }
+    return form.items[0].text == "->"
+}
+
+thread_form_has_allocating_intermediate :: proc(form: CST_Form, thread_last: bool) -> bool {
+    if !is_thread_form(form, thread_last) || len(form.items) < 3 {
+        return false
+    }
+    for step, idx in form.items[2:] {
+        last_step := idx == len(form.items[2:])-1
+        if !last_step && thread_step_result_kind(step, thread_last) == .Owned {
+            return true
+        }
+    }
+    return false
+}
+
+thread_form_final_kind :: proc(form: CST_Form, thread_last: bool) -> Thread_Result_Kind {
+    if !is_thread_form(form, thread_last) || len(form.items) < 3 {
+        return .Unknown
+    }
+    return thread_step_result_kind(form.items[len(form.items)-1], thread_last)
+}
+
+thread_form_final_view_borrows_owned_intermediate :: proc(form: CST_Form, thread_last: bool) -> bool {
+    if !is_thread_form(form, thread_last) || len(form.items) < 3 {
+        return false
+    }
+    if thread_form_final_kind(form, thread_last) != .View {
+        return false
+    }
+    for step in form.items[2:len(form.items)-1] {
+        if thread_step_result_kind(step, thread_last) == .Owned {
+            return true
+        }
+    }
+    return false
+}
+
+thread_return_error :: proc(form: CST_Form) -> (Compile_Error, bool) {
+    if thread_form_has_allocating_intermediate(form, true) || thread_form_has_allocating_intermediate(form, false) {
+        return Compile_Error{
+            message = "threaded return has an allocating intermediate; bind the pipeline with let so OdinL can emit cleanup",
+            span = form.span,
+        }, true
+    }
+    return {}, false
+}
+
+returned_binding_name :: proc(form: CST_Form) -> (string, bool) {
+    if form.kind == .Symbol {
+        return map_name(form.text), true
+    }
+    if form.kind == .List && len(form.items) == 2 &&
+       form.items[0].kind == .Symbol && form.items[0].text == "return" &&
+       form.items[1].kind == .Symbol {
+        return map_name(form.items[1].text), true
+    }
+    return "", false
+}
+
+let_return_error :: proc(bindings: []Binding, body: []CST_Form) -> (Compile_Error, bool) {
+    if len(body) == 0 {
+        return {}, false
+    }
+    returned_name, ok_name := returned_binding_name(body[len(body)-1])
+    if !ok_name {
+        return {}, false
+    }
+    for binding in bindings {
+        if binding.name != returned_name {
+            continue
+        }
+        if thread_form_final_view_borrows_owned_intermediate(binding.value, true) ||
+           thread_form_final_view_borrows_owned_intermediate(binding.value, false) {
+            return Compile_Error{
+                message = "cannot return a threaded slice view that borrows from an owned intermediate; return an owned result or keep the pipeline local",
+                span = binding.value.span,
+            }, true
+        }
+    }
+    return {}, false
+}
+
+emit_binding_assignment :: proc(e: ^Emitter, binding: Binding, value: string) {
+    if binding.is_destructure {
+        line_builder := strings.builder_make()
+        defer strings.builder_destroy(&line_builder)
+        for name, idx in binding.pattern {
+            if idx > 0 {
+                strings.write_string(&line_builder, ", ")
+            }
+            strings.write_string(&line_builder, name)
+        }
+        fmt.sbprintf(&line_builder, " := %s", value)
+        emit_prefixed_expr(e, "", strings.clone(strings.to_string(line_builder)))
+    } else if binding.is_typed {
+        emit_prefixed_expr(e, fmt.tprintf("%s: %s = ", binding.name, binding.ty), value)
+    } else {
+        emit_prefixed_expr(e, fmt.tprintf("%s := ", binding.name), value)
+    }
+}
+
+emit_thread_binding_assignment :: proc(e: ^Emitter, binding: Binding, thread_last: bool) -> (Compile_Error, bool) {
+    form := binding.value
+    if len(form.items) < 3 {
+        return Compile_Error{message = fmt.tprintf("%s expects an initial expression and at least one step", form.items[0].text), span = form.span}, false
+    }
+
+    current, err_current, ok_current := emit_expr(e, form.items[1])
+    if !ok_current {
+        return err_current, false
+    }
+
+    for step, idx in form.items[2:] {
+        next, err_step, ok_step := emit_thread_step(e, current, step, thread_last)
+        if !ok_step {
+            return err_step, false
+        }
+
+        kind := thread_step_result_kind(step, thread_last)
+        last_step := idx == len(form.items[2:])-1
+        if kind == .Owned && !last_step {
+            temp := thread_temp_name(e)
+            emit_prefixed_expr(e, fmt.tprintf("%s := ", temp), next)
+            emit_line(e, fmt.tprintf("defer delete(%s)", temp))
+            current = temp
+        } else {
+            current = next
+        }
+    }
+
+    emit_binding_assignment(e, binding, current)
+    return {}, true
 }
 
 emit_thread_expr :: proc(e: ^Emitter, form: CST_Form, thread_last: bool = false) -> (string, Compile_Error, bool) {
@@ -1617,6 +1810,13 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         return Compile_Error{message = "unsupported statement head", span = head.span}, false
     }
 
+    if last_in_proc && returns.kind == .Single {
+        err_thread_return, bad_thread_return := thread_return_error(form)
+        if bad_thread_return {
+            return err_thread_return, false
+        }
+    }
+
     switch head.text {
     case "comment":
         return {}, true
@@ -1642,36 +1842,39 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         if !ok_bind {
             return err_bind, false
         }
+        body: [dynamic]CST_Form
+        for item in form.items[2:] {
+            append(&body, item)
+        }
+        if last_in_proc && returns.kind == .Single {
+            err_let_return, bad_let_return := let_return_error(bindings[:], body[:])
+            if bad_let_return {
+                return err_let_return, false
+            }
+        }
         scoped := !last_in_proc
         if scoped {
             emit_line(e, "{")
             e.indent += 1
         }
         for binding in bindings {
-            value, err_value, ok_value := emit_expr(e, binding.value)
-            if !ok_value {
-                return err_value, false
-            }
-            if binding.is_destructure {
-                line_builder := strings.builder_make()
-                defer strings.builder_destroy(&line_builder)
-                for name, idx in binding.pattern {
-                    if idx > 0 {
-                        strings.write_string(&line_builder, ", ")
-                    }
-                    strings.write_string(&line_builder, name)
+            if is_thread_form(binding.value, true) {
+                err_thread, ok_thread := emit_thread_binding_assignment(e, binding, true)
+                if !ok_thread {
+                    return err_thread, false
                 }
-                fmt.sbprintf(&line_builder, " := %s", value)
-                emit_prefixed_expr(e, "", strings.clone(strings.to_string(line_builder)))
-            } else if binding.is_typed {
-                emit_prefixed_expr(e, fmt.tprintf("%s: %s = ", binding.name, binding.ty), value)
+            } else if is_thread_form(binding.value, false) {
+                err_thread, ok_thread := emit_thread_binding_assignment(e, binding, false)
+                if !ok_thread {
+                    return err_thread, false
+                }
             } else {
-                emit_prefixed_expr(e, fmt.tprintf("%s := ", binding.name), value)
+                value, err_value, ok_value := emit_expr(e, binding.value)
+                if !ok_value {
+                    return err_value, false
+                }
+                emit_binding_assignment(e, binding, value)
             }
-        }
-        body: [dynamic]CST_Form
-        for item in form.items[2:] {
-            append(&body, item)
         }
         err_body, ok_body := emit_body_forms(e, body[:], returns_when_final(last_in_proc, returns))
         if !ok_body {
@@ -1733,6 +1936,10 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             return {}, true
         }
         if len(form.items) == 2 {
+            err_thread_return, bad_thread_return := thread_return_error(form.items[1])
+            if bad_thread_return {
+                return err_thread_return, false
+            }
             value, err_value, ok_value := emit_expr(e, form.items[1])
             if !ok_value {
                 return err_value, false

@@ -1052,7 +1052,10 @@ compile_core_higher_order_helpers_and_slice_exprs :: proc(t: ^testing.T) {
         mapped (map inc xs)
         tail (slice mapped 1)
         evens (filter even? mapped)
-        total (reduce add 0 evens)
+        total (->> xs
+                   (map inc)
+                   (filter even?)
+                   (reduce add 0))
         middle (slice mapped 0 1)]
     (defer (delete mapped))
     (defer (delete evens))
@@ -1085,7 +1088,11 @@ main :: proc() {
     mapped := odinl_map(inc, (xs)[:])
     tail := (mapped)[1:]
     evens := odinl_filter(even_p, (mapped)[:])
-    total := odinl_reduce(add, 0, (evens)[:])
+    odinl_thread_1 := odinl_map(inc, (xs)[:])
+    defer delete(odinl_thread_1)
+    odinl_thread_2 := odinl_filter(even_p, (odinl_thread_1)[:])
+    defer delete(odinl_thread_2)
+    total := odinl_reduce(add, 0, (odinl_thread_2)[:])
     middle := (mapped)[0:1]
     defer delete(mapped)
     defer delete(evens)
@@ -1156,6 +1163,84 @@ compile_sequence_trim_helpers_as_slice_views :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "return xs[:i]"), true)
     testing.expect_value(t, strings.contains(output, "odinl_drop_while :: proc(pred: proc(x: $T) -> bool, xs: []T) -> []T"), true)
     testing.expect_value(t, strings.contains(output, "return xs[i:]"), true)
+}
+
+@(test)
+compile_threaded_let_binding_keeps_owned_intermediates_alive :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(struct User {
+  :name string
+  :active bool
+})
+
+(proc main []
+  (let [users (new []User [(User {:name "Ada" :active true})
+                           (User {:name "Lin" :active false})
+                           (User {:name "Grace" :active true})])
+        active-names (->> users
+                          (filter :active)
+                          (map :name)
+                          (take 1))]
+    (return)))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "odinl_thread_1 := odinl_filter_field_active((users)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "defer delete(odinl_thread_1)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_thread_2 := odinl_map_field_name(type_of(((odinl_thread_1)[:])[0].name), (odinl_thread_1)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "defer delete(odinl_thread_2)"), true)
+    testing.expect_value(t, strings.contains(output, "active_names := odinl_take(1, (odinl_thread_2)[:])"), true)
+}
+
+@(test)
+reject_threaded_return_with_allocating_intermediate :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc inc [x: int] -> int
+  (+ x 1))
+
+(proc even? [x: int] -> bool
+  (== (% x 2) 0))
+
+(proc bad [xs: []int] -> []int
+  (->> xs
+       (map inc)
+       (filter even?)
+       (take 1)))`
+
+    _, err, ok := odinl.compile_source(source)
+    defer delete(err.message)
+    testing.expect_value(t, ok, false)
+    testing.expect_value(t, err.message, "threaded return has an allocating intermediate; bind the pipeline with let so OdinL can emit cleanup")
+}
+
+@(test)
+reject_returning_threaded_view_of_owned_intermediate :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(struct User {
+  :name string
+  :active bool
+})
+
+(proc bad [users: []User] -> []string
+  (let [active-names (->> users
+                          (filter :active)
+                          (map :name)
+                          (take 1))]
+    active-names))`
+
+    _, err, ok := odinl.compile_source(source)
+    defer delete(err.message)
+    testing.expect_value(t, ok, false)
+    testing.expect_value(t, err.message, "cannot return a threaded slice view that borrows from an owned intermediate; return an owned result or keep the pipeline local")
 }
 
 @(test)

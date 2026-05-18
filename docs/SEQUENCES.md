@@ -178,8 +178,7 @@ The hard part is ownership. If a thread step allocates and its result is passed
 directly into the next step, the compiler must not lose the only handle to that
 owned value.
 
-The immediate production-style recommendation is to bind owned intermediate
-results explicitly:
+Production-style code can always bind owned intermediate results explicitly:
 
 ```clojure
 (let [active-users (filter active? users)
@@ -192,8 +191,8 @@ results explicitly:
 
 This is slightly noisier, but it is honest and emits obvious Odin.
 
-The desired later lowering for an allocating threaded expression in statement
-position is to generate named temporaries and cleanup for owned intermediates:
+For threaded pipelines in `let` bindings, OdinL lowers allocating intermediate
+steps to named temporaries and emits cleanup for those generated temporaries:
 
 ```odin
 odinl_tmp_1 := odinl_filter(active_p, users[:])
@@ -203,12 +202,12 @@ defer delete(odinl_tmp_2)
 active_names := odinl_take(10, odinl_tmp_2[:])
 ```
 
-This should only happen where the compiler is emitting statements and has a
-real scope for the generated `defer`s. In pure expression position, automatic
-cleanup is much harder to make correct without hidden control flow. The compiler
-should either keep the current expression lowering for non-allocating steps or
-eventually reject/warn on allocating threaded expressions that cannot be cleaned
-up.
+This only happens where the compiler is emitting statements and has a real scope
+for the generated `defer`s. In pure expression position, automatic cleanup is
+much harder to make correct without hidden control flow. For now, returning a
+threaded pipeline with allocating intermediates is rejected; bind the pipeline in
+`let` so the compiler can emit cleanup, or return the final owned value directly
+from a non-pipelined allocation.
 
 Transducers would improve this by compiling a composed transformation into one
 loop and one owned result:
