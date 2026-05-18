@@ -112,6 +112,8 @@ assert_eq "1" "$(./odinl eval examples/sequence-helpers.odinl '(ragged-chunk-siz
 assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(run-count)')" "run-count"
 assert_eq "15" "$(./odinl eval examples/sequence-helpers.odinl '(flattened-total)')" "flattened-total"
 assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(threaded-first)')" "threaded-first"
+assert_eq "/health" "$(./odinl eval examples/declarations.odinl '(endpoint-summary)')" "endpoint-summary"
+assert_eq "404" "$(./odinl eval examples/declarations.odinl '(shorthand-status-code)')" "shorthand-status-code"
 assert_eq "36" "$(./odinl eval examples/sequences.odinl '(age-for-ada)')" "age-for-ada"
 assert_eq "3" "$(./odinl eval examples/sequences.odinl '(status-run-count)')" "status-run-count"
 assert_eq "2" "$(./odinl eval examples/sequences.odinl '(active-status-group-count)')" "active-status-group-count"

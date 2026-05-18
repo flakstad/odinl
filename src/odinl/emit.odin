@@ -1334,6 +1334,16 @@ emit_binding_assignment :: proc(e: ^Emitter, binding: Binding, value: string) {
         }
         fmt.sbprintf(&line_builder, " := %s", value)
         emit_prefixed_expr(e, "", strings.clone(strings.to_string(line_builder)))
+    } else if binding.is_field_destructure {
+        e.temp_counter += 1
+        target := fmt.tprintf("odinl_destructure_%d", e.temp_counter)
+        emit_prefixed_expr(e, fmt.tprintf("%s := ", target), value)
+        for field in binding.fields {
+            if field.name == "_" {
+                continue
+            }
+            emit_prefixed_expr(e, fmt.tprintf("%s := ", field.name), fmt.tprintf("%s.%s", target, field.field))
+        }
     } else if binding.is_typed {
         emit_prefixed_expr(e, fmt.tprintf("%s: %s = ", binding.name, binding.ty), value)
     } else {
@@ -2642,13 +2652,62 @@ emit_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, bool) 
     return "", Compile_Error{message = "unsupported expression", span = form.span}, false
 }
 
+Binding_Field :: struct {
+    field: string,
+    name:  string,
+}
+
 Binding :: struct {
     is_destructure: bool,
+    is_field_destructure: bool,
     name:           string,
     pattern:        [dynamic]string,
+    fields:         [dynamic]Binding_Field,
     is_typed:       bool,
     ty:             string,
     value:          CST_Form,
+}
+
+parse_field_destructure_binding :: proc(form: CST_Form) -> (fields: [dynamic]Binding_Field, err: Compile_Error, ok: bool) {
+    if len(form.items) == 0 {
+        return fields, Compile_Error{message = "field destructuring expects at least one field", span = form.span}, false
+    }
+
+    all_keywords := true
+    for item in form.items {
+        if item.kind != .Keyword {
+            all_keywords = false
+            break
+        }
+    }
+    if all_keywords {
+        for item in form.items {
+            name := map_name(item.text[1:])
+            append(&fields, Binding_Field{field = name, name = name})
+        }
+        return fields, {}, true
+    }
+
+    if len(form.items)%2 != 0 {
+        return fields, Compile_Error{message = "field destructuring expects field/local pairs", span = form.span}, false
+    }
+    i := 0
+    for i < len(form.items) {
+        key := form.items[i]
+        local := form.items[i+1]
+        if key.kind != .Keyword {
+            return fields, Compile_Error{message = "field destructuring expects keyword fields", span = key.span}, false
+        }
+        if local.kind != .Symbol {
+            return fields, Compile_Error{message = "field destructuring expects symbol locals", span = local.span}, false
+        }
+        append(&fields, Binding_Field{
+            field = map_name(key.text[1:]),
+            name = map_name(local.text),
+        })
+        i += 2
+    }
+    return fields, {}, true
 }
 
 parse_let_bindings :: proc(form: CST_Form) -> (bindings: [dynamic]Binding, err: Compile_Error, ok: bool) {
@@ -2673,6 +2732,20 @@ parse_let_bindings :: proc(form: CST_Form) -> (bindings: [dynamic]Binding, err: 
             append(&bindings, Binding{
                 is_destructure = true,
                 pattern = names,
+                value = form.items[i+1],
+            })
+            i += 2
+        case .Brace:
+            if i+1 >= len(form.items) {
+                return bindings, Compile_Error{message = "field destructuring binding missing value", span = target.span}, false
+            }
+            fields, err_fields, ok_fields := parse_field_destructure_binding(target)
+            if !ok_fields {
+                return bindings, err_fields, false
+            }
+            append(&bindings, Binding{
+                is_field_destructure = true,
+                fields = fields,
                 value = form.items[i+1],
             })
             i += 2

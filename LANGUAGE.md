@@ -663,6 +663,7 @@ The intended v0.1 scope is deliberately small:
 
 - flat vector destructuring for multi-return bindings
 - `_` allowed for ignored positions
+- flat struct-field destructuring in `let`
 - no generalized nested destructuring yet
 - no protocol-driven binding sugar in the core language
 
@@ -679,8 +680,7 @@ Examples:
 This keeps the core language explicit while leaving room for later macro-based
 binding abstractions such as `when-bind`.
 
-Later destructuring should still lower to obvious Odin assignments. Struct
-field destructuring is the likely next step because it is only field access:
+Struct field destructuring lowers to obvious Odin assignments:
 
 ```clojure
 (let [{:name name
@@ -695,11 +695,13 @@ name := user.name
 age := user.age
 ```
 
-Shorthand such as `{ :name :age }` may also be reasonable if it expands to
-same-named locals. Map destructuring is a separate question because Odin map
-lookup has presence semantics, not Clojure nil-as-missing semantics. It should
-not be added until the generated code can stay explicit about whether lookup
-failure is allowed.
+Shorthand such as `{:name :age}` expands to same-named locals. The compiler may
+introduce a temporary so the source expression is evaluated once before fields
+are pulled out.
+
+Map destructuring is a separate question because Odin map lookup has presence
+semantics, not Clojure nil-as-missing semantics. It should not be added until
+the generated code can stay explicit about whether lookup failure is allowed.
 
 ### `do`
 

@@ -1003,6 +1003,49 @@ main :: proc() {
 }
 
 @(test)
+compile_struct_field_destructuring :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(struct User {
+  :name string
+  :age int
+})
+
+(proc main []
+  (let [user (User {:name "Ada" :age 36})
+        {:name user-name :age user-age} user
+        {:age} user]
+    (return)))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+User :: struct {
+    name: string,
+    age: int,
+}
+
+main :: proc() {
+    user := User{name = "Ada", age = 36}
+    odinl_destructure_1 := user
+    user_name := odinl_destructure_1.name
+    user_age := odinl_destructure_1.age
+    odinl_destructure_2 := user
+    age := odinl_destructure_2.age
+    return
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 compile_proc_types_and_literals :: proc(t: ^testing.T) {
     source := `(package main)
 
