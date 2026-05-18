@@ -102,6 +102,12 @@ Generate a scratch runner for one selected form with:
 ./odinl eval examples/higher-order.odinl '(reduce add 0 (new []int [1 2 3]))'
 ```
 
+Inspect the generated scratch Odin without running it with:
+
+```sh
+./odinl expand examples/higher-order.odinl '(reduce add 0 (new []int [1 2 3]))'
+```
+
 The CLI can also invoke Odin for generated files directly:
 
 ```sh

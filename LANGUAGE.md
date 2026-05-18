@@ -1527,6 +1527,11 @@ Useful editor commands later:
 - macroexpand form
 - show lowered Odin
 
+The current CLI supports the last item directly through `odinl expand
+file.odinl FORM`, which emits the generated scratch Odin for the selected form
+without running it. This is a lowering preview, not a real macro expansion
+phase yet.
+
 The development model should become richer without becoming stateful. Tooling
 may support tap-style inspection, rerun watches, and disk-backed saved values,
 but those features should be explicit editor/CLI workflows around generated
