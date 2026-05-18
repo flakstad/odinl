@@ -38,6 +38,25 @@ printf 'tooling: check command\n'
 ./odinl check examples/hello.odinl --generated "$tmp_dir/check.odin"
 assert_file_nonempty "$tmp_dir/check.odin" "check generated output"
 
+printf 'tooling: check diagnostic mapping\n'
+cat > "$tmp_dir/bad.odinl" <<'EOF'
+(package main)
+(import "core:fmt")
+
+(proc main []
+  (let [x: int "bad"]
+    (fmt.println x)))
+EOF
+if ./odinl check "$tmp_dir/bad.odinl" >"$tmp_dir/bad-check.out" 2>"$tmp_dir/bad-check.err"; then
+    printf 'failed: bad check unexpectedly succeeded\n' >&2
+    exit 1
+fi
+if ! grep -q "$tmp_dir/bad.odinl:4:1 Error: Cannot convert" "$tmp_dir/bad-check.err"; then
+    printf 'failed: bad check diagnostic did not map back to .odinl\n' >&2
+    cat "$tmp_dir/bad-check.err" >&2
+    exit 1
+fi
+
 printf 'tooling: run command\n'
 run_output=$(./odinl run examples/hello.odinl)
 assert_eq "hello from odinl" "$run_output" "run output"

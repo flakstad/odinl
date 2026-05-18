@@ -2,6 +2,8 @@ package main
 
 import "core:fmt"
 import "core:os"
+import "core:strconv"
+import "core:strings"
 import odinl "../../src/odinl"
 
 print_usage :: proc() {
@@ -34,16 +36,71 @@ write_output_or_exit :: proc(path, output: string) {
     }
 }
 
-print_process_output :: proc(stdout, stderr: []byte) {
-    if len(stdout) > 0 {
-        fmt.print(string(stdout))
+parse_generated_location :: proc(line, generated_path: string) -> (line_no, close_index: int, ok: bool) {
+    open_index := strings.index(line, "(")
+    if open_index < 0 {
+        return 0, 0, false
     }
-    if len(stderr) > 0 {
-        fmt.eprint(string(stderr))
+
+    file_text := line[:open_index]
+    _, generated_file := os.split_path(generated_path)
+    _, diagnostic_file := os.split_path(file_text)
+    if file_text != generated_path && diagnostic_file != generated_file {
+        return 0, 0, false
     }
+
+    location := line[open_index+1:]
+    colon_index := strings.index(location, ":")
+    close_offset := strings.index(location, ")")
+    if colon_index < 0 || close_offset < 0 || colon_index > close_offset {
+        return 0, 0, false
+    }
+
+    parsed_line, ok_line := strconv.parse_int(location[:colon_index])
+    if !ok_line {
+        return 0, 0, false
+    }
+
+    return parsed_line, open_index + 1 + close_offset, true
 }
 
-run_odin_file :: proc(command, generated_path: string) -> int {
+remap_odin_output_locations :: proc(output, generated_path, source_path, source: string, source_map: []odinl.Source_Map_Entry) -> string {
+    if generated_path == "" || source_path == "" || len(source_map) == 0 {
+        return strings.clone(output)
+    }
+
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+
+    rest := output
+    for len(rest) > 0 {
+        line := rest
+        next_start := len(rest)
+        if newline := strings.index(rest, "\n"); newline >= 0 {
+            line = rest[:newline+1]
+            next_start = newline + 1
+        }
+
+        generated_line, close_index, ok_location := parse_generated_location(line, generated_path)
+        if ok_location {
+            if entry, found := odinl.source_map_entry_for_generated_line(source_map, generated_line); found {
+                source_line, source_column, _, _ := odinl.source_position(source, entry.source_span.start)
+                fmt.sbprintf(&builder, "%s:%d:%d", source_path, source_line, source_column)
+                strings.write_string(&builder, line[close_index+1:])
+            } else {
+                strings.write_string(&builder, line)
+            }
+        } else {
+            strings.write_string(&builder, line)
+        }
+
+        rest = rest[next_start:]
+    }
+
+    return strings.clone(strings.to_string(builder))
+}
+
+run_odin_file :: proc(command, generated_path, source_path, source: string, source_map: []odinl.Source_Map_Entry) -> int {
     args := [?]string{"odin", command, generated_path, "-file"}
     state, stdout, stderr, err := os.process_exec(
         os.Process_Desc{command = args[:]},
@@ -52,7 +109,14 @@ run_odin_file :: proc(command, generated_path: string) -> int {
     defer delete(stdout)
     defer delete(stderr)
 
-    print_process_output(stdout, stderr)
+    if len(stdout) > 0 {
+        fmt.print(string(stdout))
+    }
+    if len(stderr) > 0 {
+        mapped_stderr := remap_odin_output_locations(string(stderr), generated_path, source_path, source, source_map)
+        defer delete(mapped_stderr)
+        fmt.eprint(mapped_stderr)
+    }
     if err != nil {
         fmt.eprintln("failed to run odin ", command)
         return 1
@@ -151,22 +215,23 @@ run_generated_command :: proc(input, generated_path, odin_command: string) -> in
     data := read_source_or_exit(input)
     defer delete(transmute([]byte)data)
 
-    output, err, ok := odinl.compile_source(data)
+    result, err, ok := odinl.compile_source_with_map(data)
     if !ok {
         formatted := odinl.format_compile_error(input, data, err)
         fmt.eprint(formatted)
         delete(formatted)
         os.exit(1)
     }
-    defer delete(output)
+    defer delete(result.output)
+    defer delete(result.source_map)
 
-    path, temp_dir, path_ok := write_generated_for_execution(output, generated_path)
+    path, temp_dir, path_ok := write_generated_for_execution(result.output, generated_path)
     if !path_ok {
         return 1
     }
     defer cleanup_generated(path, temp_dir, generated_path)
 
-    return run_odin_file(odin_command, path)
+    return run_odin_file(odin_command, path, input, data, result.source_map[:])
 }
 
 eval_command :: proc(input, eval_source, generated_path: string, no_print, check_only: bool) -> int {
@@ -192,7 +257,8 @@ eval_command :: proc(input, eval_source, generated_path: string, no_print, check
     if check_only {
         odin_command = "check"
     }
-    return run_odin_file(odin_command, path)
+    empty_map: [0]odinl.Source_Map_Entry
+    return run_odin_file(odin_command, path, "", "", empty_map[:])
 }
 
 parse_legacy_compile :: proc() {
