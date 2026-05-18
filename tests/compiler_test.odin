@@ -1,6 +1,7 @@
 package tests
 
 import "base:runtime"
+import "core:strings"
 import "core:testing"
 import odinl "../src/odinl"
 
@@ -1117,6 +1118,45 @@ odinl_reduce :: proc(f: proc(acc: $U, x: $T) -> U, init: U, xs: []T) -> U {
 }
 `
     testing.expect_value(t, output, expected)
+}
+
+@(test)
+compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(struct User {
+  :name string
+  :verified bool
+})
+
+(proc main []
+  (let [users (new []User [(User {:name "Ada" :verified true})
+                           (User {:name "Lin" :verified false})])
+        names (map :name users)
+        verified (filter :verified users)
+        [first ok] (find :verified users)
+        any? (some? :verified users)
+        all? (every? :verified verified)]
+    (return)))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "names := odinl_map_field_name(type_of(((users)[:])[0].name), (users)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "verified := odinl_filter_field_verified((users)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "first, ok := odinl_find_field_verified((users)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "any_p := odinl_some_p_field_verified((users)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "all_p := odinl_every_p_field_verified((verified)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_map_field_name :: proc($Field_Type: typeid, xs: []$T) -> [dynamic]Field_Type"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_filter_field_verified :: proc(xs: []$T) -> [dynamic]T"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_find_field_verified :: proc(xs: []$T) -> (value: T, ok: bool)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_some_p_field_verified :: proc(xs: []$T) -> bool"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_every_p_field_verified :: proc(xs: []$T) -> bool"), true)
 }
 
 @(test)

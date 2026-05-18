@@ -538,6 +538,8 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - `(map f xs)`, `(filter pred xs)`, `(reduce f init xs)`, `(take n xs)`,
   `(drop n xs)`, `(take-while pred xs)`, `(drop-while pred xs)`,
   `(find pred xs)`, `(some? pred xs)`, and `(every? pred xs)` core eager helpers
+- keywords can stand in for field callbacks in those helpers, e.g. `(map :name users)`
+  and `(filter :verified users)`
 - `(:field value)`, `(get value key)`, `(-> value steps...)`, and `(->> value steps...)`
 - `(^ ptr)` and `(& place)`
 - numbers, booleans, `nil`, and `(nil? value)`

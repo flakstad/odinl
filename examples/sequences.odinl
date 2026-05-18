@@ -12,6 +12,7 @@
   :name string
   :age int
   :status Status
+  :verified bool
 })
 
 (proc active? [user: User] -> bool
@@ -26,36 +27,39 @@
 (proc young? [user: User] -> bool
   (< (:age user) 40))
 
-(proc user-name [user: User] -> string
-  (:name user))
-
 (proc add-age [total: int, user: User] -> int
   (+ total (:age user)))
 
 (proc main []
-  (let [users (new []User [(User {:name "Ada" :age 36 :status .Active})
-                           (User {:name "Lin" :age 17 :status .Paused})
-                           (User {:name "Grace" :age 45 :status .Active})
-                           (User {:name "Edsger" :age 72 :status .Archived})])
+  (let [users (new []User [(User {:name "Ada" :age 36 :status .Active :verified true})
+                           (User {:name "Lin" :age 17 :status .Paused :verified false})
+                           (User {:name "Grace" :age 45 :status .Active :verified true})
+                           (User {:name "Edsger" :age 72 :status .Archived :verified false})])
         active-users (filter active? users)
+        verified-users (filter :verified users)
         first-active (take 1 active-users)
         remaining-active (drop 1 active-users)
         young-prefix (take-while young? users)
         after-young-prefix (drop-while young? users)
         active-names (->> users
                           (filter active?)
-                          (map user-name)
+                          (map :name)
                           (take 2))
         active-age-total (->> users
                               (filter active?)
                               (reduce add-age 0))
         [first-adult found?] (find adult? users)
+        [first-verified verified-found?] (find :verified users)
         has-archived? (some? archived? users)
+        has-verified? (some? :verified users)
         active-users-adults? (every? adult? active-users)]
     (fmt.println (len active-users))
+    (fmt.println (len verified-users))
     (fmt.println (get active-names 0))
     (fmt.println active-age-total)
     (fmt.println found? (:name first-adult))
+    (fmt.println verified-found? (:name first-verified))
     (fmt.println has-archived? active-users-adults?)
+    (fmt.println has-verified?)
     (fmt.println (len first-active) (len remaining-active))
     (fmt.println (len young-prefix) (:name (get after-young-prefix 0)))))

@@ -888,12 +888,17 @@ The intended surface style can still be familiar:
 (find ready? xs)
 (some? archived? xs)
 (every? valid? xs)
+(->> users
+     (filter :verified)
+     (map :name))
 ```
 
 These are now core eager helpers that lower to generated generic Odin
-procedures in the same output file. The broader collection-processing model is
-still intentionally not locked down yet. In particular, OdinL should not
-prematurely commit to:
+procedures in the same output file. Keywords used as callbacks in these helpers
+lower to generated field-specific helper procedures; they are shorthand for
+field access, not a general callable keyword/map-lookup abstraction. The broader
+collection-processing model is still intentionally not locked down yet. In
+particular, OdinL should not prematurely commit to:
 
 - `*-into` helper families
 - seq semantics

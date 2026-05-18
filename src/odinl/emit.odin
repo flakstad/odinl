@@ -15,6 +15,13 @@ Emitter_Features :: struct {
     core_find:        bool,
     core_some:        bool,
     core_every:       bool,
+    map_fields:       [dynamic]string,
+    filter_fields:    [dynamic]string,
+    take_while_fields: [dynamic]string,
+    drop_while_fields: [dynamic]string,
+    find_fields:      [dynamic]string,
+    some_fields:      [dynamic]string,
+    every_fields:     [dynamic]string,
 }
 
 Emitter :: struct {
@@ -91,6 +98,57 @@ mark_core_some :: proc(e: ^Emitter) {
 mark_core_every :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_every = true
+    }
+}
+
+append_unique_string :: proc(items: ^[dynamic]string, value: string) {
+    for item in items^ {
+        if item == value {
+            return
+        }
+    }
+    append(items, value)
+}
+
+mark_core_map_field :: proc(e: ^Emitter, field: string) {
+    if e.features != nil {
+        append_unique_string(&e.features.map_fields, field)
+    }
+}
+
+mark_core_filter_field :: proc(e: ^Emitter, field: string) {
+    if e.features != nil {
+        append_unique_string(&e.features.filter_fields, field)
+    }
+}
+
+mark_core_take_while_field :: proc(e: ^Emitter, field: string) {
+    if e.features != nil {
+        append_unique_string(&e.features.take_while_fields, field)
+    }
+}
+
+mark_core_drop_while_field :: proc(e: ^Emitter, field: string) {
+    if e.features != nil {
+        append_unique_string(&e.features.drop_while_fields, field)
+    }
+}
+
+mark_core_find_field :: proc(e: ^Emitter, field: string) {
+    if e.features != nil {
+        append_unique_string(&e.features.find_fields, field)
+    }
+}
+
+mark_core_some_field :: proc(e: ^Emitter, field: string) {
+    if e.features != nil {
+        append_unique_string(&e.features.some_fields, field)
+    }
+}
+
+mark_core_every_field :: proc(e: ^Emitter, field: string) {
+    if e.features != nil {
+        append_unique_string(&e.features.every_fields, field)
     }
 }
 
@@ -416,18 +474,11 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             if len(step.items) != 2 {
                 return "", Compile_Error{message = fmt.tprintf("%s thread step expects one function argument", head.text), span = step.span}, false
             }
-            f, err_f, ok_f := emit_expr(e, step.items[1])
-            if !ok_f {
-                return "", err_f, false
-            }
             collection := slice_all_expr_text(current)
             if head.text == "map" {
-                mark_core_map(e)
-                return emit_call_text("odinl_map", []string{f, collection}), {}, true
-            } else {
-                mark_core_filter(e)
-                return emit_call_text("odinl_filter", []string{f, collection}), {}, true
+                return emit_map_callback_call(e, step.items[1], collection)
             }
+            return emit_predicate_callback_call(e, "odinl_filter", step.items[1], collection, mark_core_filter, mark_core_filter_field)
         }
         if thread_last && head.text == "reduce" {
             if len(step.items) != 3 {
@@ -464,29 +515,20 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             if len(step.items) != 2 {
                 return "", Compile_Error{message = fmt.tprintf("%s thread step expects one predicate argument", head.text), span = step.span}, false
             }
-            pred, err_pred, ok_pred := emit_expr(e, step.items[1])
-            if !ok_pred {
-                return "", err_pred, false
-            }
             collection := slice_all_expr_text(current)
             if head.text == "take-while" {
-                mark_core_take_while(e)
-                return emit_call_text("odinl_take_while", []string{pred, collection}), {}, true
+                return emit_predicate_callback_call(e, "odinl_take_while", step.items[1], collection, mark_core_take_while, mark_core_take_while_field)
             }
             if head.text == "drop-while" {
-                mark_core_drop_while(e)
-                return emit_call_text("odinl_drop_while", []string{pred, collection}), {}, true
+                return emit_predicate_callback_call(e, "odinl_drop_while", step.items[1], collection, mark_core_drop_while, mark_core_drop_while_field)
             }
             if head.text == "find" {
-                mark_core_find(e)
-                return emit_call_text("odinl_find", []string{pred, collection}), {}, true
+                return emit_predicate_callback_call(e, "odinl_find", step.items[1], collection, mark_core_find, mark_core_find_field)
             }
             if head.text == "some?" {
-                mark_core_some(e)
-                return emit_call_text("odinl_some_p", []string{pred, collection}), {}, true
+                return emit_predicate_callback_call(e, "odinl_some_p", step.items[1], collection, mark_core_some, mark_core_some_field)
             }
-            mark_core_every(e)
-            return emit_call_text("odinl_every_p", []string{pred, collection}), {}, true
+            return emit_predicate_callback_call(e, "odinl_every_p", step.items[1], collection, mark_core_every, mark_core_every_field)
         }
         if thread_last && head.text == "slice" {
             if len(step.items) > 3 {
@@ -554,6 +596,48 @@ slice_all_expr_text :: proc(text: string) -> string {
         return text
     }
     return fmt.tprintf("(%s)[:]", text)
+}
+
+field_from_keyword :: proc(form: CST_Form) -> (field: string, ok: bool) {
+    if form.kind != .Keyword || len(form.text) < 2 {
+        return "", false
+    }
+    return map_name(form.text[1:]), true
+}
+
+field_type_expr_text :: proc(collection, field: string) -> string {
+    return fmt.tprintf("type_of((%s)[0].%s)", collection, field)
+}
+
+emit_map_callback_call :: proc(e: ^Emitter, callback: CST_Form, collection: string) -> (string, Compile_Error, bool) {
+    if field, ok_field := field_from_keyword(callback); ok_field {
+        mark_core_map_field(e, field)
+        return emit_call_text(
+            fmt.tprintf("odinl_map_field_%s", field),
+            []string{field_type_expr_text(collection, field), collection},
+        ), {}, true
+    }
+
+    f, err_f, ok_f := emit_expr(e, callback)
+    if !ok_f {
+        return "", err_f, false
+    }
+    mark_core_map(e)
+    return emit_call_text("odinl_map", []string{f, collection}), {}, true
+}
+
+emit_predicate_callback_call :: proc(e: ^Emitter, helper_name: string, callback: CST_Form, collection: string, mark_helper: proc(^Emitter), mark_field: proc(^Emitter, string)) -> (string, Compile_Error, bool) {
+    if field, ok_field := field_from_keyword(callback); ok_field {
+        mark_field(e, field)
+        return emit_call_text(fmt.tprintf("%s_field_%s", helper_name, field), []string{collection}), {}, true
+    }
+
+    pred, err_pred, ok_pred := emit_expr(e, callback)
+    if !ok_pred {
+        return "", err_pred, false
+    }
+    mark_helper(e)
+    return emit_call_text(helper_name, []string{pred, collection}), {}, true
 }
 
 emit_proc_literal_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, bool) {
@@ -876,22 +960,15 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         if len(form.items) != 3 {
             return "", Compile_Error{message = fmt.tprintf("%s expects function and collection", head.text), span = form.span}, false
         }
-        f, err_f, ok_f := emit_expr(e, form.items[1])
-        if !ok_f {
-            return "", err_f, false
-        }
         collection, err_collection, ok_collection := emit_expr(e, form.items[2])
         if !ok_collection {
             return "", err_collection, false
         }
         collection = slice_all_expr_text(collection)
         if head.text == "map" {
-            mark_core_map(e)
-            return emit_call_text("odinl_map", []string{f, collection}), {}, true
-        } else {
-            mark_core_filter(e)
-            return emit_call_text("odinl_filter", []string{f, collection}), {}, true
+            return emit_map_callback_call(e, form.items[1], collection)
         }
+        return emit_predicate_callback_call(e, "odinl_filter", form.items[1], collection, mark_core_filter, mark_core_filter_field)
     }
 
     if head.text == "reduce" {
@@ -940,33 +1017,24 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         if len(form.items) != 3 {
             return "", Compile_Error{message = fmt.tprintf("%s expects predicate and collection", head.text), span = form.span}, false
         }
-        pred, err_pred, ok_pred := emit_expr(e, form.items[1])
-        if !ok_pred {
-            return "", err_pred, false
-        }
         collection, err_collection, ok_collection := emit_expr(e, form.items[2])
         if !ok_collection {
             return "", err_collection, false
         }
         collection = slice_all_expr_text(collection)
         if head.text == "take-while" {
-            mark_core_take_while(e)
-            return emit_call_text("odinl_take_while", []string{pred, collection}), {}, true
+            return emit_predicate_callback_call(e, "odinl_take_while", form.items[1], collection, mark_core_take_while, mark_core_take_while_field)
         }
         if head.text == "drop-while" {
-            mark_core_drop_while(e)
-            return emit_call_text("odinl_drop_while", []string{pred, collection}), {}, true
+            return emit_predicate_callback_call(e, "odinl_drop_while", form.items[1], collection, mark_core_drop_while, mark_core_drop_while_field)
         }
         if head.text == "find" {
-            mark_core_find(e)
-            return emit_call_text("odinl_find", []string{pred, collection}), {}, true
+            return emit_predicate_callback_call(e, "odinl_find", form.items[1], collection, mark_core_find, mark_core_find_field)
         }
         if head.text == "some?" {
-            mark_core_some(e)
-            return emit_call_text("odinl_some_p", []string{pred, collection}), {}, true
+            return emit_predicate_callback_call(e, "odinl_some_p", form.items[1], collection, mark_core_some, mark_core_some_field)
         }
-        mark_core_every(e)
-        return emit_call_text("odinl_every_p", []string{pred, collection}), {}, true
+        return emit_predicate_callback_call(e, "odinl_every_p", form.items[1], collection, mark_core_every, mark_core_every_field)
     }
 
     if head.text == "slice" {
@@ -1943,6 +2011,20 @@ emit_core_map_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_map_field_helper :: proc(e: ^Emitter, field: string) {
+    emit_line(e, fmt.tprintf("odinl_map_field_%s :: proc($Field_Type: typeid, xs: []$T) -> [dynamic]Field_Type %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]Field_Type)")
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("append(&out, x.%s)", field))
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_filter_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_filter :: proc(pred: proc(x: $T) -> bool, xs: []T) -> [dynamic]T {")
     e.indent += 1
@@ -1950,6 +2032,24 @@ emit_core_filter_helper :: proc(e: ^Emitter) {
     emit_line(e, "for x in xs {")
     e.indent += 1
     emit_line(e, "if pred(x) {")
+    e.indent += 1
+    emit_line(e, "append(&out, x)")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_filter_field_helper :: proc(e: ^Emitter, field: string) {
+    emit_line(e, fmt.tprintf("odinl_filter_field_%s :: proc(xs: []$T) -> [dynamic]T %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T)")
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("if x.%s %s", field, "{"))
     e.indent += 1
     emit_line(e, "append(&out, x)")
     e.indent -= 1
@@ -2044,6 +2144,25 @@ emit_core_take_while_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_take_while_field_helper :: proc(e: ^Emitter, field: string) {
+    emit_line(e, fmt.tprintf("odinl_take_while_field_%s :: proc(xs: []$T) -> [dynamic]T %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T)")
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("if !x.%s %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "break")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "append(&out, x)")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_drop_while_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_drop_while :: proc(pred: proc(x: $T) -> bool, xs: []T) -> [dynamic]T {")
     e.indent += 1
@@ -2054,6 +2173,31 @@ emit_core_drop_while_helper :: proc(e: ^Emitter) {
     emit_line(e, "if dropping {")
     e.indent += 1
     emit_line(e, "if pred(x) {")
+    e.indent += 1
+    emit_line(e, "continue")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "dropping = false")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "append(&out, x)")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_drop_while_field_helper :: proc(e: ^Emitter, field: string) {
+    emit_line(e, fmt.tprintf("odinl_drop_while_field_%s :: proc(xs: []$T) -> [dynamic]T %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T)")
+    emit_line(e, "dropping := true")
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, "if dropping {")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("if x.%s %s", field, "{"))
     e.indent += 1
     emit_line(e, "continue")
     e.indent -= 1
@@ -2086,12 +2230,46 @@ emit_core_find_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_find_field_helper :: proc(e: ^Emitter, field: string) {
+    emit_line(e, fmt.tprintf("odinl_find_field_%s :: proc(xs: []$T) -> (value: T, ok: bool) %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("if x.%s %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "return x, true")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return {}, false")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_some_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_some_p :: proc(pred: proc(x: $T) -> bool, xs: []T) -> bool {")
     e.indent += 1
     emit_line(e, "for x in xs {")
     e.indent += 1
     emit_line(e, "if pred(x) {")
+    e.indent += 1
+    emit_line(e, "return true")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return false")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_some_field_helper :: proc(e: ^Emitter, field: string) {
+    emit_line(e, fmt.tprintf("odinl_some_p_field_%s :: proc(xs: []$T) -> bool %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("if x.%s %s", field, "{"))
     e.indent += 1
     emit_line(e, "return true")
     e.indent -= 1
@@ -2120,11 +2298,32 @@ emit_core_every_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_every_field_helper :: proc(e: ^Emitter, field: string) {
+    emit_line(e, fmt.tprintf("odinl_every_p_field_%s :: proc(xs: []$T) -> bool %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("if !x.%s %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "return false")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return true")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 core_helpers_needed :: proc(features: Emitter_Features) -> bool {
     return features.core_map || features.core_filter || features.core_reduce ||
            features.core_take || features.core_drop ||
            features.core_take_while || features.core_drop_while ||
-           features.core_find || features.core_some || features.core_every
+           features.core_find || features.core_some || features.core_every ||
+           len(features.map_fields) > 0 || len(features.filter_fields) > 0 ||
+           len(features.take_while_fields) > 0 || len(features.drop_while_fields) > 0 ||
+           len(features.find_fields) > 0 || len(features.some_fields) > 0 ||
+           len(features.every_fields) > 0
 }
 
 emit_core_helper_separator :: proc(e: ^Emitter, emitted: ^bool) {
@@ -2145,9 +2344,17 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
         emit_core_helper_separator(e, &emitted)
         emit_core_map_helper(e)
     }
+    for field in features.map_fields {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_map_field_helper(e, field)
+    }
     if features.core_filter {
         emit_core_helper_separator(e, &emitted)
         emit_core_filter_helper(e)
+    }
+    for field in features.filter_fields {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_filter_field_helper(e, field)
     }
     if features.core_reduce {
         emit_core_helper_separator(e, &emitted)
@@ -2165,21 +2372,41 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
         emit_core_helper_separator(e, &emitted)
         emit_core_take_while_helper(e)
     }
+    for field in features.take_while_fields {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_take_while_field_helper(e, field)
+    }
     if features.core_drop_while {
         emit_core_helper_separator(e, &emitted)
         emit_core_drop_while_helper(e)
+    }
+    for field in features.drop_while_fields {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_drop_while_field_helper(e, field)
     }
     if features.core_find {
         emit_core_helper_separator(e, &emitted)
         emit_core_find_helper(e)
     }
+    for field in features.find_fields {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_find_field_helper(e, field)
+    }
     if features.core_some {
         emit_core_helper_separator(e, &emitted)
         emit_core_some_helper(e)
     }
+    for field in features.some_fields {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_some_field_helper(e, field)
+    }
     if features.core_every {
         emit_core_helper_separator(e, &emitted)
         emit_core_every_helper(e)
+    }
+    for field in features.every_fields {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_every_field_helper(e, field)
     }
 }
 
