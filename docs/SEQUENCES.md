@@ -58,6 +58,8 @@ These helpers are already in scope and should remain small:
 (zipmap keys vals)
 (index-by f xs)
 (index-by :field xs)
+(group-by f xs)
+(group-by :field xs)
 (frequencies xs)
 (range end)
 (range start end)
@@ -88,11 +90,12 @@ non-owning slice views.
 Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
 `mapcat`, `concat`, `reverse`, `range`, `repeat`, `repeatedly`, and `iterate`
 return owned dynamic arrays. `zipmap`, `index-by`, and `frequencies` return
-owned maps. `partition`, `partition-all`, and `partition-by` return owned dynamic
-arrays of borrowed slice chunks. `keep` is Odin-shaped: the callback returns
-`(value, ok)`, and only `ok` values are appended. `mapcat` is also Odin-shaped:
-the callback returns a borrowed slice, and `mapcat` appends those values into one
-owned dynamic array.
+owned maps. `group-by` returns an owned map whose values are owned dynamic
+arrays; delete each group before deleting the map. `partition`, `partition-all`,
+and `partition-by` return owned dynamic arrays of borrowed slice chunks. `keep`
+is Odin-shaped: the callback returns `(value, ok)`, and only `ok` values are
+appended. `mapcat` is also Odin-shaped: the callback returns a borrowed slice,
+and `mapcat` appends those values into one owned dynamic array.
 
 `sort` and `sort-by` copy before sorting. They do not mutate the input
 collection, and their result is owned.
@@ -110,6 +113,7 @@ helpers:
 ```clojure
 (map :name users)
 (index-by :id users)
+(group-by :status users)
 (partition-by :status users)
 (sort-by :age users)
 (sort-by! :age users)
@@ -162,14 +166,11 @@ These are valuable, but each needs one deliberate design choice before
 implementation:
 
 ```clojure
-(group-by f xs)
 (shuffle rng xs)
 ```
 
-The main questions are:
+The main question is:
 
-- Should grouping helpers require explicit allocator arguments, use
-  `context.allocator`, or follow the default dynamic-array helper convention?
 - `shuffle` should probably require an explicit random source rather than hide
   one.
 
@@ -284,6 +285,8 @@ Sequence helpers need an explicit ownership story:
 - Chunking helpers `partition`, `partition-all`, and `partition-by` allocate the
   outer dynamic array, but their slice chunks borrow the input collection.
 - `zipmap`, `index-by`, and `frequencies` allocate and return owned maps.
+- `group-by` allocates an owned map and one owned dynamic array per key. Delete
+  the groups, then delete the map.
 - Owned helper results must be bound or returned. Nested owned results such as
   `(first (map f xs))` are rejected because there is no visible place to delete
   the intermediate dynamic array.

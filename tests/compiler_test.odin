@@ -1364,6 +1364,9 @@ compile_chunking_and_zipmap_sequence_helpers :: proc(t: ^testing.T) {
 (proc identity [x: int] -> int
   x)
 
+(proc parity [x: int] -> int
+  (% x 2))
+
 (proc main []
   (let [xs (new []int [1 2 2 3 3 3])
         names (new []string ["Ada" "Lin"])
@@ -1373,6 +1376,7 @@ compile_chunking_and_zipmap_sequence_helpers :: proc(t: ^testing.T) {
         chunks-all (partition-all 3 xs)
         by-run (partition-by identity xs)
         by-name (zipmap names ages)
+        by-parity (group-by parity xs)
         threaded (->> xs
                       (remove even?)
                       (partition-by identity))]
@@ -1380,6 +1384,10 @@ compile_chunking_and_zipmap_sequence_helpers :: proc(t: ^testing.T) {
     (defer (delete chunks-all))
     (defer (delete by-run))
     (defer (delete by-name))
+    (defer
+      (each [_ group by-parity]
+        (delete group))
+      (delete by-parity))
     (defer (delete threaded))
     (return)))`
 
@@ -1396,6 +1404,9 @@ compile_chunking_and_zipmap_sequence_helpers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "chunks_all := odinl_partition_all(3, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "by_run := odinl_partition_by(identity, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "by_name := odinl_zipmap((names)[:], (ages)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "by_parity := odinl_group_by(parity, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "for _, group in by_parity {"), true)
+    testing.expect_value(t, strings.contains(output, "delete(group)"), true)
     testing.expect_value(t, strings.contains(output, "odinl_thread_1 := odinl_remove(even_p, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "defer delete(odinl_thread_1)"), true)
     testing.expect_value(t, strings.contains(output, "threaded := odinl_partition_by(identity, (odinl_thread_1)[:])"), true)
@@ -1404,6 +1415,7 @@ compile_chunking_and_zipmap_sequence_helpers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "odinl_partition_all :: proc(n: int, xs: []$T) -> [dynamic][]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_partition_by :: proc(f: proc(x: $T) -> $K, xs: []T) -> [dynamic][]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_zipmap :: proc(keys: []$K, values: []$V) -> map[K]V"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_group_by :: proc(f: proc(x: $T) -> $K, xs: []T) -> map[K][dynamic]T"), true)
 }
 
 @(test)
@@ -1416,8 +1428,19 @@ compile_map_constructing_sequence_helpers :: proc(t: ^testing.T) {
 (proc main []
   (let [xs (new []int [1 2 2 3])
         by-value (index-by identity xs)
+        by-group (group-by identity xs)
+        threaded (->> xs
+                      (group-by identity))
         counts (frequencies xs)]
     (defer (delete by-value))
+    (defer
+      (each [_ group by-group]
+        (delete group))
+      (delete by-group))
+    (defer
+      (each [_ group threaded]
+        (delete group))
+      (delete threaded))
     (defer (delete counts))
     (return)))`
 
@@ -1430,8 +1453,11 @@ compile_map_constructing_sequence_helpers :: proc(t: ^testing.T) {
     defer delete(output)
 
     testing.expect_value(t, strings.contains(output, "by_value := odinl_index_by(identity, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "by_group := odinl_group_by(identity, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "threaded := odinl_group_by(identity, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "counts := odinl_frequencies((xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "odinl_index_by :: proc(f: proc(x: $T) -> $K, xs: []T) -> map[K]T"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_group_by :: proc(f: proc(x: $T) -> $K, xs: []T) -> map[K][dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_frequencies :: proc(xs: []$T) -> map[T]int"), true)
 }
 
@@ -1488,6 +1514,7 @@ compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
                            (User {:name "Lin" :verified false})])
         names (map :name users)
         by-name (index-by :name users)
+        by-verified (group-by :verified users)
         groups (partition-by :verified users)
         sorted (sort-by :name users)
         mutated (new [dynamic]User [(User {:name "Ada" :verified true})
@@ -1497,6 +1524,10 @@ compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
         [first ok] (find :verified users)
         any? (some? :verified users)
         all? (every? :verified verified)]
+    (defer
+      (each [_ group by-verified]
+        (delete group))
+      (delete by-verified))
     (sort-by! :name mutated)
     (filter! :verified mutated)
     (remove! :verified mutated)
@@ -1512,6 +1543,7 @@ compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
 
     testing.expect_value(t, strings.contains(output, "names := odinl_map_field_name(type_of(((users)[:])[0].name), (users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "by_name := odinl_index_by_field_name(type_of(((users)[:])[0].name), (users)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "by_verified := odinl_group_by_field_verified(type_of(((users)[:])[0].verified), (users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "groups := odinl_partition_by_field_verified(type_of(((users)[:])[0].verified), (users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "sorted := odinl_sort_by_field_name(type_of(((users)[:])[0].name), (users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "odinl_sort_by_in_place_field_name((mutated)[:])"), true)
@@ -1524,6 +1556,7 @@ compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "all_p := odinl_every_p_field_verified((verified)[:])"), true)
     testing.expect_value(t, strings.contains(output, "odinl_map_field_name :: proc($Field_Type: typeid, xs: []$T) -> [dynamic]Field_Type"), true)
     testing.expect_value(t, strings.contains(output, "odinl_index_by_field_name :: proc($Key: typeid, xs: []$T) -> map[Key]T"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_group_by_field_verified :: proc($Key: typeid, xs: []$T) -> map[Key][dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_partition_by_field_verified :: proc($Key: typeid, xs: []$T) -> [dynamic][]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_sort_by_field_name :: proc($Key: typeid, xs: []$T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_sort_by_in_place_field_name :: proc(xs: []$T)"), true)

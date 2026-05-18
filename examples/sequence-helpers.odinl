@@ -17,6 +17,9 @@
 (proc identity-int [x: int] -> int
   x)
 
+(proc parity [x: int] -> int
+  (% x 2))
+
 (proc name-key [name: string] -> string
   name)
 
@@ -76,6 +79,16 @@
         by-name (index-by name-key names)]
     (defer (delete by-name))
     (len by-name)))
+
+(proc even-group-count [] -> int
+  (let [xs (new []int [1 2 3 4 6])
+        groups (group-by parity xs)
+        evens (get groups 0)]
+    (defer
+      (each [_ group groups]
+        (delete group))
+      (delete groups))
+    (len evens)))
 
 (proc range-total [] -> int
   (let [xs (range 1 5)]
@@ -232,6 +245,9 @@
   ;; => 2
 
   (indexed-name-count)
+  ;; => 3
+
+  (even-group-count)
   ;; => 3
 
   (range-total)

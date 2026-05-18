@@ -43,6 +43,8 @@ These forms return owned values in normal OdinL code:
 (zipmap keys vals)
 (index-by f xs)
 (index-by :field xs)
+(group-by f xs)
+(group-by :field xs)
 (frequencies xs)
 (range end)
 (range start end)
@@ -166,6 +168,18 @@ The same rule applies to owned maps:
 ```
 
 The caller deletes the returned map.
+
+`group-by` returns an owned map with owned dynamic-array values. Clean up both
+levels:
+
+```clojure
+(let [groups (group-by :status users)]
+  (defer
+    (each [_ group groups]
+      (delete group))
+    (delete groups))
+  ...)
+```
 
 ## Do Not Hide Owned Intermediates
 
