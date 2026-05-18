@@ -1039,6 +1039,39 @@ compile_file_dev_helpers :: proc(t: ^testing.T) {
 }
 
 @(test)
+compile_save_json_helper :: proc(t: ^testing.T) {
+    source := `(package main)
+(import json "core:encoding/json")
+(import os "core:os")
+
+(struct User {
+  :name string
+  :age int
+})
+
+(proc save-user [path: string, user: User] -> bool
+  (let [[marshal-err write-err] (save-json path user)]
+    (and (== marshal-err nil)
+         (== write-err nil))))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, `import json "core:encoding/json"`), true)
+    testing.expect_value(t, strings.contains(output, `import os "core:os"`), true)
+    testing.expect_value(t, strings.contains(output, "marshal_err, write_err := odinl_save_json(path, user)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_save_json :: proc(path: string, value: $T) -> (marshal_err: json.Marshal_Error, write_err: os.Error)"), true)
+    testing.expect_value(t, strings.contains(output, "data, marshal_err = json.marshal(value)"), true)
+    testing.expect_value(t, strings.contains(output, "defer delete(data)"), true)
+    testing.expect_value(t, strings.contains(output, "write_err = os.write_entire_file(path, data)"), true)
+}
+
+@(test)
 compile_struct_field_destructuring :: proc(t: ^testing.T) {
     source := `(package main)
 

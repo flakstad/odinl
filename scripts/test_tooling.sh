@@ -73,7 +73,13 @@ assert_file_nonempty "$tmp_dir/eval.odin" "eval generated output"
 printf 'tooling: eval file-backed dev helpers\n'
 cat > "$tmp_dir/dev-io.odinl" <<'EOF'
 (package main)
+(import json "core:encoding/json")
 (import os "core:os")
+
+(struct Note {
+  :title string
+  :body string
+})
 
 (proc write-read-count [path: string] -> int
   (let [write-err (spit path "odinl")]
@@ -85,9 +91,22 @@ cat > "$tmp_dir/dev-io.odinl" <<'EOF'
           (do
             (defer (delete data))
             (len data)))))))
+
+(proc save-note-json [path: string] -> bool
+  (let [note (Note {:title "hello" :body "odinl"})
+        [marshal-err write-err] (save-json path note)]
+    (and (== marshal-err nil)
+         (== write-err nil))))
 EOF
 file_eval_output=$(./odinl eval "$tmp_dir/dev-io.odinl" "(write-read-count \"$tmp_dir/odinl-cache.txt\")")
 assert_eq "5" "$file_eval_output" "file-backed eval output"
+json_eval_output=$(./odinl eval "$tmp_dir/dev-io.odinl" "(save-note-json \"$tmp_dir/odinl-note.json\")")
+assert_eq "true" "$json_eval_output" "json save eval output"
+if ! grep -q '"title":"hello"' "$tmp_dir/odinl-note.json"; then
+    printf 'failed: save-json did not write expected JSON\n' >&2
+    cat "$tmp_dir/odinl-note.json" >&2
+    exit 1
+fi
 
 printf 'tooling: expand command\n'
 ./odinl expand examples/data-literals.odinl '(temp-buffer-len)' -o "$tmp_dir/expand.odin"

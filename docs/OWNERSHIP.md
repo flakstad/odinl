@@ -124,10 +124,15 @@ These are scalar values, plain values, or borrowed views:
 (count xs)
 (contains? collection key)
 (spit path data)
+(save-json path value)
 ```
 
 `spit` lowers to `os.write_entire_file(path, data)` and returns `os.Error`. It
 does not allocate an owned result.
+
+`save-json` returns `(marshal_err: json.Marshal_Error, write_err: os.Error)`.
+It allocates temporary JSON bytes internally and deletes them before returning,
+so callers only handle the errors.
 
 `split-at` returns two borrowed slices:
 

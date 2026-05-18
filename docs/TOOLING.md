@@ -171,13 +171,27 @@ path)` lowers to `os.read_entire_file(path, context.allocator)` and returns
 owned `[]byte` plus `os.Error`; callers delete the bytes or return them to
 transfer ownership.
 
-For structured data, require explicit format and type decisions rather than
-inventing a universal printer/reader:
+Saving JSON can also stay boring:
 
 ```clojure
-(dev/save-json "users" users)
-(dev/load-json []User "users")
+(import json "core:encoding/json")
+(import os "core:os")
+
+(let [[marshal-err write-err] (save-json "tmp/users.json" users)]
+  (and (== marshal-err nil)
+       (== write-err nil)))
 ```
+
+`save-json` lowers through a generated `odinl_save_json` helper that calls
+`json.marshal`, defers deletion of the temporary JSON bytes, and writes them
+with `os.write_entire_file`.
+
+For structured data, continue to require explicit format and type decisions
+rather than inventing a universal printer/reader. Loading JSON is intentionally
+still explicit for now. Odin's JSON unmarshal allocates strings, slices, dynamic
+arrays, and maps inside the destination value according to that destination
+type, so a convenient load helper needs a clear deep-cleanup convention before
+it can be production quality.
 
 These helpers should lean on Odin's existing core libraries:
 
