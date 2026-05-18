@@ -1125,6 +1125,24 @@ main :: proc() {
 }
 
 @(test)
+reject_returning_owned_result_from_with_temp_allocator :: proc(t: ^testing.T) {
+    source := `(package main)
+(import runtime "base:runtime")
+
+(proc inc [x: int] -> int
+  (+ x 1))
+
+(proc bad [xs: []int] -> [dynamic]int
+  (with-temp-allocator [allocator]
+    (map inc xs)))`
+
+    _, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, false)
+    defer delete(err.message)
+    testing.expect_value(t, err.message, "owned value cannot escape with-temp-allocator; allocate it outside the temp scope or copy it before returning")
+}
+
+@(test)
 macroexpand_with_allocator_scope :: proc(t: ^testing.T) {
     output, err, ok := odinl.macroexpand_source(`(with-allocator [allocator context.temp_allocator]
   (let [buffer (make [dynamic]int)]

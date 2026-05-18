@@ -202,7 +202,8 @@ scope:
 
 This form still emits ordinary Odin calls to `runtime.default_temp_allocator_*`.
 The runtime import is explicit, and any owned values that escape the block must
-not borrow storage from the ended temp scope.
+not borrow storage from the ended temp scope. OdinL rejects obvious direct
+escapes such as returning `(map f xs)` from a `with-temp-allocator` body.
 
 ## Returning Owned Values
 

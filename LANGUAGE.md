@@ -1623,7 +1623,9 @@ It lowers to the moral equivalent of:
 
 The explicit `base:runtime` import is intentional for now. The generated Odin
 uses Odin's normal temp allocator API directly instead of hiding it behind an
-OdinL runtime.
+OdinL runtime. Owned values allocated in this scope must not escape it; the
+compiler rejects obvious direct returns of owned helper results from
+`with-temp-allocator`.
 
 Other `with-*` forms are still attractive because they can expand into
 combinations of existing core forms such as:

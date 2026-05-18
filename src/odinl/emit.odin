@@ -1487,6 +1487,56 @@ type_text_is_dynamic_array :: proc(text: string) -> bool {
     return len(text) >= 9 && text[:9] == "[dynamic]"
 }
 
+type_text_is_map :: proc(text: string) -> bool {
+    return len(text) >= 4 && text[:4] == "map["
+}
+
+form_is_owned_allocation_result :: proc(form: CST_Form) -> bool {
+    if form.kind != .List || len(form.items) < 2 || form.items[0].kind != .Symbol {
+        return false
+    }
+    head := form.items[0].text
+    if head != "make" && head != "new" {
+        return false
+    }
+    type_text, _, ok_type := parse_type_text(form.items[1])
+    if !ok_type {
+        return false
+    }
+    defer delete(type_text)
+    return type_text_is_dynamic_array(type_text) || type_text_is_map(type_text)
+}
+
+form_is_owned_temp_escape_result :: proc(form: CST_Form) -> bool {
+    return form_is_owned_sequence_result(form) || form_is_owned_allocation_result(form)
+}
+
+with_temp_allocator_escape_error :: proc(body: []CST_Form, last_in_proc: bool, returns: Return_Spec) -> (Compile_Error, bool) {
+    for item in body {
+        if item.kind == .List && len(item.items) > 0 && item.items[0].kind == .Symbol && item.items[0].text == "return" {
+            for returned in item.items[1:] {
+                if form_is_owned_temp_escape_result(returned) {
+                    return Compile_Error{
+                        message = "owned value cannot escape with-temp-allocator; allocate it outside the temp scope or copy it before returning",
+                        span = returned.span,
+                    }, true
+                }
+            }
+        }
+    }
+
+    if last_in_proc && returns.kind == .Single && len(body) > 0 {
+        final_form := body[len(body)-1]
+        if form_is_owned_temp_escape_result(final_form) {
+            return Compile_Error{
+                message = "owned value cannot escape with-temp-allocator; allocate it outside the temp scope or copy it before returning",
+                span = final_form.span,
+            }, true
+        }
+    }
+    return {}, false
+}
+
 emit_map_callback_call :: proc(e: ^Emitter, callback: CST_Form, collection: string) -> (string, Compile_Error, bool) {
     if field, ok_field := field_from_keyword(callback); ok_field {
         mark_core_map_field(e, field)
@@ -3089,6 +3139,10 @@ emit_with_temp_allocator_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc:
     body: [dynamic]CST_Form
     for item in form.items[2:] {
         append(&body, item)
+    }
+    err_escape, bad_escape := with_temp_allocator_escape_error(body[:], last_in_proc, returns)
+    if bad_escape {
+        return err_escape, false
     }
     err_body, ok_body := emit_body_forms(e, body[:], returns_when_final(last_in_proc, returns))
     if !ok_body {
