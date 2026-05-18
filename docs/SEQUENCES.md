@@ -245,3 +245,6 @@ Sequence helpers need an explicit ownership story:
 This is a documentation and examples requirement, not just an implementation
 detail. OdinL should help make Odin ownership easier to see, not easier to
 forget.
+
+See `docs/OWNERSHIP.md` for the broader ownership rules used by examples and
+tooling.
