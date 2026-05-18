@@ -3062,6 +3062,44 @@ emit_with_allocator_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool
     return {}, true
 }
 
+emit_with_temp_allocator_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Return_Spec) -> (Compile_Error, bool) {
+    if len(form.items) < 3 {
+        return Compile_Error{message = "with-temp-allocator expects binding vector and body", span = form.span}, false
+    }
+    binding := form.items[1]
+    if binding.kind != .Vector || len(binding.items) != 1 || binding.items[0].kind != .Symbol {
+        return Compile_Error{message = "with-temp-allocator expects [name] binding", span = binding.span}, false
+    }
+    allocator_name := map_name(binding.items[0].text)
+
+    e.temp_counter += 1
+    temp_scope := fmt.tprintf("odinl_temp_scope_%d", e.temp_counter)
+    e.temp_counter += 1
+    old_allocator := fmt.tprintf("odinl_old_allocator_%d", e.temp_counter)
+
+    emit_line(e, "{")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("%s := runtime.default_temp_allocator_temp_begin()", temp_scope))
+    emit_line(e, fmt.tprintf("defer runtime.default_temp_allocator_temp_end(%s)", temp_scope))
+    emit_line(e, fmt.tprintf("%s := context.temp_allocator", allocator_name))
+    emit_line(e, fmt.tprintf("%s := context.allocator", old_allocator))
+    emit_line(e, fmt.tprintf("context.allocator = %s", allocator_name))
+    emit_line(e, fmt.tprintf("defer context.allocator = %s", old_allocator))
+
+    body: [dynamic]CST_Form
+    for item in form.items[2:] {
+        append(&body, item)
+    }
+    err_body, ok_body := emit_body_forms(e, body[:], returns_when_final(last_in_proc, returns))
+    if !ok_body {
+        return err_body, false
+    }
+
+    e.indent -= 1
+    emit_line(e, "}")
+    return {}, true
+}
+
 is_type_switch_subject :: proc(form: CST_Form) -> bool {
     return form.kind == .Vector && len(form.items) == 2 && form.items[0].kind == .Symbol
 }
@@ -3361,6 +3399,8 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         return emit_cond_stmt(e, form, last_in_proc, returns)
     case "with-allocator":
         return emit_with_allocator_stmt(e, form, last_in_proc, returns)
+    case "with-temp-allocator":
+        return emit_with_temp_allocator_stmt(e, form, last_in_proc, returns)
     case "switch":
         return emit_switch_stmt(e, form, last_in_proc, returns)
     case "return":

@@ -98,6 +98,18 @@ if ! grep -q 'odinl-old-allocator-1 context.allocator' "$tmp_dir/macroexpand.odi
     cat "$tmp_dir/macroexpand.odinl" >&2
     exit 1
 fi
+./odinl macroexpand examples/data-literals.odinl '(with-temp-allocator [allocator] (let [buffer (make [dynamic]int)] (defer (delete buffer))))' -o "$tmp_dir/macroexpand-temp.odinl"
+assert_file_nonempty "$tmp_dir/macroexpand-temp.odinl" "macroexpand temp output"
+if ! grep -q 'runtime.default-temp-allocator-temp-begin' "$tmp_dir/macroexpand-temp.odinl"; then
+    printf 'failed: macroexpand temp output did not include temp begin\n' >&2
+    cat "$tmp_dir/macroexpand-temp.odinl" >&2
+    exit 1
+fi
+if ! grep -q 'runtime.default-temp-allocator-temp-end' "$tmp_dir/macroexpand-temp.odinl"; then
+    printf 'failed: macroexpand temp output did not include temp end\n' >&2
+    cat "$tmp_dir/macroexpand-temp.odinl" >&2
+    exit 1
+fi
 
 printf 'tooling: eval main command\n'
 main_eval_output=$(./odinl eval examples/hello.odinl '(main)')
@@ -149,6 +161,7 @@ assert_eq "36" "$(./odinl eval examples/sequences.odinl '(age-for-ada)')" "age-f
 assert_eq "3" "$(./odinl eval examples/sequences.odinl '(status-run-count)')" "status-run-count"
 assert_eq "2" "$(./odinl eval examples/sequences.odinl '(active-status-group-count)')" "active-status-group-count"
 assert_eq "2" "$(./odinl eval examples/data-literals.odinl '(temp-buffer-len)')" "temp-buffer-len"
+assert_eq "3" "$(./odinl eval examples/data-literals.odinl '(temp-scoped-buffer-len)')" "temp-scoped-buffer-len"
 assert_eq "-1" "$(./odinl eval examples/data-literals.odinl '(lookup-missing-default)')" "lookup-missing-default"
 assert_eq "51" "$(./odinl eval examples/data-literals.odinl '(merged-lookup-total)')" "merged-lookup-total"
 assert_eq "51" "$(./odinl eval examples/data-literals.odinl '(merge-in-place-total)')" "merge-in-place-total"

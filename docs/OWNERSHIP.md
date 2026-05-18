@@ -188,6 +188,22 @@ before the restore defer, so local `delete` calls still use the scoped
 allocator. Values returned from the block transfer ownership to the caller, so
 the caller must delete them with the matching allocator discipline.
 
+`with-temp-allocator` additionally starts and ends Odin's default temp allocator
+scope:
+
+```clojure
+(import runtime "base:runtime")
+
+(with-temp-allocator [allocator]
+  (let [xs (make [dynamic]int)]
+    (defer (delete xs))
+    ...))
+```
+
+This form still emits ordinary Odin calls to `runtime.default_temp_allocator_*`.
+The runtime import is explicit, and any owned values that escape the block must
+not borrow storage from the ended temp scope.
+
 ## Returning Owned Values
 
 If a proc returns an owned value, do not delete it locally:

@@ -1571,9 +1571,9 @@ runtime facility.
 ### `with-*` forms
 
 Allocator-oriented `with-*` forms should behave like macro-expanded resource
-scopes over ordinary Odin. `with-allocator` is supported directly and is
-inspectable through `odinl macroexpand` while the general macro system is still
-pending.
+scopes over ordinary Odin. `with-allocator` and `with-temp-allocator` are
+supported directly and are inspectable through `odinl macroexpand` while the
+general macro system is still pending.
 
 The implemented shape is:
 
@@ -1598,6 +1598,33 @@ This is intentionally simple: the allocator value is visible, the old allocator
 is restored by `defer`, and ordinary `delete` calls in the body run before the
 allocator is restored.
 
+For Odin's temporary allocator, use:
+
+```clojure
+(import runtime "base:runtime")
+
+(with-temp-allocator [allocator]
+  ...)
+```
+
+It lowers to the moral equivalent of:
+
+```odin
+{
+    temp_scope := runtime.default_temp_allocator_temp_begin()
+    defer runtime.default_temp_allocator_temp_end(temp_scope)
+    allocator := context.temp_allocator
+    old_allocator := context.allocator
+    context.allocator = allocator
+    defer context.allocator = old_allocator
+    ...
+}
+```
+
+The explicit `base:runtime` import is intentional for now. The generated Odin
+uses Odin's normal temp allocator API directly instead of hiding it behind an
+OdinL runtime.
+
 Other `with-*` forms are still attractive because they can expand into
 combinations of existing core forms such as:
 
@@ -1617,6 +1644,11 @@ For example, allocator helpers should keep ownership visible:
 
 ```clojure
 (with-allocator [allocator context.temp_allocator]
+  (let [buffer (make [dynamic]int)]
+    (defer (delete buffer))
+    ...))
+
+(with-temp-allocator [allocator]
   (let [buffer (make [dynamic]int)]
     (defer (delete buffer))
     ...))

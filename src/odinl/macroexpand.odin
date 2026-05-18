@@ -77,11 +77,45 @@ macroexpand_with_allocator :: proc(form: CST_Form) -> (output: string, err: Comp
     return strings.clone(strings.to_string(builder)), {}, true
 }
 
+macroexpand_with_temp_allocator :: proc(form: CST_Form) -> (output: string, err: Compile_Error, ok: bool) {
+    if len(form.items) < 3 || form.items[1].kind != .Vector {
+        return "", Compile_Error{message = "with-temp-allocator expects binding vector and body", span = form.span}, false
+    }
+    binding := form.items[1]
+    if len(binding.items) != 1 || binding.items[0].kind != .Symbol {
+        return "", Compile_Error{message = "with-temp-allocator expects [name] binding", span = binding.span}, false
+    }
+
+    allocator_name := binding.items[0].text
+
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+
+    fmt.sbprintf(&builder, "(do\n")
+    fmt.sbprintf(&builder, "  (let [odinl-temp-scope-1 (runtime.default-temp-allocator-temp-begin)\n")
+    fmt.sbprintf(&builder, "        %s context.temp-allocator\n", allocator_name)
+    fmt.sbprintf(&builder, "        odinl-old-allocator-1 context.allocator]\n")
+    fmt.sbprintf(&builder, "    (set! context.allocator %s)\n", allocator_name)
+    fmt.sbprintf(&builder, "    (defer (do\n")
+    fmt.sbprintf(&builder, "      (set! context.allocator odinl-old-allocator-1)\n")
+    fmt.sbprintf(&builder, "      (runtime.default-temp-allocator-temp-end odinl-temp-scope-1)))")
+    for item in form.items[2:] {
+        item_text := macro_form_text(item)
+        defer delete(item_text)
+        fmt.sbprintf(&builder, "\n    %s", item_text)
+    }
+    fmt.sbprintf(&builder, "))\n")
+
+    return strings.clone(strings.to_string(builder)), {}, true
+}
+
 macroexpand_form :: proc(form: CST_Form) -> (output: string, err: Compile_Error, ok: bool) {
     if form.kind == .List && len(form.items) > 0 && form.items[0].kind == .Symbol {
         switch form.items[0].text {
         case "with-allocator":
             return macroexpand_with_allocator(form)
+        case "with-temp-allocator":
+            return macroexpand_with_temp_allocator(form)
         }
     }
 

@@ -1083,6 +1083,48 @@ main :: proc() {
 }
 
 @(test)
+compile_with_temp_allocator_scope :: proc(t: ^testing.T) {
+    source := `(package main)
+(import runtime "base:runtime")
+
+(proc main []
+  (with-temp-allocator [allocator]
+    (let [buffer (make [dynamic]int)]
+      (defer (delete buffer))
+      (into! buffer (new []int [1 2]))
+      (return))))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+import runtime "base:runtime"
+
+main :: proc() {
+    {
+        odinl_temp_scope_1 := runtime.default_temp_allocator_temp_begin()
+        defer runtime.default_temp_allocator_temp_end(odinl_temp_scope_1)
+        allocator := context.temp_allocator
+        odinl_old_allocator_2 := context.allocator
+        context.allocator = allocator
+        defer context.allocator = odinl_old_allocator_2
+        buffer := make([dynamic]int)
+        defer delete(buffer)
+        append(&(buffer), ..[]int{1, 2})
+        return
+    }
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 macroexpand_with_allocator_scope :: proc(t: ^testing.T) {
     output, err, ok := odinl.macroexpand_source(`(with-allocator [allocator context.temp_allocator]
   (let [buffer (make [dynamic]int)]
@@ -1101,6 +1143,32 @@ macroexpand_with_allocator_scope :: proc(t: ^testing.T) {
     (set! context.allocator allocator)
     (defer (do
       (set! context.allocator odinl-old-allocator-1)))
+    (let [buffer (make [dynamic]int)] (defer (delete buffer)) (into! buffer (new []int [1 2])))))
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+macroexpand_with_temp_allocator_scope :: proc(t: ^testing.T) {
+    output, err, ok := odinl.macroexpand_source(`(with-temp-allocator [allocator]
+  (let [buffer (make [dynamic]int)]
+    (defer (delete buffer))
+    (into! buffer (new []int [1 2]))))`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `(do
+  (let [odinl-temp-scope-1 (runtime.default-temp-allocator-temp-begin)
+        allocator context.temp-allocator
+        odinl-old-allocator-1 context.allocator]
+    (set! context.allocator allocator)
+    (defer (do
+      (set! context.allocator odinl-old-allocator-1)
+      (runtime.default-temp-allocator-temp-end odinl-temp-scope-1)))
     (let [buffer (make [dynamic]int)] (defer (delete buffer)) (into! buffer (new []int [1 2])))))
 `
     testing.expect_value(t, output, expected)
