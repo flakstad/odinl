@@ -1167,7 +1167,7 @@ surface syntax.
 The compiler also currently supports a few mechanically lowered forms that were
 not part of the original expected-core list:
 
-- `(in key collection)` and `(not-in key collection)`
+- `(in? collection key)`, composed with `(not ...)` for absence checks
 - `(break)` and `(continue)`
 - directive expression wrappers such as `(#force_inline query-iter (& q))`
 

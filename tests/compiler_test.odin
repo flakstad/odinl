@@ -694,10 +694,10 @@ compile_operator_forms :: proc(t: ^testing.T) {
       (- b a))))
 
 (proc has-key [lookup: map[string]int, key: string] -> bool
-  (in key lookup))
+  (in? lookup key))
 
 (proc missing-key [lookup: map[string]int, key: string] -> bool
-  (not-in key lookup))`
+  (not (in? lookup key)))`
 
     output, err, ok := odinl.compile_source(source)
     testing.expect_value(t, ok, true)

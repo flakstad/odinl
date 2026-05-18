@@ -464,7 +464,7 @@ everything into parens:
 ```clojure
 @(private)
 (proc route-add [(router ^Router) (method Method) (route Route)]
-  (when (not-in method router.routes)
+  (when (not (in? router.routes method))
     (set! (get router.routes method)
           (make [dynamic]Route router.allocator)))
   (append (& (get router.routes method)) route))
@@ -542,7 +542,7 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - operators: `(+ a b)`, `(<= i 10)`, `(and a b)`, etc. emit infix
 
 Current pragmatic Odin conveniences beyond the original core target include
-`(in ...)`, `(not-in ...)`, `(break)`, `(continue)`, and directive expression
+`(in? collection key)`, `(break)`, `(continue)`, and directive expression
 wrappers like `(#force_inline call arg)`.
 
 This is deliberately incomplete. Add only forms that map cleanly to Odin.

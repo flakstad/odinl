@@ -550,6 +550,21 @@ emit_operator_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Erro
         return fmt.tprintf("(%s) %s (%s)", lhs, op, rhs), {}, true
     }
 
+    if op == "in?" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "in? expects exactly two arguments", span = form.span}, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[1])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        key, err_key, ok_key := emit_expr(e, form.items[2])
+        if !ok_key {
+            return "", err_key, false
+        }
+        return fmt.tprintf("(%s) in (%s)", key, collection), {}, true
+    }
+
     if op == "in" || op == "not-in" {
         if len(form.items) != 3 {
             return "", Compile_Error{message = fmt.tprintf("%s expects exactly two arguments", op), span = form.span}, false
