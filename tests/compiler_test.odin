@@ -1073,6 +1073,38 @@ compile_save_json_helper :: proc(t: ^testing.T) {
 }
 
 @(test)
+compile_load_json_helper :: proc(t: ^testing.T) {
+    source := `(package main)
+(import json "core:encoding/json")
+(import os "core:os")
+
+(struct Count {
+  :n int
+})
+
+(proc load-count [path: string] -> [value: Count, ok: bool]
+  (let [[value read-err unmarshal-err] (load-json Count path)]
+    (return value (and (== read-err nil)
+                       (== unmarshal-err nil)))))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, `import json "core:encoding/json"`), true)
+    testing.expect_value(t, strings.contains(output, `import os "core:os"`), true)
+    testing.expect_value(t, strings.contains(output, "value, read_err, unmarshal_err := odinl_load_json(Count, path)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_load_json :: proc($T: typeid, path: string) -> (value: T, read_err: os.Error, unmarshal_err: json.Unmarshal_Error)"), true)
+    testing.expect_value(t, strings.contains(output, "data, read_err = os.read_entire_file(path, context.allocator)"), true)
+    testing.expect_value(t, strings.contains(output, "defer delete(data)"), true)
+    testing.expect_value(t, strings.contains(output, "unmarshal_err = json.unmarshal(data, &value)"), true)
+}
+
+@(test)
 compile_tap_helper :: proc(t: ^testing.T) {
     source := `(package main)
 (import "core:fmt")

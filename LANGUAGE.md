@@ -1025,6 +1025,9 @@ thin `core:os` forms:
   (and (== marshal-err nil)
        (== write-err nil)))
 
+(let [[users read-err unmarshal-err] (load-json []User "tmp/users.json")]
+  ...)
+
 (let [[data err] (slurp "tmp/users.json")]
   (if (!= err nil)
     0
@@ -1038,9 +1041,10 @@ thin `core:os` forms:
 owned `[]byte` plus `os.Error`. The caller must delete the bytes when keeping
 the value local, or return them to transfer ownership. `save-json` lowers
 through a generated helper that marshals with `json.marshal`, deletes the
-temporary JSON bytes, and writes with `os.write_entire_file`; JSON loading
-remains explicit until OdinL has a clear convention for deep cleanup of values
-allocated by `json.unmarshal`.
+temporary JSON bytes, and writes with `os.write_entire_file`. `load-json`
+lowers through a generated helper that reads the file, defers deleting the file
+bytes, and unmarshals into the explicit destination type. The caller owns any
+data allocated inside a successfully decoded value.
 
 ## Literals and Construction
 

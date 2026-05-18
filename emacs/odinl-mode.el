@@ -20,7 +20,7 @@
     "let" "do" "if" "when" "cond" "switch" "set!" "return" "defer"
     "for" "each" "comment" "new" "make" "get" "nil?" "in" "not-in"
     "break" "continue" "with-allocator" "with-temp-allocator"
-    "with-delete" "->")
+    "with-delete" "slurp" "spit" "save-json" "load-json" "tap>" "->")
   "OdinL special forms and syntactic heads.")
 
 (defconst odinl-font-lock-keywords

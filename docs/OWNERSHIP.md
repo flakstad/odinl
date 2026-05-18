@@ -64,6 +64,7 @@ These forms return owned values in normal OdinL code:
 (iterate n f x)
 (cycle n xs)
 (slurp path)
+(load-json Type path)
 ```
 
 Use `defer delete` for local owned values:
@@ -100,6 +101,12 @@ no longer needed:
 
 If a proc returns the bytes from `slurp`, ownership transfers to the caller and
 the callee must not delete them.
+
+`load-json` returns `(value, read_err, unmarshal_err)`. The helper deletes the
+temporary file bytes it reads, but a successfully decoded value may contain
+strings, slices, dynamic arrays, or maps allocated by Odin's JSON package. The
+caller owns those decoded allocations and must clean them up according to the
+decoded type.
 
 ## Do Not Delete These
 
