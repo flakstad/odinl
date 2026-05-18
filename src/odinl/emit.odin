@@ -21,8 +21,11 @@ Emitter_Features :: struct {
     core_mapcat:      bool,
     core_concat:      bool,
     core_reverse:     bool,
+    core_reverse_in_place: bool,
     core_sort:        bool,
     core_sort_by:     bool,
+    core_sort_in_place: bool,
+    core_sort_by_in_place: bool,
     core_split_at:    bool,
     core_partition:   bool,
     core_partition_all: bool,
@@ -38,6 +41,7 @@ Emitter_Features :: struct {
     index_by_fields:  [dynamic]string,
     partition_by_fields: [dynamic]string,
     sort_by_fields:   [dynamic]string,
+    sort_by_in_place_fields: [dynamic]string,
     filter_fields:    [dynamic]string,
     remove_fields:    [dynamic]string,
     take_while_fields: [dynamic]string,
@@ -169,6 +173,12 @@ mark_core_reverse :: proc(e: ^Emitter) {
     }
 }
 
+mark_core_reverse_in_place :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_reverse_in_place = true
+    }
+}
+
 mark_core_sort :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_sort = true
@@ -178,6 +188,18 @@ mark_core_sort :: proc(e: ^Emitter) {
 mark_core_sort_by :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_sort_by = true
+    }
+}
+
+mark_core_sort_in_place :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_sort_in_place = true
+    }
+}
+
+mark_core_sort_by_in_place :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_sort_by_in_place = true
     }
 }
 
@@ -277,6 +299,12 @@ mark_core_partition_by_field :: proc(e: ^Emitter, field: string) {
 mark_core_sort_by_field :: proc(e: ^Emitter, field: string) {
     if e.features != nil {
         append_unique_string(&e.features.sort_by_fields, field)
+    }
+}
+
+mark_core_sort_by_in_place_field :: proc(e: ^Emitter, field: string) {
+    if e.features != nil {
+        append_unique_string(&e.features.sort_by_in_place_fields, field)
     }
 }
 
@@ -1246,6 +1274,20 @@ emit_sort_by_callback_call :: proc(e: ^Emitter, callback: CST_Form, collection: 
     return emit_call_text("odinl_sort_by", []string{f, collection}), {}, true
 }
 
+emit_sort_by_in_place_callback_call :: proc(e: ^Emitter, callback: CST_Form, collection: string) -> (string, Compile_Error, bool) {
+    if field, ok_field := field_from_keyword(callback); ok_field {
+        mark_core_sort_by_in_place_field(e, field)
+        return emit_call_text(fmt.tprintf("odinl_sort_by_in_place_field_%s", field), []string{collection}), {}, true
+    }
+
+    f, err_f, ok_f := emit_expr(e, callback)
+    if !ok_f {
+        return "", err_f, false
+    }
+    mark_core_sort_by_in_place(e)
+    return emit_call_text("odinl_sort_by_in_place", []string{f, collection}), {}, true
+}
+
 emit_predicate_callback_call :: proc(e: ^Emitter, helper_name: string, callback: CST_Form, collection: string, mark_helper: proc(^Emitter), mark_field: proc(^Emitter, string)) -> (string, Compile_Error, bool) {
     if field, ok_field := field_from_keyword(callback); ok_field {
         mark_field(e, field)
@@ -1647,6 +1689,18 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         return emit_call_text("odinl_reverse", []string{slice_all_expr_text(collection)}), {}, true
     }
 
+    if head.text == "reverse!" {
+        if len(form.items) != 2 {
+            return "", Compile_Error{message = "reverse! expects collection", span = form.span}, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[1])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        mark_core_reverse_in_place(e)
+        return emit_call_text("odinl_reverse_in_place", []string{slice_all_expr_text(collection)}), {}, true
+    }
+
     if head.text == "sort" {
         if len(form.items) != 2 {
             return "", Compile_Error{message = "sort expects collection", span = form.span}, false
@@ -1659,6 +1713,18 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         return emit_call_text("odinl_sort", []string{slice_all_expr_text(collection)}), {}, true
     }
 
+    if head.text == "sort!" {
+        if len(form.items) != 2 {
+            return "", Compile_Error{message = "sort! expects collection", span = form.span}, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[1])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        mark_core_sort_in_place(e)
+        return emit_call_text("odinl_sort_in_place", []string{slice_all_expr_text(collection)}), {}, true
+    }
+
     if head.text == "sort-by" {
         if len(form.items) != 3 {
             return "", Compile_Error{message = "sort-by expects key function and collection", span = form.span}, false
@@ -1668,6 +1734,17 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
             return "", err_collection, false
         }
         return emit_sort_by_callback_call(e, form.items[1], slice_all_expr_text(collection))
+    }
+
+    if head.text == "sort-by!" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "sort-by! expects key function and collection", span = form.span}, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[2])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        return emit_sort_by_in_place_callback_call(e, form.items[1], slice_all_expr_text(collection))
     }
 
     if head.text == "split-at" || head.text == "partition" || head.text == "partition-all" {
@@ -3109,6 +3186,19 @@ emit_core_reverse_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_reverse_in_place_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_reverse_in_place :: proc(xs: []$T) {")
+    e.indent += 1
+    emit_line(e, "for i := 0; i < len(xs)/2; i += 1 {")
+    e.indent += 1
+    emit_line(e, "j := len(xs)-1-i")
+    emit_line(e, "xs[i], xs[j] = xs[j], xs[i]")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_sort_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_sort :: proc(xs: []$T) -> [dynamic]T {")
     e.indent += 1
@@ -3124,6 +3214,22 @@ emit_core_sort_helper :: proc(e: ^Emitter) {
     e.indent -= 1
     emit_line(e, "}")
     emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_sort_in_place_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_sort_in_place :: proc(xs: []$T) {")
+    e.indent += 1
+    emit_line(e, "for i := 1; i < len(xs); i += 1 {")
+    e.indent += 1
+    emit_line(e, "for j := i; j > 0 && xs[j] < xs[j-1]; j -= 1 {")
+    e.indent += 1
+    emit_line(e, "xs[j], xs[j-1] = xs[j-1], xs[j]")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
     e.indent -= 1
     emit_line(e, "}")
 }
@@ -3147,6 +3253,22 @@ emit_core_sort_by_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_sort_by_in_place_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_sort_by_in_place :: proc(f: proc(x: $T) -> $K, xs: []T) {")
+    e.indent += 1
+    emit_line(e, "for i := 1; i < len(xs); i += 1 {")
+    e.indent += 1
+    emit_line(e, "for j := i; j > 0 && f(xs[j]) < f(xs[j-1]); j -= 1 {")
+    e.indent += 1
+    emit_line(e, "xs[j], xs[j-1] = xs[j-1], xs[j]")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_sort_by_field_helper :: proc(e: ^Emitter, field: string) {
     emit_line(e, fmt.tprintf("odinl_sort_by_field_%s :: proc($Key: typeid, xs: []$T) -> [dynamic]T %s", field, "{"))
     e.indent += 1
@@ -3162,6 +3284,22 @@ emit_core_sort_by_field_helper :: proc(e: ^Emitter, field: string) {
     e.indent -= 1
     emit_line(e, "}")
     emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_sort_by_in_place_field_helper :: proc(e: ^Emitter, field: string) {
+    emit_line(e, fmt.tprintf("odinl_sort_by_in_place_field_%s :: proc(xs: []$T) %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "for i := 1; i < len(xs); i += 1 {")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("for j := i; j > 0 && xs[j].%s < xs[j-1].%s; j -= 1 %s", field, field, "{"))
+    e.indent += 1
+    emit_line(e, "xs[j], xs[j-1] = xs[j-1], xs[j]")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
     e.indent -= 1
     emit_line(e, "}")
 }
@@ -3667,8 +3805,10 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_take_while || features.core_drop_while ||
            features.core_find || features.core_some || features.core_every ||
            features.core_remove || features.core_map_indexed || features.core_keep ||
-           features.core_mapcat || features.core_concat || features.core_reverse ||
+           features.core_mapcat || features.core_concat ||
+           features.core_reverse || features.core_reverse_in_place ||
            features.core_sort || features.core_sort_by ||
+           features.core_sort_in_place || features.core_sort_by_in_place ||
            features.core_split_at || features.core_partition ||
            features.core_partition_all || features.core_partition_by ||
            features.core_zipmap ||
@@ -3678,6 +3818,7 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            len(features.map_fields) > 0 || len(features.index_by_fields) > 0 ||
            len(features.partition_by_fields) > 0 ||
            len(features.sort_by_fields) > 0 ||
+           len(features.sort_by_in_place_fields) > 0 ||
            len(features.filter_fields) > 0 ||
            len(features.remove_fields) > 0 ||
            len(features.take_while_fields) > 0 || len(features.drop_while_fields) > 0 ||
@@ -3743,6 +3884,10 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
         emit_core_helper_separator(e, &emitted)
         emit_core_reverse_helper(e)
     }
+    if features.core_reverse_in_place {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_reverse_in_place_helper(e)
+    }
     if features.core_sort {
         emit_core_helper_separator(e, &emitted)
         emit_core_sort_helper(e)
@@ -3751,9 +3896,21 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
         emit_core_helper_separator(e, &emitted)
         emit_core_sort_by_helper(e)
     }
+    if features.core_sort_in_place {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_sort_in_place_helper(e)
+    }
+    if features.core_sort_by_in_place {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_sort_by_in_place_helper(e)
+    }
     for field in features.sort_by_fields {
         emit_core_helper_separator(e, &emitted)
         emit_core_sort_by_field_helper(e, field)
+    }
+    for field in features.sort_by_in_place_fields {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_sort_by_in_place_field_helper(e, field)
     }
     if features.core_split_at {
         emit_core_helper_separator(e, &emitted)

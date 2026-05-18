@@ -135,6 +135,24 @@
     (defer (delete sorted))
     (first sorted)))
 
+(proc sorted-in-place-first [] -> int
+  (let [xs (new [dynamic]int [4 1 3 2])]
+    (defer (delete xs))
+    (sort! xs)
+    (first xs)))
+
+(proc reversed-in-place-first [] -> int
+  (let [xs (new [dynamic]int [1 2 3 4])]
+    (defer (delete xs))
+    (reverse! xs)
+    (first xs)))
+
+(proc descending-in-place-first [] -> int
+  (let [xs (new [dynamic]int [4 1 3 2])]
+    (defer (delete xs))
+    (sort-by! negative xs)
+    (first xs)))
+
 (proc ragged-chunk-size [] -> int
   (let [xs (new []int [1 2 3 4 5])
         chunks (partition-all 2 xs)]
@@ -211,6 +229,15 @@
   ;; => 2
 
   (descending-first)
+  ;; => 4
+
+  (sorted-in-place-first)
+  ;; => 1
+
+  (reversed-in-place-first)
+  ;; => 4
+
+  (descending-in-place-first)
   ;; => 4
 
   (ragged-chunk-size)

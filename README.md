@@ -545,11 +545,12 @@ foreign_call :: proc(handle: Foreign_Handle) ---
   `(second xs)`, `(last xs)`, `(nth xs n)`, `(rest xs)`, `(empty? xs)`,
   `(remove pred xs)`, `(map-indexed f xs)`, `(keep f xs)`, `(mapcat f xs)`,
   `(concat xs ys)`, `(reverse xs)`, `(sort xs)`, `(sort-by f xs)`,
-  `(sort-by :field xs)`, `(split-at n xs)`, `(partition n xs)`,
-  `(partition-all n xs)`, `(partition-by f xs)`, `(partition-by :field xs)`,
-  `(zipmap keys vals)`, `(index-by f xs)`, `(index-by :field xs)`, and
-  `(frequencies xs)`, plus bounded producers `(range ...)`, `(repeat n x)`,
-  `(repeatedly n f)`, and `(iterate n f x)`
+  `(sort-by :field xs)`, mutating `(reverse! xs)`, `(sort! xs)`,
+  `(sort-by! f xs)`, `(sort-by! :field xs)`, `(split-at n xs)`,
+  `(partition n xs)`, `(partition-all n xs)`, `(partition-by f xs)`,
+  `(partition-by :field xs)`, `(zipmap keys vals)`, `(index-by f xs)`,
+  `(index-by :field xs)`, and `(frequencies xs)`, plus bounded producers
+  `(range ...)`, `(repeat n x)`, `(repeatedly n f)`, and `(iterate n f x)`
 - keywords can stand in for field callbacks in those helpers, e.g. `(map :name users)`,
   `(index-by :id users)`, `(partition-by :status users)`, `(sort-by :age users)`,
   and `(filter :verified users)`

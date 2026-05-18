@@ -39,6 +39,10 @@ These helpers are already in scope and should remain small:
 (sort xs)
 (sort-by f xs)
 (sort-by :field xs)
+(reverse! xs)
+(sort! xs)
+(sort-by! f xs)
+(sort-by! :field xs)
 (split-at n xs)
 (partition n xs)
 (partition-all n xs)
@@ -86,6 +90,10 @@ owned dynamic array.
 `sort` and `sort-by` copy before sorting. They do not mutate the input
 collection, and their result is owned.
 
+Bang helpers are explicitly mutating statement forms. `reverse!`, `sort!`, and
+`sort-by!` mutate the passed slice or dynamic array in place and do not return an
+owned value.
+
 Keyword callbacks are field-access shorthand in the supported higher-order
 helpers:
 
@@ -94,6 +102,7 @@ helpers:
 (index-by :id users)
 (partition-by :status users)
 (sort-by :age users)
+(sort-by! :age users)
 (filter :verified users)
 (remove :archived users)
 (->> users
@@ -103,6 +112,39 @@ helpers:
 
 This means "call the field accessor" for structs and struct-like values. It is
 not general keyword-as-function map lookup.
+
+## Allocation And Performance
+
+The default sequence helpers prefer clear ownership over minimum allocation. A
+chain of owned helpers allocates at each owned step:
+
+```clojure
+(->> users
+     (filter active?)
+     (map :name)
+     (sort))
+```
+
+That pipeline builds a filtered dynamic array, then a mapped dynamic array, then
+a sorted copy. In a `let` binding, OdinL emits cleanup for owned threaded
+intermediates, but the allocation and copy costs are still real.
+
+This is intentional for the non-bang helpers:
+
+- non-bang helpers do not mutate their inputs;
+- allocations are visible in the generated Odin;
+- ownership is either returned to the caller or bound where it can be deleted.
+
+For hot paths, prefer one of these shapes:
+
+- use slice-view helpers such as `take`, `drop`, `rest`, and `split-at` when a
+  borrowed view is enough;
+- use bang helpers such as `sort!` and `reverse!` when mutating existing storage
+  is the right Odin choice;
+- write an explicit `each` loop when one pass and no intermediate collection is
+  needed;
+- later, use transducer-style lowering once it exists to fuse pipelines into one
+  loop and one final allocation.
 
 ## Useful Additions After That
 

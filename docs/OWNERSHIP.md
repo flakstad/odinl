@@ -106,6 +106,28 @@ These are scalar values, plain values, or borrowed views:
 
 Do not delete `front` or `back`.
 
+## Mutating Helpers
+
+Bang helpers mutate existing storage and do not create owned results:
+
+```clojure
+(reverse! xs)
+(sort! xs)
+(sort-by! f xs)
+(sort-by! :field xs)
+```
+
+Use them when mutation is the right Odin choice. They do not need `delete`
+because they do not allocate a result, but the value they mutate may still need
+deletion if it is an owned dynamic array:
+
+```clojure
+(let [xs (new [dynamic]int [3 1 2])]
+  (defer (delete xs))
+  (sort! xs)
+  (first xs))
+```
+
 ## Returning Owned Values
 
 If a proc returns an owned value, do not delete it locally:
