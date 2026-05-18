@@ -127,6 +127,7 @@ Bang helpers mutate existing storage and do not create owned results:
 (remove! pred xs)
 (remove! :field xs)
 (keep! f xs)
+(into! target xs)
 ```
 
 Use them when mutation is the right Odin choice. They do not need `delete`
@@ -143,6 +144,12 @@ dynamic array because they compact and resize the existing storage:
 (let [xs (new [dynamic]int [1 2 3 4])]
   (defer (delete xs))
   (filter! even? xs)
+  (len xs))
+
+(let [xs (new [dynamic]int [1 2])
+      more (new []int [3 4])]
+  (defer (delete xs))
+  (into! xs more)
   (len xs))
 ```
 

@@ -55,6 +55,7 @@ These helpers are already in scope and should remain small:
 (remove! pred xs)
 (remove! :field xs)
 (keep! f xs)
+(into! target xs)
 (split-at n xs)
 (partition n xs)
 (partition-all n xs)
@@ -115,6 +116,9 @@ in place and do not return an owned value. `filter!`, `remove!`, and `keep!`
 resize the collection, so they require an owned dynamic array binding. `keep!`
 uses an Odin-shaped callback returning `(value, ok)` and writes kept values back
 into the same dynamic array; the value type must match the array element type.
+`into!` appends the values from one collection into an existing dynamic array
+target. It lowers directly to Odin `append(&target, ..xs)`-style code, mutates
+the target, and does not create a new owned result.
 
 Keyword callbacks are field-access shorthand in the supported higher-order
 helpers:
@@ -163,7 +167,7 @@ For hot paths, prefer one of these shapes:
 - use slice-view helpers such as `take`, `drop`, `rest`, and `split-at` when a
   borrowed view is enough;
 - use bang helpers such as `sort!`, `reverse!`, `map!`, `filter!`, `remove!`,
-  and `keep!` when mutating existing storage is the right Odin choice;
+  `keep!`, and `into!` when mutating existing storage is the right Odin choice;
 - write an explicit `each` loop when one pass and no intermediate collection is
   needed;
 - later, use transducer-style lowering once it exists to fuse pipelines into one
@@ -174,7 +178,9 @@ For hot paths, prefer one of these shapes:
 The eager sequence library is close to complete enough for ordinary code. The
 remaining pre-transducer work should stay small and direct:
 
-- `into` / `into!`: explicit eager accumulation into an existing target.
+- non-bang `into`: construct a new owned target once the target syntax is clear.
+- broaden `into!` beyond dynamic arrays only when the target representation
+  stays obvious, such as a direct map merge.
 - `shuffle`: eager copy plus shuffle with an explicit random source.
 - possibly `distinct` and `distinct-by`: owned dynamic-array result backed by a
   temporary map/set, with clear allocation and cleanup.
@@ -200,12 +206,12 @@ implementation:
 
 The main questions are:
 
-- `into` is useful, but its shape depends on the target. Dynamic arrays could
-  lower to `append(&target, ..xs)`, maps could merge key/value pairs, and sets
+- `into!` currently means dynamic-array append and lowers directly to
+  `append(&target, ..xs)`. Maps could later merge key/value pairs, and sets
   would first need a concrete Odin representation. Treat this as explicit eager
-  mutation, not a polymorphic collection protocol. A likely spelling is
-  `(into! target xs)` for mutating an existing dynamic array or map, with
-  non-bang `(into Type xs)` reserved for constructing a new owned target.
+  mutation, not a polymorphic collection protocol. Non-bang `(into Type xs)`
+  remains reserved for constructing a new owned target once that shape is worth
+  adding.
 - `shuffle` should probably require an explicit random source rather than hide
   one.
 - `distinct` needs a set representation. `map[T]bool` is the likely boring Odin

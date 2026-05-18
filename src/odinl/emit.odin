@@ -1850,6 +1850,21 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         return emit_call_text("odinl_keep_in_place", []string{f, address_of_expr_text(collection)}), {}, true
     }
 
+    if head.text == "into!" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "into! expects target and collection", span = form.span}, false
+        }
+        target, err_target, ok_target := emit_expr(e, form.items[1])
+        if !ok_target {
+            return "", err_target, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[2])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        return emit_call_text("append", []string{address_of_expr_text(target), fmt.tprintf("..%s", slice_all_expr_text(collection))}), {}, true
+    }
+
     if head.text == "concat" {
         if len(form.items) != 3 {
             return "", Compile_Error{message = "concat expects two collections", span = form.span}, false

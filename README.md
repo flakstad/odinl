@@ -550,6 +550,7 @@ foreign_call :: proc(handle: Foreign_Handle) ---
   `(sort-by! f xs)`, `(sort-by! :field xs)`, `(map! f xs)`,
   `(map-indexed! f xs)`, `(filter! pred xs)`, `(filter! :field xs)`,
   `(remove! pred xs)`, `(remove! :field xs)`, `(keep! f xs)`,
+  `(into! target xs)`,
   `(split-at n xs)`,
   `(partition n xs)`, `(partition-all n xs)`, `(partition-by f xs)`,
   `(partition-by :field xs)`, `(zipmap keys vals)`, `(index-by f xs)`,

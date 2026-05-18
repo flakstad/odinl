@@ -1311,6 +1311,7 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
     (filter! even? mutable)
     (remove! even? mutable)
     (keep! keep-even mutable)
+    (into! mutable ys)
     (return)))`
 
     output, err, ok := odinl.compile_source(source)
@@ -1343,6 +1344,7 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "odinl_filter_in_place(even_p, &(mutable))"), true)
     testing.expect_value(t, strings.contains(output, "odinl_remove_in_place(even_p, &(mutable))"), true)
     testing.expect_value(t, strings.contains(output, "odinl_keep_in_place(keep_even, &(mutable))"), true)
+    testing.expect_value(t, strings.contains(output, "append(&(mutable), ..(ys)[:])"), true)
     testing.expect_value(t, strings.contains(output, "tail_last := ((joined)[:])[len((joined)[:])-1]"), true)
     testing.expect_value(t, strings.contains(output, "no_items_p := len((odinl_drop(3, (xs)[:]))[:]) == 0"), true)
     testing.expect_value(t, strings.contains(output, "odinl_remove :: proc(pred: proc(x: $T) -> bool, xs: []T) -> [dynamic]T"), true)

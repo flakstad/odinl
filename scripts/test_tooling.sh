@@ -101,6 +101,7 @@ assert_eq "3" "$(./odinl eval examples/sequence-helpers.odinl '(indexed-in-place
 assert_eq "2" "$(./odinl eval examples/sequence-helpers.odinl '(filtered-in-place-count)')" "filtered-in-place-count"
 assert_eq "1" "$(./odinl eval examples/sequence-helpers.odinl '(removed-in-place-first)')" "removed-in-place-first"
 assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(kept-in-place-first)')" "kept-in-place-first"
+assert_eq "10" "$(./odinl eval examples/sequence-helpers.odinl '(appended-total)')" "appended-total"
 assert_eq "1" "$(./odinl eval examples/sequence-helpers.odinl '(ragged-chunk-size)')" "ragged-chunk-size"
 assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(run-count)')" "run-count"
 assert_eq "15" "$(./odinl eval examples/sequence-helpers.odinl '(flattened-total)')" "flattened-total"

@@ -208,6 +208,13 @@
     (keep! square-even xs)
     (first xs)))
 
+(proc appended-total [] -> int
+  (let [xs (new [dynamic]int [1 2])
+        more (new []int [3 4])]
+    (defer (delete xs))
+    (into! xs more)
+    (reduce add 0 xs)))
+
 (proc ragged-chunk-size [] -> int
   (let [xs (new []int [1 2 3 4 5])
         chunks (partition-all 2 xs)]
@@ -318,6 +325,9 @@
 
   (kept-in-place-first)
   ;; => 4
+
+  (appended-total)
+  ;; => 10
 
   (ragged-chunk-size)
   ;; => 1
