@@ -47,6 +47,8 @@ Emitter_Features :: struct {
     core_index_by:    bool,
     core_group_by:    bool,
     core_frequencies: bool,
+    core_keys:        bool,
+    core_vals:        bool,
     core_distinct:    bool,
     core_distinct_by: bool,
     core_range:       bool,
@@ -347,6 +349,18 @@ mark_core_group_by :: proc(e: ^Emitter) {
 mark_core_frequencies :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_frequencies = true
+    }
+}
+
+mark_core_keys :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_keys = true
+    }
+}
+
+mark_core_vals :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_vals = true
     }
 }
 
@@ -980,6 +994,17 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             mark_core_frequencies(e)
             return emit_call_text("odinl_frequencies", []string{slice_all_expr_text(current)}), {}, true
         }
+        if thread_last && (head.text == "keys" || head.text == "vals") {
+            if len(step.items) != 1 {
+                return "", Compile_Error{message = fmt.tprintf("%s thread step expects no arguments", head.text), span = step.span}, false
+            }
+            if head.text == "keys" {
+                mark_core_keys(e)
+                return emit_call_text("odinl_keys", []string{current}), {}, true
+            }
+            mark_core_vals(e)
+            return emit_call_text("odinl_vals", []string{current}), {}, true
+        }
         if thread_last && head.text == "distinct" {
             if len(step.items) != 1 {
                 return "", Compile_Error{message = "distinct thread step expects no arguments", span = step.span}, false
@@ -1165,7 +1190,8 @@ thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Res
                            head.text == "sort" ||
                            head.text == "sort-by" || head.text == "zipmap" ||
                            head.text == "index-by" || head.text == "group-by" ||
-                           head.text == "frequencies" || head.text == "distinct" ||
+                           head.text == "frequencies" || head.text == "keys" ||
+                           head.text == "vals" || head.text == "distinct" ||
                            head.text == "distinct-by" || head.text == "cycle") {
             return .Owned
         }
@@ -1253,7 +1279,7 @@ owned_sequence_head :: proc(name: string) -> bool {
          "concat", "merge", "reverse", "sort", "sort-by",
          "into", "interpose", "interleave", "shuffle",
          "partition", "partition-all", "partition-by",
-         "zipmap", "index-by", "group-by", "frequencies",
+         "zipmap", "index-by", "group-by", "frequencies", "keys", "vals",
          "distinct", "distinct-by",
          "range", "repeat", "repeatedly", "iterate", "cycle":
         return true
@@ -2114,6 +2140,22 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         }
         mark_core_merge(e)
         return emit_call_text("odinl_merge", []string{lhs, rhs}), {}, true
+    }
+
+    if head.text == "keys" || head.text == "vals" {
+        if len(form.items) != 2 {
+            return "", Compile_Error{message = fmt.tprintf("%s expects map", head.text), span = form.span}, false
+        }
+        source, err_source, ok_source := emit_expr(e, form.items[1])
+        if !ok_source {
+            return "", err_source, false
+        }
+        if head.text == "keys" {
+            mark_core_keys(e)
+            return emit_call_text("odinl_keys", []string{source}), {}, true
+        }
+        mark_core_vals(e)
+        return emit_call_text("odinl_vals", []string{source}), {}, true
     }
 
     if head.text == "interpose" {
@@ -4512,6 +4554,34 @@ emit_core_distinct_by_field_helper :: proc(e: ^Emitter, field: string) {
     emit_line(e, "}")
 }
 
+emit_core_keys_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_keys :: proc(m: map[$K]$V) -> [dynamic]K {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]K, 0, len(m))")
+    emit_line(e, "for k in m {")
+    e.indent += 1
+    emit_line(e, "append(&out, k)")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_vals_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_vals :: proc(m: map[$K]$V) -> [dynamic]V {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]V, 0, len(m))")
+    emit_line(e, "for _, v in m {")
+    e.indent += 1
+    emit_line(e, "append(&out, v)")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_range_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_range :: proc(start, end, step: int) -> [dynamic]int {")
     e.indent += 1
@@ -4866,6 +4936,7 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_zipmap ||
            features.core_index_by || features.core_group_by ||
            features.core_frequencies ||
+           features.core_keys || features.core_vals ||
            features.core_distinct || features.core_distinct_by ||
            features.core_range || features.core_repeat ||
            features.core_repeatedly || features.core_iterate ||
@@ -5074,6 +5145,14 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_frequencies {
         emit_core_helper_separator(e, &emitted)
         emit_core_frequencies_helper(e)
+    }
+    if features.core_keys {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_keys_helper(e)
+    }
+    if features.core_vals {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_vals_helper(e)
     }
     if features.core_distinct {
         emit_core_helper_separator(e, &emitted)

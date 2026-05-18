@@ -925,6 +925,8 @@ The intended surface style can still be familiar:
 (zipmap names ages)
 (index-by key-fn xs)
 (frequencies xs)
+(keys m)
+(vals m)
 (range 10)
 (repeat 3 "odin")
 (repeatedly 3 make-value)

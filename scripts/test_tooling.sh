@@ -110,6 +110,7 @@ assert_eq "45" "$(./odinl eval examples/sequence-helpers.odinl '(age-for-grace)'
 assert_eq "2" "$(./odinl eval examples/sequence-helpers.odinl '(chunk-count)')" "chunk-count"
 assert_eq "2" "$(./odinl eval examples/sequence-helpers.odinl '(repeated-two-count)')" "repeated-two-count"
 assert_eq "3" "$(./odinl eval examples/sequence-helpers.odinl '(indexed-name-count)')" "indexed-name-count"
+assert_eq "6" "$(./odinl eval examples/sequence-helpers.odinl '(key-value-count)')" "key-value-count"
 assert_eq "3" "$(./odinl eval examples/sequence-helpers.odinl '(even-group-count)')" "even-group-count"
 assert_eq "10" "$(./odinl eval examples/sequence-helpers.odinl '(range-total)')" "range-total"
 assert_eq "3" "$(./odinl eval examples/sequence-helpers.odinl '(repeated-answer-count)')" "repeated-answer-count"

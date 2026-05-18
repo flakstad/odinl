@@ -50,6 +50,8 @@ These forms return owned values in normal OdinL code:
 (group-by f xs)
 (group-by :field xs)
 (frequencies xs)
+(keys m)
+(vals m)
 (range end)
 (range start end)
 (range start end step)
