@@ -40,6 +40,8 @@ These helpers are already in scope and should remain small:
 (keep f xs)
 (mapcat f xs)
 (concat xs ys)
+(interpose sep xs)
+(interleave xs ys)
 (reverse xs)
 (sort xs)
 (sort-by f xs)
@@ -100,8 +102,9 @@ lowers to `len`. `rest`, `take`, `drop`, `take-while`, and `drop-while` return
 non-owning slice views.
 
 Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
-`mapcat`, `concat`, `reverse`, `range`, `repeat`, `repeatedly`, `iterate`, and
-bounded `cycle` return owned dynamic arrays. `distinct` and `distinct-by` also
+`mapcat`, `concat`, `interpose`, `interleave`, `reverse`, `range`, `repeat`,
+`repeatedly`, `iterate`, and bounded `cycle` return owned dynamic arrays.
+`distinct` and `distinct-by` also
 return owned dynamic arrays and use a temporary `map[key]bool` internally, so
 the value or key must be valid as an Odin map key. `zipmap`, `index-by`, and
 `frequencies` return owned maps. `group-by` returns an owned map whose values
@@ -188,8 +191,6 @@ remaining pre-transducer work should stay small and direct:
 - broaden `into!` beyond dynamic arrays only when the target representation
   stays obvious, such as a direct map merge.
 - `shuffle`: eager copy plus shuffle with an explicit random source.
-- possibly `interpose` and `interleave`: owned dynamic-array builders when the
-  output type remains obvious.
 
 Avoid helpers that imply lazy sequence semantics, nil-as-empty behavior, or a
 collection protocol. Prefer an explicit loop in user code when a helper's

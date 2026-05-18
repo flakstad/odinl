@@ -148,6 +148,19 @@
     (defer (delete reversed))
     (first reversed)))
 
+(proc interposed-total [] -> int
+  (let [xs (new []int [1 2 3])
+        separated (interpose 10 xs)]
+    (defer (delete separated))
+    (reduce add 0 separated)))
+
+(proc interleaved-total [] -> int
+  (let [xs (new []int [1 2 3])
+        ys (new []int [10 20])
+        joined (interleave xs ys)]
+    (defer (delete joined))
+    (reduce add 0 joined)))
+
 (proc sorted-second [] -> int
   (let [xs (new []int [4 1 3 2])
         sorted (sort xs)]
@@ -307,6 +320,12 @@
 
   (concat-reversed-first)
   ;; => 4
+
+  (interposed-total)
+  ;; => 26
+
+  (interleaved-total)
+  ;; => 33
 
   (sorted-second)
   ;; => 2

@@ -20,6 +20,8 @@ Emitter_Features :: struct {
     core_keep:        bool,
     core_mapcat:      bool,
     core_concat:      bool,
+    core_interpose:   bool,
+    core_interleave:  bool,
     core_reverse:     bool,
     core_reverse_in_place: bool,
     core_map_in_place: bool,
@@ -177,6 +179,18 @@ mark_core_mapcat :: proc(e: ^Emitter) {
 mark_core_concat :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_concat = true
+    }
+}
+
+mark_core_interpose :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_interpose = true
+    }
+}
+
+mark_core_interleave :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_interleave = true
     }
 }
 
@@ -802,6 +816,28 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             mark_core_concat(e)
             return emit_call_text("odinl_concat", []string{slice_all_expr_text(current), slice_all_expr_text(rhs)}), {}, true
         }
+        if thread_last && head.text == "interpose" {
+            if len(step.items) != 2 {
+                return "", Compile_Error{message = "interpose thread step expects one separator argument", span = step.span}, false
+            }
+            sep, err_sep, ok_sep := emit_expr(e, step.items[1])
+            if !ok_sep {
+                return "", err_sep, false
+            }
+            mark_core_interpose(e)
+            return emit_call_text("odinl_interpose", []string{sep, slice_all_expr_text(current)}), {}, true
+        }
+        if thread_last && head.text == "interleave" {
+            if len(step.items) != 2 {
+                return "", Compile_Error{message = "interleave thread step expects one collection argument", span = step.span}, false
+            }
+            lhs, err_lhs, ok_lhs := emit_expr(e, step.items[1])
+            if !ok_lhs {
+                return "", err_lhs, false
+            }
+            mark_core_interleave(e)
+            return emit_call_text("odinl_interleave", []string{slice_all_expr_text(lhs), slice_all_expr_text(current)}), {}, true
+        }
         if thread_last && head.text == "reverse" {
             if len(step.items) != 1 {
                 return "", Compile_Error{message = "reverse thread step expects no arguments", span = step.span}, false
@@ -1052,7 +1088,8 @@ thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Res
         if thread_last && (head.text == "map" || head.text == "filter" ||
                            head.text == "remove" || head.text == "map-indexed" ||
                            head.text == "keep" || head.text == "mapcat" ||
-                           head.text == "concat" ||
+                           head.text == "concat" || head.text == "interpose" ||
+                           head.text == "interleave" ||
                            head.text == "reverse" || head.text == "sort" ||
                            head.text == "sort-by" || head.text == "zipmap" ||
                            head.text == "index-by" || head.text == "group-by" ||
@@ -1142,6 +1179,7 @@ owned_sequence_head :: proc(name: string) -> bool {
     switch name {
     case "map", "filter", "remove", "map-indexed", "keep", "mapcat",
          "concat", "reverse", "sort", "sort-by",
+         "interpose", "interleave",
          "partition", "partition-all", "partition-by",
          "zipmap", "index-by", "group-by", "frequencies",
          "distinct", "distinct-by",
@@ -1931,6 +1969,38 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         }
         mark_core_concat(e)
         return emit_call_text("odinl_concat", []string{slice_all_expr_text(lhs), slice_all_expr_text(rhs)}), {}, true
+    }
+
+    if head.text == "interpose" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "interpose expects separator and collection", span = form.span}, false
+        }
+        sep, err_sep, ok_sep := emit_expr(e, form.items[1])
+        if !ok_sep {
+            return "", err_sep, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[2])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        mark_core_interpose(e)
+        return emit_call_text("odinl_interpose", []string{sep, slice_all_expr_text(collection)}), {}, true
+    }
+
+    if head.text == "interleave" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "interleave expects two collections", span = form.span}, false
+        }
+        lhs, err_lhs, ok_lhs := emit_expr(e, form.items[1])
+        if !ok_lhs {
+            return "", err_lhs, false
+        }
+        rhs, err_rhs, ok_rhs := emit_expr(e, form.items[2])
+        if !ok_rhs {
+            return "", err_rhs, false
+        }
+        mark_core_interleave(e)
+        return emit_call_text("odinl_interleave", []string{slice_all_expr_text(lhs), slice_all_expr_text(rhs)}), {}, true
     }
 
     if head.text == "reverse" {
@@ -3620,6 +3690,48 @@ emit_core_concat_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_interpose_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_interpose :: proc(sep: $T, xs: []T) -> [dynamic]T {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T)")
+    emit_line(e, "if len(xs) == 0 {")
+    e.indent += 1
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "append(&out, xs[0])")
+    emit_line(e, "for x in xs[1:] {")
+    e.indent += 1
+    emit_line(e, "append(&out, sep)")
+    emit_line(e, "append(&out, x)")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_interleave_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_interleave :: proc(xs, ys: []$T) -> [dynamic]T {")
+    e.indent += 1
+    emit_line(e, "n := len(xs)")
+    emit_line(e, "if len(ys) < n {")
+    e.indent += 1
+    emit_line(e, "n = len(ys)")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "out := make([dynamic]T, 0, n*2)")
+    emit_line(e, "for i := 0; i < n; i += 1 {")
+    e.indent += 1
+    emit_line(e, "append(&out, xs[i])")
+    emit_line(e, "append(&out, ys[i])")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_reverse_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_reverse :: proc(xs: []$T) -> [dynamic]T {")
     e.indent += 1
@@ -4375,6 +4487,7 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_find || features.core_some || features.core_every ||
            features.core_remove || features.core_map_indexed || features.core_keep ||
            features.core_mapcat || features.core_concat ||
+           features.core_interpose || features.core_interleave ||
            features.core_reverse || features.core_reverse_in_place ||
            features.core_map_in_place || features.core_map_indexed_in_place ||
            features.core_filter_in_place || features.core_remove_in_place ||
@@ -4486,6 +4599,14 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_concat {
         emit_core_helper_separator(e, &emitted)
         emit_core_concat_helper(e)
+    }
+    if features.core_interpose {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_interpose_helper(e)
+    }
+    if features.core_interleave {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_interleave_helper(e)
     }
     if features.core_reverse {
         emit_core_helper_separator(e, &emitted)
