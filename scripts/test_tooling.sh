@@ -88,12 +88,15 @@ assert_eq "8" "$(./odinl eval examples/sequence-helpers.odinl '(iterated-last)')
 assert_eq "13" "$(./odinl eval examples/sequence-helpers.odinl '(trimmed-sum)')" "trimmed-sum"
 assert_eq "40" "$(./odinl eval examples/sequence-helpers.odinl '(rest-second-empty-score)')" "rest-second-empty-score"
 assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(concat-reversed-first)')" "concat-reversed-first"
+assert_eq "2" "$(./odinl eval examples/sequence-helpers.odinl '(sorted-second)')" "sorted-second"
+assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(descending-first)')" "descending-first"
 assert_eq "1" "$(./odinl eval examples/sequence-helpers.odinl '(ragged-chunk-size)')" "ragged-chunk-size"
 assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(run-count)')" "run-count"
 assert_eq "15" "$(./odinl eval examples/sequence-helpers.odinl '(flattened-total)')" "flattened-total"
 assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(threaded-first)')" "threaded-first"
 assert_eq "36" "$(./odinl eval examples/sequences.odinl '(age-for-ada)')" "age-for-ada"
 assert_eq "3" "$(./odinl eval examples/sequences.odinl '(status-run-count)')" "status-run-count"
+assert_eq "Lin" "$(./odinl eval examples/sequences.odinl '(youngest-user-name)')" "youngest-user-name"
 
 printf 'tooling: eval check command\n'
 ./odinl eval examples/higher-order.odinl '(reduce add 0 (new []int [1 2 3]))' --check

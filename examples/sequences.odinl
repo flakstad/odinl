@@ -80,6 +80,16 @@
     (defer (delete status-runs))
     (len status-runs)))
 
+(proc youngest-user-name [] -> string
+  (let [users (new []User [(User {:name "Ada" :age 36 :status .Active :verified true})
+                           (User {:name "Lin" :age 17 :status .Paused :verified false})
+                           (User {:name "Grace" :age 45 :status .Active :verified true})
+                           (User {:name "Edsger" :age 72 :status .Archived :verified false})])
+        by-age (sort-by :age users)
+        name (:name (first by-age))]
+    (defer (delete by-age))
+    name))
+
 (proc third-user-name [] -> string
   (let [users (new []User [(User {:name "Ada" :age 36 :status .Active :verified true})
                            (User {:name "Lin" :age 17 :status .Paused :verified false})
@@ -126,6 +136,9 @@
 
   (status-run-count)
   ;; => 3
+
+  (youngest-user-name)
+  ;; => Lin
 
   (third-user-name)
   ;; => Grace

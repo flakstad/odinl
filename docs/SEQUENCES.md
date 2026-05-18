@@ -36,6 +36,9 @@ These helpers are already in scope and should remain small:
 (mapcat f xs)
 (concat xs ys)
 (reverse xs)
+(sort xs)
+(sort-by f xs)
+(sort-by :field xs)
 (split-at n xs)
 (partition n xs)
 (partition-all n xs)
@@ -80,6 +83,9 @@ arrays of borrowed slice chunks. `keep` is Odin-shaped: the callback returns
 the callback returns a borrowed slice, and `mapcat` appends those values into one
 owned dynamic array.
 
+`sort` and `sort-by` copy before sorting. They do not mutate the input
+collection, and their result is owned.
+
 Keyword callbacks are field-access shorthand in the supported higher-order
 helpers:
 
@@ -87,6 +93,7 @@ helpers:
 (map :name users)
 (index-by :id users)
 (partition-by :status users)
+(sort-by :age users)
 (filter :verified users)
 (remove :archived users)
 (->> users
@@ -104,8 +111,6 @@ implementation:
 
 ```clojure
 (group-by f xs)
-(sort xs)
-(sort-by f xs)
 (shuffle rng xs)
 ```
 
@@ -113,8 +118,6 @@ The main questions are:
 
 - Should grouping helpers require explicit allocator arguments, use
   `context.allocator`, or follow the default dynamic-array helper convention?
-- Should `sort` copy before sorting, or should there be a separate in-place
-  helper?
 - `shuffle` should probably require an explicit random source rather than hide
   one.
 
@@ -224,8 +227,8 @@ Sequence helpers need an explicit ownership story:
 - Slice-view helpers such as `rest`, `take`, `drop`, `take-while`,
   `drop-while`, and `split-at` do not own data and must not be deleted.
 - Dynamic-array helpers such as `map`, `filter`, `remove`, `map-indexed`,
-  `keep`, `mapcat`, `concat`, and `reverse` allocate and return owned dynamic
-  arrays.
+  `keep`, `mapcat`, `concat`, `reverse`, `sort`, and `sort-by` allocate and
+  return owned dynamic arrays.
 - Chunking helpers `partition`, `partition-all`, and `partition-by` allocate the
   outer dynamic array, but their slice chunks borrow the input collection.
 - `zipmap`, `index-by`, and `frequencies` allocate and return owned maps.

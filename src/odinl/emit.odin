@@ -21,6 +21,8 @@ Emitter_Features :: struct {
     core_mapcat:      bool,
     core_concat:      bool,
     core_reverse:     bool,
+    core_sort:        bool,
+    core_sort_by:     bool,
     core_split_at:    bool,
     core_partition:   bool,
     core_partition_all: bool,
@@ -35,6 +37,7 @@ Emitter_Features :: struct {
     map_fields:       [dynamic]string,
     index_by_fields:  [dynamic]string,
     partition_by_fields: [dynamic]string,
+    sort_by_fields:   [dynamic]string,
     filter_fields:    [dynamic]string,
     remove_fields:    [dynamic]string,
     take_while_fields: [dynamic]string,
@@ -166,6 +169,18 @@ mark_core_reverse :: proc(e: ^Emitter) {
     }
 }
 
+mark_core_sort :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_sort = true
+    }
+}
+
+mark_core_sort_by :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_sort_by = true
+    }
+}
+
 mark_core_split_at :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_split_at = true
@@ -256,6 +271,12 @@ mark_core_index_by_field :: proc(e: ^Emitter, field: string) {
 mark_core_partition_by_field :: proc(e: ^Emitter, field: string) {
     if e.features != nil {
         append_unique_string(&e.features.partition_by_fields, field)
+    }
+}
+
+mark_core_sort_by_field :: proc(e: ^Emitter, field: string) {
+    if e.features != nil {
+        append_unique_string(&e.features.sort_by_fields, field)
     }
 }
 
@@ -669,6 +690,19 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             mark_core_reverse(e)
             return emit_call_text("odinl_reverse", []string{slice_all_expr_text(current)}), {}, true
         }
+        if thread_last && head.text == "sort" {
+            if len(step.items) != 1 {
+                return "", Compile_Error{message = "sort thread step expects no arguments", span = step.span}, false
+            }
+            mark_core_sort(e)
+            return emit_call_text("odinl_sort", []string{slice_all_expr_text(current)}), {}, true
+        }
+        if thread_last && head.text == "sort-by" {
+            if len(step.items) != 2 {
+                return "", Compile_Error{message = "sort-by thread step expects one key function argument", span = step.span}, false
+            }
+            return emit_sort_by_callback_call(e, step.items[1], slice_all_expr_text(current))
+        }
         if thread_last && (head.text == "split-at" || head.text == "partition" || head.text == "partition-all") {
             if len(step.items) != 2 {
                 return "", Compile_Error{message = fmt.tprintf("%s thread step expects one count argument", head.text), span = step.span}, false
@@ -867,7 +901,8 @@ thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Res
                            head.text == "remove" || head.text == "map-indexed" ||
                            head.text == "keep" || head.text == "mapcat" ||
                            head.text == "concat" ||
-                           head.text == "reverse" || head.text == "zipmap" ||
+                           head.text == "reverse" || head.text == "sort" ||
+                           head.text == "sort-by" || head.text == "zipmap" ||
                            head.text == "index-by" || head.text == "frequencies") {
             return .Owned
         }
@@ -952,7 +987,8 @@ thread_return_error :: proc(form: CST_Form) -> (Compile_Error, bool) {
 owned_sequence_head :: proc(name: string) -> bool {
     switch name {
     case "map", "filter", "remove", "map-indexed", "keep", "mapcat",
-         "concat", "reverse", "partition", "partition-all", "partition-by",
+         "concat", "reverse", "sort", "sort-by",
+         "partition", "partition-all", "partition-by",
          "zipmap", "index-by", "frequencies",
          "range", "repeat", "repeatedly", "iterate":
         return true
@@ -1191,6 +1227,23 @@ emit_partition_by_callback_call :: proc(e: ^Emitter, callback: CST_Form, collect
     }
     mark_core_partition_by(e)
     return emit_call_text("odinl_partition_by", []string{f, collection}), {}, true
+}
+
+emit_sort_by_callback_call :: proc(e: ^Emitter, callback: CST_Form, collection: string) -> (string, Compile_Error, bool) {
+    if field, ok_field := field_from_keyword(callback); ok_field {
+        mark_core_sort_by_field(e, field)
+        return emit_call_text(
+            fmt.tprintf("odinl_sort_by_field_%s", field),
+            []string{field_type_expr_text(collection, field), collection},
+        ), {}, true
+    }
+
+    f, err_f, ok_f := emit_expr(e, callback)
+    if !ok_f {
+        return "", err_f, false
+    }
+    mark_core_sort_by(e)
+    return emit_call_text("odinl_sort_by", []string{f, collection}), {}, true
 }
 
 emit_predicate_callback_call :: proc(e: ^Emitter, helper_name: string, callback: CST_Form, collection: string, mark_helper: proc(^Emitter), mark_field: proc(^Emitter, string)) -> (string, Compile_Error, bool) {
@@ -1592,6 +1645,29 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         }
         mark_core_reverse(e)
         return emit_call_text("odinl_reverse", []string{slice_all_expr_text(collection)}), {}, true
+    }
+
+    if head.text == "sort" {
+        if len(form.items) != 2 {
+            return "", Compile_Error{message = "sort expects collection", span = form.span}, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[1])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        mark_core_sort(e)
+        return emit_call_text("odinl_sort", []string{slice_all_expr_text(collection)}), {}, true
+    }
+
+    if head.text == "sort-by" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "sort-by expects key function and collection", span = form.span}, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[2])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        return emit_sort_by_callback_call(e, form.items[1], slice_all_expr_text(collection))
     }
 
     if head.text == "split-at" || head.text == "partition" || head.text == "partition-all" {
@@ -3033,6 +3109,63 @@ emit_core_reverse_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_sort_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_sort :: proc(xs: []$T) -> [dynamic]T {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T, 0, len(xs))")
+    emit_line(e, "append(&out, ..xs)")
+    emit_line(e, "for i := 1; i < len(out); i += 1 {")
+    e.indent += 1
+    emit_line(e, "for j := i; j > 0 && out[j] < out[j-1]; j -= 1 {")
+    e.indent += 1
+    emit_line(e, "out[j], out[j-1] = out[j-1], out[j]")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_sort_by_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_sort_by :: proc(f: proc(x: $T) -> $K, xs: []T) -> [dynamic]T {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T, 0, len(xs))")
+    emit_line(e, "append(&out, ..xs)")
+    emit_line(e, "for i := 1; i < len(out); i += 1 {")
+    e.indent += 1
+    emit_line(e, "for j := i; j > 0 && f(out[j]) < f(out[j-1]); j -= 1 {")
+    e.indent += 1
+    emit_line(e, "out[j], out[j-1] = out[j-1], out[j]")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_sort_by_field_helper :: proc(e: ^Emitter, field: string) {
+    emit_line(e, fmt.tprintf("odinl_sort_by_field_%s :: proc($Key: typeid, xs: []$T) -> [dynamic]T %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T, 0, len(xs))")
+    emit_line(e, "append(&out, ..xs)")
+    emit_line(e, "for i := 1; i < len(out); i += 1 {")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("for j := i; j > 0 && out[j].%s < out[j-1].%s; j -= 1 %s", field, field, "{"))
+    e.indent += 1
+    emit_line(e, "out[j], out[j-1] = out[j-1], out[j]")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_split_at_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_split_at :: proc(n: int, xs: []$T) -> (left: []T, right: []T) {")
     e.indent += 1
@@ -3535,6 +3668,7 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_find || features.core_some || features.core_every ||
            features.core_remove || features.core_map_indexed || features.core_keep ||
            features.core_mapcat || features.core_concat || features.core_reverse ||
+           features.core_sort || features.core_sort_by ||
            features.core_split_at || features.core_partition ||
            features.core_partition_all || features.core_partition_by ||
            features.core_zipmap ||
@@ -3543,6 +3677,7 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_repeatedly || features.core_iterate ||
            len(features.map_fields) > 0 || len(features.index_by_fields) > 0 ||
            len(features.partition_by_fields) > 0 ||
+           len(features.sort_by_fields) > 0 ||
            len(features.filter_fields) > 0 ||
            len(features.remove_fields) > 0 ||
            len(features.take_while_fields) > 0 || len(features.drop_while_fields) > 0 ||
@@ -3607,6 +3742,18 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_reverse {
         emit_core_helper_separator(e, &emitted)
         emit_core_reverse_helper(e)
+    }
+    if features.core_sort {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_sort_helper(e)
+    }
+    if features.core_sort_by {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_sort_by_helper(e)
+    }
+    for field in features.sort_by_fields {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_sort_by_field_helper(e, field)
     }
     if features.core_split_at {
         emit_core_helper_separator(e, &emitted)
