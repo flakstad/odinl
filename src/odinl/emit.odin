@@ -22,6 +22,7 @@ Emitter_Features :: struct {
     core_concat:      bool,
     core_merge:       bool,
     core_merge_in_place: bool,
+    core_get_or_default: bool,
     core_into:        bool,
     core_interpose:   bool,
     core_interleave:  bool,
@@ -196,6 +197,12 @@ mark_core_merge :: proc(e: ^Emitter) {
 mark_core_merge_in_place :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_merge_in_place = true
+    }
+}
+
+mark_core_get_or_default :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_get_or_default = true
     }
 }
 
@@ -1889,8 +1896,8 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
     }
 
     if head.text == "get" {
-        if len(form.items) != 3 {
-            return "", Compile_Error{message = "get expects collection and key", span = form.span}, false
+        if len(form.items) != 3 && len(form.items) != 4 {
+            return "", Compile_Error{message = "get expects collection, key, and optional default", span = form.span}, false
         }
         target, err_target, ok_target := emit_expr(e, form.items[1])
         if !ok_target {
@@ -1899,6 +1906,14 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         key, err_key, ok_key := emit_expr(e, form.items[2])
         if !ok_key {
             return "", err_key, false
+        }
+        if len(form.items) == 4 {
+            default_value, err_default, ok_default := emit_expr(e, form.items[3])
+            if !ok_default {
+                return "", err_default, false
+            }
+            mark_core_get_or_default(e)
+            return emit_call_text("odinl_get_or_default", []string{target, key, default_value}), {}, true
         }
         return fmt.tprintf("%s[%s]", target, key), {}, true
     }
@@ -3985,6 +4000,20 @@ emit_core_merge_in_place_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_get_or_default_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_get_or_default :: proc(m: map[$K]$V, key: K, default: V) -> V {")
+    e.indent += 1
+    emit_line(e, "value, ok := m[key]")
+    emit_line(e, "if ok {")
+    e.indent += 1
+    emit_line(e, "return value")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return default")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_into_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_into :: proc($Out: typeid, xs: []$T) -> Out {")
     e.indent += 1
@@ -4822,6 +4851,7 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_remove || features.core_map_indexed || features.core_keep ||
            features.core_mapcat || features.core_concat ||
            features.core_merge || features.core_merge_in_place ||
+           features.core_get_or_default ||
            features.core_into ||
            features.core_interpose || features.core_interleave ||
            features.core_reverse || features.core_reverse_in_place ||
@@ -4944,6 +4974,10 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_merge_in_place {
         emit_core_helper_separator(e, &emitted)
         emit_core_merge_in_place_helper(e)
+    }
+    if features.core_get_or_default {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_get_or_default_helper(e)
     }
     if features.core_into {
         emit_core_helper_separator(e, &emitted)

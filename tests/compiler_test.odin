@@ -2191,8 +2191,9 @@ compile_compact_type_spellings_inside_vectors :: proc(t: ^testing.T) {
 
 (proc first [xs: []int, lookup: map[string]int] -> int
   (let [buffer: [dynamic]int (make [dynamic]int)
-        fixed: [3]int (new [3]int [1 2 3])]
-    (get xs 0)))`
+        fixed: [3]int (new [3]int [1 2 3])
+        from-map (get lookup "missing" -1)]
+    (+ (get xs 0) from-map)))`
 
     output, err, ok := odinl.compile_source(source)
     testing.expect_value(t, ok, true)
@@ -2207,7 +2208,16 @@ compile_compact_type_spellings_inside_vectors :: proc(t: ^testing.T) {
 first :: proc(xs: []int, lookup: map[string]int) -> int {
     buffer: [dynamic]int = make([dynamic]int)
     fixed: [3]int = [3]int{1, 2, 3}
-    return xs[0]
+    from_map := odinl_get_or_default(lookup, "missing", -1)
+    return (xs[0]) + (from_map)
+}
+
+odinl_get_or_default :: proc(m: map[$K]$V, key: K, default: V) -> V {
+    value, ok := m[key]
+    if ok {
+        return value
+    }
+    return default
 }
 `
     testing.expect_value(t, output, expected)

@@ -830,7 +830,11 @@ Mutation remains explicit.
 ```clojure
 (get xs 0)
 (get table key)
+(get table key default-value)
 ```
+
+The three-argument form is map-oriented and lowers to a tiny helper using Odin's
+ordinary comma-ok map lookup. It returns `default-value` when the key is absent.
 
 ### Keyword field access
 

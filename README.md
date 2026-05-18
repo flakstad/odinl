@@ -572,7 +572,7 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - keywords can stand in for field callbacks in those helpers, e.g. `(map :name users)`,
   `(index-by :id users)`, `(group-by :status users)`, `(partition-by :status users)`,
   `(sort-by :age users)`, and `(filter :verified users)`
-- `(:field value)`, `(get value key)`, `(-> value steps...)`, and `(->> value steps...)`
+- `(:field value)`, `(get value key)`, `(get map key default)`, `(-> value steps...)`, and `(->> value steps...)`
 - `(^ ptr)` and `(& place)`
 - numbers, booleans, `nil`, and `(nil? value)`
 - calls: `(foo a b)` -> `foo(a, b)`

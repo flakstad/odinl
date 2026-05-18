@@ -98,13 +98,15 @@ These helpers are already in scope and should remain small:
 (rest xs)
 (empty? xs)
 (count xs)
+(get m k default)
 (contains? collection key)
 ```
 
 The access and trimming helpers use the direct Odin representation where
 possible. `first`, `second`, `last`, and `nth` lower to indexing. `empty?`
 lowers to `len`. `rest`, `take`, `drop`, `take-while`, and `drop-while` return
-non-owning slice views.
+non-owning slice views. Three-argument `get` is a map helper: it uses Odin's
+comma-ok lookup and returns the supplied default when the key is absent.
 
 Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
 `mapcat`, `concat`, `into`, `interpose`, `interleave`, `reverse`, `shuffle`,

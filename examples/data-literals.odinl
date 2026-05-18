@@ -45,6 +45,11 @@
     (defer (delete lookup))
     (contains? lookup "one")))
 
+(proc lookup-missing-default [] -> int
+  (let [lookup (new map[string]int {"one" 1 "two" 2})]
+    (defer (delete lookup))
+    (get lookup "missing" -1)))
+
 (proc merged-lookup-total [] -> int
   (let [base (new map[string]int {"one" 1 "two" 2})
         overrides (new map[string]int {"two" 20 "three" 30})
@@ -87,6 +92,9 @@
 
   (lookup-has-one?)
   ;; => true
+
+  (lookup-missing-default)
+  ;; => -1
 
   (merged-lookup-total)
   ;; => 51
