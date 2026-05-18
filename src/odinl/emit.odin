@@ -23,6 +23,7 @@ Emitter_Features :: struct {
     core_split_at:    bool,
     core_partition:   bool,
     core_partition_all: bool,
+    core_partition_by: bool,
     core_zipmap:      bool,
     core_index_by:    bool,
     core_frequencies: bool,
@@ -32,6 +33,7 @@ Emitter_Features :: struct {
     core_iterate:     bool,
     map_fields:       [dynamic]string,
     index_by_fields:  [dynamic]string,
+    partition_by_fields: [dynamic]string,
     filter_fields:    [dynamic]string,
     remove_fields:    [dynamic]string,
     take_while_fields: [dynamic]string,
@@ -175,6 +177,12 @@ mark_core_partition_all :: proc(e: ^Emitter) {
     }
 }
 
+mark_core_partition_by :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_partition_by = true
+    }
+}
+
 mark_core_zipmap :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_zipmap = true
@@ -235,6 +243,12 @@ mark_core_map_field :: proc(e: ^Emitter, field: string) {
 mark_core_index_by_field :: proc(e: ^Emitter, field: string) {
     if e.features != nil {
         append_unique_string(&e.features.index_by_fields, field)
+    }
+}
+
+mark_core_partition_by_field :: proc(e: ^Emitter, field: string) {
+    if e.features != nil {
+        append_unique_string(&e.features.partition_by_fields, field)
     }
 }
 
@@ -663,6 +677,12 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             mark_core_partition_all(e)
             return emit_call_text("odinl_partition_all", []string{count, slice_all_expr_text(current)}), {}, true
         }
+        if thread_last && head.text == "partition-by" {
+            if len(step.items) != 2 {
+                return "", Compile_Error{message = "partition-by thread step expects one key function argument", span = step.span}, false
+            }
+            return emit_partition_by_callback_call(e, step.items[1], slice_all_expr_text(current))
+        }
         if thread_last && head.text == "zipmap" {
             if len(step.items) != 2 {
                 return "", Compile_Error{message = "zipmap thread step expects one key collection argument", span = step.span}, false
@@ -839,7 +859,7 @@ thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Res
                            head.text == "index-by" || head.text == "frequencies") {
             return .Owned
         }
-        if thread_last && (head.text == "partition" || head.text == "partition-all") {
+        if thread_last && (head.text == "partition" || head.text == "partition-all" || head.text == "partition-by") {
             return .Owned_Borrowing
         }
         if thread_last && (head.text == "take" || head.text == "drop" ||
@@ -920,7 +940,7 @@ thread_return_error :: proc(form: CST_Form) -> (Compile_Error, bool) {
 owned_sequence_head :: proc(name: string) -> bool {
     switch name {
     case "map", "filter", "remove", "map-indexed", "keep",
-         "concat", "reverse", "partition", "partition-all",
+         "concat", "reverse", "partition", "partition-all", "partition-by",
          "zipmap", "index-by", "frequencies",
          "range", "repeat", "repeatedly", "iterate":
         return true
@@ -1142,6 +1162,23 @@ emit_index_by_callback_call :: proc(e: ^Emitter, callback: CST_Form, collection:
     }
     mark_core_index_by(e)
     return emit_call_text("odinl_index_by", []string{f, collection}), {}, true
+}
+
+emit_partition_by_callback_call :: proc(e: ^Emitter, callback: CST_Form, collection: string) -> (string, Compile_Error, bool) {
+    if field, ok_field := field_from_keyword(callback); ok_field {
+        mark_core_partition_by_field(e, field)
+        return emit_call_text(
+            fmt.tprintf("odinl_partition_by_field_%s", field),
+            []string{field_type_expr_text(collection, field), collection},
+        ), {}, true
+    }
+
+    f, err_f, ok_f := emit_expr(e, callback)
+    if !ok_f {
+        return "", err_f, false
+    }
+    mark_core_partition_by(e)
+    return emit_call_text("odinl_partition_by", []string{f, collection}), {}, true
 }
 
 emit_predicate_callback_call :: proc(e: ^Emitter, helper_name: string, callback: CST_Form, collection: string, mark_helper: proc(^Emitter), mark_field: proc(^Emitter, string)) -> (string, Compile_Error, bool) {
@@ -1564,6 +1601,17 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         }
         mark_core_partition_all(e)
         return emit_call_text("odinl_partition_all", []string{count, collection}), {}, true
+    }
+
+    if head.text == "partition-by" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "partition-by expects key function and collection", span = form.span}, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[2])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        return emit_partition_by_callback_call(e, form.items[1], slice_all_expr_text(collection))
     }
 
     if head.text == "zipmap" {
@@ -3018,6 +3066,64 @@ emit_core_partition_all_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_partition_by_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_partition_by :: proc(f: proc(x: $T) -> $K, xs: []T) -> [dynamic][]T {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic][]T)")
+    emit_line(e, "if len(xs) == 0 {")
+    e.indent += 1
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "start := 0")
+    emit_line(e, "last_key := f(xs[0])")
+    emit_line(e, "for i := 1; i < len(xs); i += 1 {")
+    e.indent += 1
+    emit_line(e, "key := f(xs[i])")
+    emit_line(e, "if key != last_key {")
+    e.indent += 1
+    emit_line(e, "append(&out, xs[start:i])")
+    emit_line(e, "start = i")
+    emit_line(e, "last_key = key")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "append(&out, xs[start:])")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_partition_by_field_helper :: proc(e: ^Emitter, field: string) {
+    emit_line(e, fmt.tprintf("odinl_partition_by_field_%s :: proc($Key: typeid, xs: []$T) -> [dynamic][]T %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "out := make([dynamic][]T)")
+    emit_line(e, "if len(xs) == 0 {")
+    e.indent += 1
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "start := 0")
+    emit_line(e, fmt.tprintf("last_key := xs[0].%s", field))
+    emit_line(e, "for i := 1; i < len(xs); i += 1 {")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("key := xs[i].%s", field))
+    emit_line(e, "if key != last_key {")
+    e.indent += 1
+    emit_line(e, "append(&out, xs[start:i])")
+    emit_line(e, "start = i")
+    emit_line(e, "last_key = key")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "append(&out, xs[start:])")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_zipmap_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_zipmap :: proc(keys: []$K, values: []$V) -> map[K]V {")
     e.indent += 1
@@ -3400,11 +3506,13 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_remove || features.core_map_indexed || features.core_keep ||
            features.core_concat || features.core_reverse ||
            features.core_split_at || features.core_partition ||
-           features.core_partition_all || features.core_zipmap ||
+           features.core_partition_all || features.core_partition_by ||
+           features.core_zipmap ||
            features.core_index_by || features.core_frequencies ||
            features.core_range || features.core_repeat ||
            features.core_repeatedly || features.core_iterate ||
            len(features.map_fields) > 0 || len(features.index_by_fields) > 0 ||
+           len(features.partition_by_fields) > 0 ||
            len(features.filter_fields) > 0 ||
            len(features.remove_fields) > 0 ||
            len(features.take_while_fields) > 0 || len(features.drop_while_fields) > 0 ||
@@ -3477,6 +3585,14 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_partition_all {
         emit_core_helper_separator(e, &emitted)
         emit_core_partition_all_helper(e)
+    }
+    if features.core_partition_by {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_partition_by_helper(e)
+    }
+    for field in features.partition_by_fields {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_partition_by_field_helper(e, field)
     }
     if features.core_zipmap {
         emit_core_helper_separator(e, &emitted)

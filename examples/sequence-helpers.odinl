@@ -119,6 +119,12 @@
     (defer (delete chunks))
     (len (last chunks))))
 
+(proc run-count [] -> int
+  (let [xs (new []int [1 1 2 2 2 3 1])
+        runs (partition-by identity-int xs)]
+    (defer (delete runs))
+    (len runs)))
+
 (proc threaded-first [] -> int
   (let [xs (new []int [1 2 3 4])
         threaded (->> xs
@@ -173,6 +179,9 @@
 
   (ragged-chunk-size)
   ;; => 1
+
+  (run-count)
+  ;; => 4
 
   (threaded-first)
   ;; => 4

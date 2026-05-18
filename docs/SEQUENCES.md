@@ -38,6 +38,8 @@ These helpers are already in scope and should remain small:
 (split-at n xs)
 (partition n xs)
 (partition-all n xs)
+(partition-by f xs)
+(partition-by :field xs)
 (zipmap keys vals)
 (index-by f xs)
 (index-by :field xs)
@@ -71,9 +73,9 @@ non-owning slice views.
 Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
 `concat`, `reverse`, `range`, `repeat`, `repeatedly`, and `iterate` return
 owned dynamic arrays. `zipmap`, `index-by`, and `frequencies` return owned maps.
-`partition` and `partition-all` return owned dynamic arrays of borrowed slice
-chunks. `keep` is Odin-shaped: the callback returns `(value, ok)`, and only
-`ok` values are appended.
+`partition`, `partition-all`, and `partition-by` return owned dynamic arrays of
+borrowed slice chunks. `keep` is Odin-shaped: the callback returns `(value, ok)`,
+and only `ok` values are appended.
 
 Keyword callbacks are field-access shorthand in the supported higher-order
 helpers:
@@ -81,6 +83,7 @@ helpers:
 ```clojure
 (map :name users)
 (index-by :id users)
+(partition-by :status users)
 (filter :verified users)
 (remove :archived users)
 (->> users
@@ -97,7 +100,6 @@ These are valuable, but each needs one deliberate design choice before
 implementation:
 
 ```clojure
-(partition-by f xs)
 (group-by f xs)
 (mapcat f xs)
 (sort xs)
@@ -221,8 +223,8 @@ Sequence helpers need an explicit ownership story:
   `drop-while`, and `split-at` do not own data and must not be deleted.
 - Dynamic-array helpers such as `map`, `filter`, `remove`, `map-indexed`,
   `keep`, `concat`, and `reverse` allocate and return owned dynamic arrays.
-- Chunking helpers `partition` and `partition-all` allocate the outer dynamic
-  array, but its slice chunks borrow the input collection.
+- Chunking helpers `partition`, `partition-all`, and `partition-by` allocate the
+  outer dynamic array, but their slice chunks borrow the input collection.
 - `zipmap`, `index-by`, and `frequencies` allocate and return owned maps.
 - Owned helper results must be bound or returned. Nested owned results such as
   `(first (map f xs))` are rejected because there is no visible place to delete

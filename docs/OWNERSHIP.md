@@ -34,6 +34,8 @@ These forms return owned values in normal OdinL code:
 (reverse xs)
 (partition n xs)
 (partition-all n xs)
+(partition-by f xs)
+(partition-by :field xs)
 (zipmap keys vals)
 (index-by f xs)
 (index-by :field xs)
@@ -56,8 +58,8 @@ Use `defer delete` for local owned values:
   ...)
 ```
 
-For `partition` and `partition-all`, delete the outer dynamic array. The chunks
-inside are borrowed slices and must not be deleted:
+For `partition`, `partition-all`, and `partition-by`, delete the outer dynamic
+array. The chunks inside are borrowed slices and must not be deleted:
 
 ```clojure
 (let [chunks (partition 2 xs)]
