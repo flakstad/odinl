@@ -1375,11 +1375,21 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         emit_line(e, fmt.tprintf("%s = %s", lhs, rhs))
         return {}, true
     case "each":
-        if len(form.items) < 4 || form.items[1].kind != .Symbol {
-            return Compile_Error{message = "each expects name, collection, and body", span = form.span}, false
+        body_start := 3
+        name_form: CST_Form
+        coll_form: CST_Form
+        if len(form.items) >= 4 && form.items[1].kind == .Symbol {
+            name_form = form.items[1]
+            coll_form = form.items[2]
+        } else if len(form.items) >= 3 && form.items[1].kind == .Vector && len(form.items[1].items) == 2 && form.items[1].items[0].kind == .Symbol {
+            name_form = form.items[1].items[0]
+            coll_form = form.items[1].items[1]
+            body_start = 2
+        } else {
+            return Compile_Error{message = "each expects [name collection] and body", span = form.span}, false
         }
-        name := map_name(form.items[1].text)
-        coll, err_coll, ok_coll := emit_expr(e, form.items[2])
+        name := map_name(name_form.text)
+        coll, err_coll, ok_coll := emit_expr(e, coll_form)
         if !ok_coll {
             return err_coll, false
         }
@@ -1392,7 +1402,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         emit_raw_newline(e)
         e.indent += 1
         body: [dynamic]CST_Form
-        for item in form.items[3:] {
+        for item in form.items[body_start:] {
             append(&body, item)
         }
         err_body, ok_body := emit_body_forms(e, body[:], Return_Spec{kind = .None})

@@ -848,7 +848,7 @@ Loops and cleanup remain explicit statements/forms:
 (for (< i 10)
   (fmt.println i))
 
-(each x xs
+(each [x xs]
   (fmt.println x))
 
 (defer (free thing))

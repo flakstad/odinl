@@ -531,7 +531,7 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - `(if test then else)`
 - `(when test body...)`
 - `(for test body...)`
-- `(each name collection body...)`
+- `(each [name collection] body...)`
 - `(do body...)`
 - `(new Type literal)` typed composite literals
 - `(make Type args...)` runtime/allocator-backed construction

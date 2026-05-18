@@ -830,7 +830,7 @@ implicit_returns_only_apply_to_final_nested_blocks :: proc(t: ^testing.T) {
 
 (proc total [xs: []int] -> int
   (let [sum 0]
-    (each x xs
+    (each [x xs]
       (set! sum (+ sum x))
       (trace sum))
     sum))`
@@ -881,7 +881,7 @@ compile_break_and_continue_forms :: proc(t: ^testing.T) {
 
 (proc first-positive [xs: []int] -> int
   (let [result 0]
-    (each x xs
+    (each [x xs]
       (when (< x 0)
         (continue))
       (when (> x 0)

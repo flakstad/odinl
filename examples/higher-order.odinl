@@ -4,20 +4,20 @@
 
 (proc map-int [xs: []int, f: proc [x: int] -> int] -> [dynamic]int
   (let [out (make [dynamic]int)]
-    (each x xs
+    (each [x xs]
       (append (& out) (f x)))
     out))
 
 (proc filter-int [xs: [dynamic]int, pred: proc [x: int] -> bool] -> [dynamic]int
   (let [out (make [dynamic]int)]
-    (each x xs
+    (each [x xs]
       (when (pred x)
         (append (& out) x)))
     out))
 
 (proc reduce-int [xs: [dynamic]int, init: int, f: proc [acc: int, x: int] -> int] -> int
   (let [acc init]
-    (each x xs
+    (each [x xs]
       (set! acc (f acc x)))
     acc))
 
