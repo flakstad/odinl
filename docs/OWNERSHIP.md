@@ -52,6 +52,7 @@ These forms return owned values in normal OdinL code:
 (repeat n x)
 (repeatedly n f)
 (iterate n f x)
+(cycle n xs)
 ```
 
 Use `defer delete` for local owned values:
@@ -97,6 +98,8 @@ These are scalar values, plain values, or borrowed views:
 (every? pred xs)
 (reduce f init xs)
 (empty? xs)
+(count xs)
+(contains? collection key)
 ```
 
 `split-at` returns two borrowed slices:

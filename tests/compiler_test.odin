@@ -699,6 +699,9 @@ compile_operator_forms :: proc(t: ^testing.T) {
 (proc has-key [lookup: map[string]int, key: string] -> bool
   (in? lookup key))
 
+(proc contains-key [lookup: map[string]int, key: string] -> bool
+  (contains? lookup key))
+
 (proc missing-key [lookup: map[string]int, key: string] -> bool
   (not (in? lookup key)))`
 
@@ -727,6 +730,10 @@ score :: proc(a: int, b: int, ok: bool) -> int {
 }
 
 has_key :: proc(lookup: map[string]int, key: string) -> bool {
+    return (key) in (lookup)
+}
+
+contains_key :: proc(lookup: map[string]int, key: string) -> bool {
     return (key) in (lookup)
 }
 
@@ -1475,11 +1482,13 @@ compile_bounded_sequence_producers :: proc(t: ^testing.T) {
   (let [xs (range 1 5)
         ys (repeat 3 "x")
         zs (repeatedly 2 next)
-        powers (iterate 4 double 1)]
+        powers (iterate 4 double 1)
+        cycled (cycle 5 (new []int [1 2]))]
     (defer (delete xs))
     (defer (delete ys))
     (defer (delete zs))
     (defer (delete powers))
+    (defer (delete cycled))
     (return)))`
 
     output, err, ok := odinl.compile_source(source)
@@ -1494,10 +1503,12 @@ compile_bounded_sequence_producers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "ys := odinl_repeat(3, \"x\")"), true)
     testing.expect_value(t, strings.contains(output, "zs := odinl_repeatedly(2, next)"), true)
     testing.expect_value(t, strings.contains(output, "powers := odinl_iterate(4, double, 1)"), true)
+    testing.expect_value(t, strings.contains(output, "cycled := odinl_cycle(5, []int{1, 2})"), true)
     testing.expect_value(t, strings.contains(output, "odinl_range :: proc(start, end, step: int) -> [dynamic]int"), true)
     testing.expect_value(t, strings.contains(output, "odinl_repeat :: proc(n: int, value: $T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_repeatedly :: proc(n: int, f: proc() -> $T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_iterate :: proc(n: int, f: proc(x: $T) -> T, init: T) -> [dynamic]T"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_cycle :: proc(n: int, xs: []$T) -> [dynamic]T"), true)
 }
 
 @(test)
@@ -1578,10 +1589,11 @@ compile_sequence_indexing_helpers :: proc(t: ^testing.T) {
         a (first xs)
         b (second xs)
         c (nth xs 2)
+        n (count xs)
         tail (rest xs)
         threaded (->> xs
                       (rest)
-                      (first))]
+                      (count))]
     (return)))`
 
     output, err, ok := odinl.compile_source(source)
@@ -1599,8 +1611,9 @@ main :: proc() {
     a := ((xs)[:])[0]
     b := ((xs)[:])[1]
     c := ((xs)[:])[2]
+    n := len((xs)[:])
     tail := ((xs)[:])[1:]
-    threaded := ((((xs)[:])[1:])[:])[0]
+    threaded := len((((xs)[:])[1:])[:])
     return
 }
 `

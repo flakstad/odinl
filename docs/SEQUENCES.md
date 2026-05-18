@@ -9,10 +9,15 @@ collection behavior. Helpers should lower to readable generic Odin procedures,
 ordinary indexing, ordinary slicing, ordinary loops, ordinary maps, and ordinary
 dynamic arrays.
 
+There will not be lazy sequences in OdinL. Producers must always be bounded,
+and helpers must always be one of: eager owned collection builders, borrowed
+slice views, scalar operations, or explicit in-place mutation.
+
 ## Principles
 
 - Preserve Odin semantics.
 - Prefer eager helpers over lazy producers.
+- Do not add unbounded producers.
 - Return slices when a helper can be a cheap view.
 - Return dynamic arrays when a helper must build a new collection.
 - Do not hide allocation; generated helpers that allocate should be easy to
@@ -67,6 +72,7 @@ These helpers are already in scope and should remain small:
 (repeat n x)
 (repeatedly n f)
 (iterate n f x)
+(cycle n xs)
 (take n xs)
 (drop n xs)
 (take-while pred xs)
@@ -80,6 +86,8 @@ These helpers are already in scope and should remain small:
 (nth xs n)
 (rest xs)
 (empty? xs)
+(count xs)
+(contains? collection key)
 ```
 
 The access and trimming helpers use the direct Odin representation where
@@ -88,14 +96,15 @@ lowers to `len`. `rest`, `take`, `drop`, `take-while`, and `drop-while` return
 non-owning slice views.
 
 Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
-`mapcat`, `concat`, `reverse`, `range`, `repeat`, `repeatedly`, and `iterate`
-return owned dynamic arrays. `zipmap`, `index-by`, and `frequencies` return
-owned maps. `group-by` returns an owned map whose values are owned dynamic
-arrays; delete each group before deleting the map. `partition`, `partition-all`,
-and `partition-by` return owned dynamic arrays of borrowed slice chunks. `keep`
-is Odin-shaped: the callback returns `(value, ok)`, and only `ok` values are
-appended. `mapcat` is also Odin-shaped: the callback returns a borrowed slice,
-and `mapcat` appends those values into one owned dynamic array.
+`mapcat`, `concat`, `reverse`, `range`, `repeat`, `repeatedly`, `iterate`, and
+bounded `cycle` return owned dynamic arrays. `zipmap`, `index-by`, and
+`frequencies` return owned maps. `group-by` returns an owned map whose values
+are owned dynamic arrays; delete each group before deleting the map.
+`partition`, `partition-all`, and `partition-by` return owned dynamic arrays of
+borrowed slice chunks. `keep` is Odin-shaped: the callback returns `(value,
+ok)`, and only `ok` values are appended. `mapcat` is also Odin-shaped: the
+callback returns a borrowed slice, and `mapcat` appends those values into one
+owned dynamic array.
 
 `sort` and `sort-by` copy before sorting. They do not mutate the input
 collection, and their result is owned.
@@ -166,11 +175,16 @@ These are valuable, but each needs one deliberate design choice before
 implementation:
 
 ```clojure
+(into target xs)
 (shuffle rng xs)
 ```
 
-The main question is:
+The main questions are:
 
+- `into` is useful, but its shape depends on the target. Dynamic arrays could
+  lower to `append(&target, ..xs)`, maps could merge key/value pairs, and sets
+  would first need a concrete Odin representation. We should design it as
+  explicit eager mutation, not a polymorphic collection protocol.
 - `shuffle` should probably require an explicit random source rather than hide
   one.
 
@@ -180,12 +194,19 @@ Producer helpers are eager and bounded. The amount of work and allocation is
 visible in the call:
 
 Avoid unbounded forms such as plain `cycle`, unbounded `repeat`, unbounded
-`repeatedly`, or unbounded `iterate`. If a cyclic helper is ever added, it
-should be bounded:
+`repeatedly`, or unbounded `iterate`. Use explicit counts:
 
 ```clojure
+(range start end step)
+(repeat n x)
+(repeatedly n f)
+(iterate n f x)
 (cycle n xs)
 ```
+
+`cycle` returns an owned dynamic array containing at most `n` items by cycling
+over the input slice. It returns an empty owned dynamic array when `n <= 0` or
+the input is empty.
 
 ## Transducer Path
 

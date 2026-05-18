@@ -110,6 +110,18 @@
     (defer (delete xs))
     (last xs)))
 
+(proc cycled-total [] -> int
+  (let [base (new []int [1 2 3])
+        xs (cycle 5 base)]
+    (defer (delete xs))
+    (reduce add 0 xs)))
+
+(proc counted-cycle [] -> int
+  (let [base (new []int [1 2])
+        xs (cycle 5 base)]
+    (defer (delete xs))
+    (count xs)))
+
 (proc trimmed-sum [] -> int
   (let [xs (new []int [1 2 3 4 5])
         head (take 3 xs)
@@ -261,6 +273,12 @@
 
   (iterated-last)
   ;; => 8
+
+  (cycled-total)
+  ;; => 9
+
+  (counted-cycle)
+  ;; => 5
 
   (trimmed-sum)
   ;; => 13
