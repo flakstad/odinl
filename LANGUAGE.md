@@ -1503,10 +1503,21 @@ Useful editor commands later:
 - macroexpand form
 - show lowered Odin
 
+The development model should become richer without becoming stateful. Tooling
+may support tap-style inspection, rerun watches, and disk-backed saved values,
+but those features should be explicit editor/CLI workflows around generated
+Odin. A fresh process should be able to reproduce the same result from source
+files and saved data files.
+
+See `docs/TOOLING.md` for the current plan around tap-style inspection,
+file-backed dev values, watches, and Emacs integration.
+
 ## Macros
 
 Because OdinL is a Lisp, macros are likely an important later feature. But they
-should arrive only after the core surface language is stable.
+should arrive only after the core surface language is stable. They are now one
+of the next major design areas after the direct compiler surface and eager
+sequence library are in good shape.
 
 The intended macro direction is:
 

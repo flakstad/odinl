@@ -169,6 +169,22 @@ For hot paths, prefer one of these shapes:
 - later, use transducer-style lowering once it exists to fuse pipelines into one
   loop and one final allocation.
 
+## Completion Before Transducers
+
+The eager sequence library is close to complete enough for ordinary code. The
+remaining pre-transducer work should stay small and direct:
+
+- `into` / `into!`: explicit eager accumulation into an existing target.
+- `shuffle`: eager copy plus shuffle with an explicit random source.
+- possibly `distinct` and `distinct-by`: owned dynamic-array result backed by a
+  temporary map/set, with clear allocation and cleanup.
+- possibly `interpose` and `interleave`: owned dynamic-array builders when the
+  output type remains obvious.
+
+Avoid helpers that imply lazy sequence semantics, nil-as-empty behavior, or a
+collection protocol. Prefer an explicit loop in user code when a helper's
+lowering would be surprising.
+
 ## Useful Additions After That
 
 These are valuable, but each needs one deliberate design choice before
@@ -176,17 +192,24 @@ implementation:
 
 ```clojure
 (into target xs)
+(into! target xs)
 (shuffle rng xs)
+(distinct xs)
+(distinct-by f xs)
 ```
 
 The main questions are:
 
 - `into` is useful, but its shape depends on the target. Dynamic arrays could
   lower to `append(&target, ..xs)`, maps could merge key/value pairs, and sets
-  would first need a concrete Odin representation. We should design it as
-  explicit eager mutation, not a polymorphic collection protocol.
+  would first need a concrete Odin representation. Treat this as explicit eager
+  mutation, not a polymorphic collection protocol. A likely spelling is
+  `(into! target xs)` for mutating an existing dynamic array or map, with
+  non-bang `(into Type xs)` reserved for constructing a new owned target.
 - `shuffle` should probably require an explicit random source rather than hide
   one.
+- `distinct` needs a set representation. `map[T]bool` is the likely boring Odin
+  answer for comparable keys, but it should be documented as an allocation.
 
 ## Bounded Producers
 
