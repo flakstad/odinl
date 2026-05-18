@@ -1297,6 +1297,51 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
 }
 
 @(test)
+compile_chunking_and_zipmap_sequence_helpers :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc even? [x: int] -> bool
+  (== (% x 2) 0))
+
+(proc main []
+  (let [xs (new []int [1 2 3 4])
+        names (new []string ["Ada" "Lin"])
+        ages (new []int [36 17])
+        [front back] (split-at 2 xs)
+        chunks (partition 2 xs)
+        chunks-all (partition-all 3 xs)
+        by-name (zipmap names ages)
+        threaded (->> xs
+                      (remove even?)
+                      (partition-all 1))]
+    (defer (delete chunks))
+    (defer (delete chunks-all))
+    (defer (delete by-name))
+    (defer (delete threaded))
+    (return)))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "front, back := odinl_split_at(2, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "chunks := odinl_partition(2, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "chunks_all := odinl_partition_all(3, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "by_name := odinl_zipmap((names)[:], (ages)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_thread_1 := odinl_remove(even_p, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "defer delete(odinl_thread_1)"), true)
+    testing.expect_value(t, strings.contains(output, "threaded := odinl_partition_all(1, (odinl_thread_1)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_split_at :: proc(n: int, xs: []$T) -> (left: []T, right: []T)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_partition :: proc(n: int, xs: []$T) -> [dynamic][]T"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_partition_all :: proc(n: int, xs: []$T) -> [dynamic][]T"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_zipmap :: proc(keys: []$K, values: []$V) -> map[K]V"), true)
+}
+
+@(test)
 compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
     source := `(package main)
 

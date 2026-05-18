@@ -35,6 +35,10 @@ These helpers are already in scope and should remain small:
 (keep f xs)
 (concat xs ys)
 (reverse xs)
+(split-at n xs)
+(partition n xs)
+(partition-all n xs)
+(zipmap keys vals)
 (take n xs)
 (drop n xs)
 (take-while pred xs)
@@ -56,8 +60,10 @@ lowers to `len`. `rest`, `take`, `drop`, `take-while`, and `drop-while` return
 non-owning slice views.
 
 Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
-`concat`, and `reverse` return owned dynamic arrays. `keep` is Odin-shaped: the
-callback returns `(value, ok)`, and only `ok` values are appended.
+`concat`, and `reverse` return owned dynamic arrays. `zipmap` returns an owned
+map. `partition` and `partition-all` return owned dynamic arrays of borrowed
+slice chunks. `keep` is Odin-shaped: the callback returns `(value, ok)`, and
+only `ok` values are appended.
 
 Keyword callbacks are field-access shorthand in the supported higher-order
 helpers:
@@ -79,7 +85,6 @@ not general keyword-as-function map lookup.
 These fit the current eager model well:
 
 ```clojure
-(split-at n xs)
 ```
 
 Expected lowering:
@@ -93,10 +98,7 @@ These are valuable, but each needs one deliberate design choice before
 implementation:
 
 ```clojure
-(partition n xs)
-(partition-all n xs)
 (partition-by f xs)
-(zipmap keys vals)
 (frequencies xs)
 (group-by f xs)
 (index-by f xs)
@@ -108,7 +110,6 @@ implementation:
 
 The main questions are:
 
-- Should chunking helpers return slice views or allocated nested arrays?
 - Should grouping helpers require explicit allocator arguments, use
   `context.allocator`, or follow the default dynamic-array helper convention?
 - Should `sort` copy before sorting, or should there be a separate in-place
@@ -230,9 +231,12 @@ still owned and must be deleted or returned to transfer ownership.
 Sequence helpers need an explicit ownership story:
 
 - Slice-view helpers such as `rest`, `take`, `drop`, `take-while`,
-  `drop-while`, and likely `split-at` do not own data and must not be deleted.
+  `drop-while`, and `split-at` do not own data and must not be deleted.
 - Dynamic-array helpers such as `map`, `filter`, `remove`, `map-indexed`,
   `keep`, `concat`, and `reverse` allocate and return owned dynamic arrays.
+- Chunking helpers `partition` and `partition-all` allocate the outer dynamic
+  array, but its slice chunks borrow the input collection.
+- `zipmap` allocates and returns an owned map.
 - Examples that use allocating helpers should show `defer delete(...)` when the
   result lives beyond a trivial expression.
 - Future helper docs should clearly mark whether a helper returns a view or an

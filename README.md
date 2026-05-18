@@ -542,7 +542,8 @@ foreign_call :: proc(handle: Foreign_Handle) ---
   `(find pred xs)`, `(some? pred xs)`, `(every? pred xs)`, `(first xs)`,
   `(second xs)`, `(last xs)`, `(nth xs n)`, `(rest xs)`, `(empty? xs)`,
   `(remove pred xs)`, `(map-indexed f xs)`, `(keep f xs)`, `(concat xs ys)`,
-  and `(reverse xs)` core sequence helpers
+  `(reverse xs)`, `(split-at n xs)`, `(partition n xs)`,
+  `(partition-all n xs)`, and `(zipmap keys vals)` core sequence helpers
 - keywords can stand in for field callbacks in those helpers, e.g. `(map :name users)`
   and `(filter :verified users)`
 - `(:field value)`, `(get value key)`, `(-> value steps...)`, and `(->> value steps...)`

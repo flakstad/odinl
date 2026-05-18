@@ -20,6 +20,10 @@ Emitter_Features :: struct {
     core_keep:        bool,
     core_concat:      bool,
     core_reverse:     bool,
+    core_split_at:    bool,
+    core_partition:   bool,
+    core_partition_all: bool,
+    core_zipmap:      bool,
     map_fields:       [dynamic]string,
     filter_fields:    [dynamic]string,
     remove_fields:    [dynamic]string,
@@ -45,6 +49,7 @@ Emitter :: struct {
 Thread_Result_Kind :: enum {
     Unknown,
     Owned,
+    Owned_Borrowing,
     View,
     Scalar,
 }
@@ -142,6 +147,30 @@ mark_core_concat :: proc(e: ^Emitter) {
 mark_core_reverse :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_reverse = true
+    }
+}
+
+mark_core_split_at :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_split_at = true
+    }
+}
+
+mark_core_partition :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_partition = true
+    }
+}
+
+mark_core_partition_all :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_partition_all = true
+    }
+}
+
+mark_core_zipmap :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_zipmap = true
     }
 }
 
@@ -566,6 +595,36 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             mark_core_reverse(e)
             return emit_call_text("odinl_reverse", []string{slice_all_expr_text(current)}), {}, true
         }
+        if thread_last && (head.text == "split-at" || head.text == "partition" || head.text == "partition-all") {
+            if len(step.items) != 2 {
+                return "", Compile_Error{message = fmt.tprintf("%s thread step expects one count argument", head.text), span = step.span}, false
+            }
+            count, err_count, ok_count := emit_expr(e, step.items[1])
+            if !ok_count {
+                return "", err_count, false
+            }
+            if head.text == "split-at" {
+                mark_core_split_at(e)
+                return emit_call_text("odinl_split_at", []string{count, slice_all_expr_text(current)}), {}, true
+            }
+            if head.text == "partition" {
+                mark_core_partition(e)
+                return emit_call_text("odinl_partition", []string{count, slice_all_expr_text(current)}), {}, true
+            }
+            mark_core_partition_all(e)
+            return emit_call_text("odinl_partition_all", []string{count, slice_all_expr_text(current)}), {}, true
+        }
+        if thread_last && head.text == "zipmap" {
+            if len(step.items) != 2 {
+                return "", Compile_Error{message = "zipmap thread step expects one key collection argument", span = step.span}, false
+            }
+            keys, err_keys, ok_keys := emit_expr(e, step.items[1])
+            if !ok_keys {
+                return "", err_keys, false
+            }
+            mark_core_zipmap(e)
+            return emit_call_text("odinl_zipmap", []string{slice_all_expr_text(keys), slice_all_expr_text(current)}), {}, true
+        }
         if thread_last && head.text == "reduce" {
             if len(step.items) != 3 {
                 return "", Compile_Error{message = "reduce thread step expects function and initial value", span = step.span}, false
@@ -714,12 +773,16 @@ thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Res
         if thread_last && (head.text == "map" || head.text == "filter" ||
                            head.text == "remove" || head.text == "map-indexed" ||
                            head.text == "keep" || head.text == "concat" ||
-                           head.text == "reverse") {
+                           head.text == "reverse" || head.text == "zipmap") {
             return .Owned
+        }
+        if thread_last && (head.text == "partition" || head.text == "partition-all") {
+            return .Owned_Borrowing
         }
         if thread_last && (head.text == "take" || head.text == "drop" ||
                            head.text == "take-while" || head.text == "drop-while" ||
-                           head.text == "slice" || head.text == "rest") {
+                           head.text == "slice" || head.text == "rest" ||
+                           head.text == "split-at") {
             return .View
         }
         if thread_last && (head.text == "reduce" || head.text == "find" ||
@@ -749,7 +812,8 @@ thread_form_has_allocating_intermediate :: proc(form: CST_Form, thread_last: boo
     }
     for step, idx in form.items[2:] {
         last_step := idx == len(form.items[2:])-1
-        if !last_step && thread_step_result_kind(step, thread_last) == .Owned {
+        kind := thread_step_result_kind(step, thread_last)
+        if !last_step && (kind == .Owned || kind == .Owned_Borrowing) {
             return true
         }
     }
@@ -767,11 +831,13 @@ thread_form_final_view_borrows_owned_intermediate :: proc(form: CST_Form, thread
     if !is_thread_form(form, thread_last) || len(form.items) < 3 {
         return false
     }
-    if thread_form_final_kind(form, thread_last) != .View {
+    final_kind := thread_form_final_kind(form, thread_last)
+    if final_kind != .View && final_kind != .Owned_Borrowing {
         return false
     }
     for step in form.items[2:len(form.items)-1] {
-        if thread_step_result_kind(step, thread_last) == .Owned {
+        kind := thread_step_result_kind(step, thread_last)
+        if kind == .Owned || kind == .Owned_Borrowing {
             return true
         }
     }
@@ -861,7 +927,7 @@ emit_thread_binding_assignment :: proc(e: ^Emitter, binding: Binding, thread_las
 
         kind := thread_step_result_kind(step, thread_last)
         last_step := idx == len(form.items[2:])-1
-        if kind == .Owned && !last_step {
+        if (kind == .Owned || kind == .Owned_Borrowing) && !last_step {
             temp := thread_temp_name(e)
             emit_prefixed_expr(e, fmt.tprintf("%s := ", temp), next)
             emit_line(e, fmt.tprintf("defer delete(%s)", temp))
@@ -1325,6 +1391,47 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         }
         mark_core_reverse(e)
         return emit_call_text("odinl_reverse", []string{slice_all_expr_text(collection)}), {}, true
+    }
+
+    if head.text == "split-at" || head.text == "partition" || head.text == "partition-all" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = fmt.tprintf("%s expects count and collection", head.text), span = form.span}, false
+        }
+        count, err_count, ok_count := emit_expr(e, form.items[1])
+        if !ok_count {
+            return "", err_count, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[2])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        collection = slice_all_expr_text(collection)
+        if head.text == "split-at" {
+            mark_core_split_at(e)
+            return emit_call_text("odinl_split_at", []string{count, collection}), {}, true
+        }
+        if head.text == "partition" {
+            mark_core_partition(e)
+            return emit_call_text("odinl_partition", []string{count, collection}), {}, true
+        }
+        mark_core_partition_all(e)
+        return emit_call_text("odinl_partition_all", []string{count, collection}), {}, true
+    }
+
+    if head.text == "zipmap" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "zipmap expects key and value collections", span = form.span}, false
+        }
+        keys, err_keys, ok_keys := emit_expr(e, form.items[1])
+        if !ok_keys {
+            return "", err_keys, false
+        }
+        values, err_values, ok_values := emit_expr(e, form.items[2])
+        if !ok_values {
+            return "", err_values, false
+        }
+        mark_core_zipmap(e)
+        return emit_call_text("odinl_zipmap", []string{slice_all_expr_text(keys), slice_all_expr_text(values)}), {}, true
     }
 
     if head.text == "reduce" {
@@ -2564,6 +2671,89 @@ emit_core_reverse_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_split_at_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_split_at :: proc(n: int, xs: []$T) -> (left: []T, right: []T) {")
+    e.indent += 1
+    emit_line(e, "mid := n")
+    emit_line(e, "if mid < 0 {")
+    e.indent += 1
+    emit_line(e, "mid = 0")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "if mid > len(xs) {")
+    e.indent += 1
+    emit_line(e, "mid = len(xs)")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return xs[:mid], xs[mid:]")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_partition_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_partition :: proc(n: int, xs: []$T) -> [dynamic][]T {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic][]T)")
+    emit_line(e, "if n <= 0 {")
+    e.indent += 1
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "for start := 0; start+n <= len(xs); start += n {")
+    e.indent += 1
+    emit_line(e, "append(&out, xs[start:start+n])")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_partition_all_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_partition_all :: proc(n: int, xs: []$T) -> [dynamic][]T {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic][]T)")
+    emit_line(e, "if n <= 0 {")
+    e.indent += 1
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "for start := 0; start < len(xs); start += n {")
+    e.indent += 1
+    emit_line(e, "end := start+n")
+    emit_line(e, "if end > len(xs) {")
+    e.indent += 1
+    emit_line(e, "end = len(xs)")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "append(&out, xs[start:end])")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_zipmap_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_zipmap :: proc(keys: []$K, values: []$V) -> map[K]V {")
+    e.indent += 1
+    emit_line(e, "out := make(map[K]V)")
+    emit_line(e, "limit := len(keys)")
+    emit_line(e, "if limit > len(values) {")
+    e.indent += 1
+    emit_line(e, "limit = len(values)")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "for i in 0..<limit {")
+    e.indent += 1
+    emit_line(e, "out[keys[i]] = values[i]")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_reduce_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_reduce :: proc(f: proc(acc: $U, x: $T) -> U, init: U, xs: []T) -> U {")
     e.indent += 1
@@ -2793,6 +2983,8 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_find || features.core_some || features.core_every ||
            features.core_remove || features.core_map_indexed || features.core_keep ||
            features.core_concat || features.core_reverse ||
+           features.core_split_at || features.core_partition ||
+           features.core_partition_all || features.core_zipmap ||
            len(features.map_fields) > 0 || len(features.filter_fields) > 0 ||
            len(features.remove_fields) > 0 ||
            len(features.take_while_fields) > 0 || len(features.drop_while_fields) > 0 ||
@@ -2853,6 +3045,22 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_reverse {
         emit_core_helper_separator(e, &emitted)
         emit_core_reverse_helper(e)
+    }
+    if features.core_split_at {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_split_at_helper(e)
+    }
+    if features.core_partition {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_partition_helper(e)
+    }
+    if features.core_partition_all {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_partition_all_helper(e)
+    }
+    if features.core_zipmap {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_zipmap_helper(e)
     }
     if features.core_reduce {
         emit_core_helper_separator(e, &emitted)
