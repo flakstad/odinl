@@ -169,6 +169,60 @@ main :: proc() {
 }
 
 @(test)
+compile_eval_source_deduplicates_import_declaration_form :: proc(t: ^testing.T) {
+    source := `(package main)
+(import "core:fmt")
+
+(proc main []
+  (fmt.println "hello"))`
+
+    output, err, ok := odinl.compile_eval_source(source, `(import "core:fmt")`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+import "core:fmt"
+
+main :: proc() {
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+compile_eval_source_can_load_main_proc_declaration_form :: proc(t: ^testing.T) {
+    source := `(package main)
+(import "core:fmt")
+
+(proc main []
+  (fmt.println "hello"))`
+
+    output, err, ok := odinl.compile_eval_source(source, `(proc main []
+  (fmt.println "hello"))`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+import "core:fmt"
+
+main :: proc() {
+    fmt.println("hello")
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 compile_eval_source_reports_eval_origin :: proc(t: ^testing.T) {
     source := `(package main)
 

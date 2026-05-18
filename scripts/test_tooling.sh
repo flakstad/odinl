@@ -76,12 +76,18 @@ printf 'tooling: eval check command\n'
 printf 'tooling: eval declaration form\n'
 cat > "$tmp_dir/decl-eval.odinl" <<'EOF'
 (package main)
+(import "core:fmt")
 
 (struct Greeting {
   :message string
 })
+
+(proc main []
+  (fmt.println "hello"))
 EOF
 ./odinl eval "$tmp_dir/decl-eval.odinl" '(struct Greeting { :message string })' --check
+./odinl eval "$tmp_dir/decl-eval.odinl" '(import "core:fmt")' --check
+./odinl eval "$tmp_dir/decl-eval.odinl" '(proc main [] (fmt.println "hello"))' --check
 
 printf 'tooling: eval odin diagnostic mapping\n'
 if ./odinl eval examples/higher-order.odinl '(+ 1 "bad")' --check >"$tmp_dir/bad-eval-check.out" 2>"$tmp_dir/bad-eval-check.err"; then
@@ -145,6 +151,7 @@ if command -v emacs >/dev/null 2>&1; then
                    (dolist (binding (list (cons \"C-c C-e\" (quote odinl-eval-form-at-point))
                                           (cons \"C-c C-c\" (quote odinl-eval-top-level-form))
                                           (cons \"C-c C-i\" (quote odinl-insert-form-result))
+                                          (cons \"C-c C-k\" (quote odinl-eval-buffer))
                                           (cons \"C-c C-v\" (quote odinl-check-buffer))
                                           (cons \"C-c C-b\" (quote odinl-build-buffer))))
                      (unless (eq (key-binding (kbd (car binding))) (cdr binding))

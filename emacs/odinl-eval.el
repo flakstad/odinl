@@ -36,6 +36,10 @@
   :type 'boolean
   :group 'odinl)
 
+(defconst odinl-declaration-heads
+  '("comment" "package" "import" "const" "struct" "enum" "union" "odin" "proc")
+  "OdinL forms that are declarations at top level.")
+
 (defvar odinl--last-source-buffer nil)
 
 (defvar odinl-eval-mode-map
@@ -154,6 +158,11 @@
   (or (odinl--sexp-bounds-near-point)
       (bounds-of-thing-at-point 'sexp)
       (user-error "No form at point")))
+
+(defun odinl--declaration-form-string-p (form)
+  "Return non-nil when FORM text starts with an OdinL declaration head."
+  (when (string-match "\\`[[:space:]]*(\\([[:word:]!?._+-]+\\)" form)
+    (member (match-string 1 form) odinl-declaration-heads)))
 
 (defun odinl--top-level-bounds ()
   "Return bounds of the current top-level form."
@@ -358,11 +367,13 @@ non-nil, run `odin check' instead of `odin run'.  DISPLAY may be `inline',
   "Evaluate the OdinL form at point and show the result inline.
 With prefix argument NO-PRINT, treat the form as a statement."
   (interactive "P")
-  (let ((bounds (odinl--form-bounds-at-point)))
+  (let* ((bounds (odinl--form-bounds-at-point))
+         (form (buffer-substring-no-properties (car bounds) (cdr bounds)))
+         (declaration (odinl--declaration-form-string-p form)))
     (odinl--eval-string
-     (buffer-substring-no-properties (car bounds) (cdr bounds))
+     form
      (or no-print odinl-default-no-print)
-     nil
+     declaration
      'inline
      bounds)))
 
@@ -370,11 +381,13 @@ With prefix argument NO-PRINT, treat the form as a statement."
 (defun odinl-popup-form-at-point (&optional no-print)
   "Evaluate the OdinL form at point and show the result buffer."
   (interactive "P")
-  (let ((bounds (odinl--form-bounds-at-point)))
+  (let* ((bounds (odinl--form-bounds-at-point))
+         (form (buffer-substring-no-properties (car bounds) (cdr bounds)))
+         (declaration (odinl--declaration-form-string-p form)))
     (odinl--eval-string
-     (buffer-substring-no-properties (car bounds) (cdr bounds))
+     form
      (or no-print odinl-default-no-print)
-     nil
+     declaration
      'buffer
      bounds)))
 
@@ -382,11 +395,13 @@ With prefix argument NO-PRINT, treat the form as a statement."
 (defun odinl-insert-form-result (&optional no-print)
   "Evaluate the OdinL form at point and insert its result as a ;; => comment."
   (interactive "P")
-  (let ((bounds (odinl--form-bounds-at-point)))
+  (let* ((bounds (odinl--form-bounds-at-point))
+         (form (buffer-substring-no-properties (car bounds) (cdr bounds)))
+         (declaration (odinl--declaration-form-string-p form)))
     (odinl--eval-string
-     (buffer-substring-no-properties (car bounds) (cdr bounds))
+     form
      (or no-print odinl-default-no-print)
-     nil
+     declaration
      'comment
      bounds)))
 
@@ -407,11 +422,13 @@ With prefix argument NO-PRINT, treat the region as a statement."
   "Evaluate the current top-level OdinL form and show the result inline.
 With prefix argument NO-PRINT, treat the form as a statement."
   (interactive "P")
-  (let ((bounds (odinl--top-level-bounds)))
+  (let* ((bounds (odinl--top-level-bounds))
+         (form (buffer-substring-no-properties (car bounds) (cdr bounds)))
+         (declaration (odinl--declaration-form-string-p form)))
     (odinl--eval-string
-     (buffer-substring-no-properties (car bounds) (cdr bounds))
+     form
      (or no-print odinl-default-no-print)
-     nil
+     declaration
      'inline
      bounds)))
 
@@ -470,9 +487,9 @@ With prefix argument NO-PRINT, treat the form as a statement."
 
 ;;;###autoload
 (defun odinl-eval-buffer ()
-  "Compile the current OdinL buffer and run generated Odin."
+  "Compile the current OdinL buffer and check generated Odin."
   (interactive)
-  (odinl--buffer-command "run"))
+  (odinl--buffer-command "check"))
 
 ;;;###autoload
 (defun odinl-build-buffer ()

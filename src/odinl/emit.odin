@@ -1773,6 +1773,11 @@ decl_matches :: proc(a, b: IR_Decl) -> bool {
     if a.kind != b.kind {
         return false
     }
+    if a.kind == .Import {
+        return a.import_decl.path == b.import_decl.path &&
+               a.import_decl.alias == b.import_decl.alias &&
+               a.import_decl.has_alias == b.import_decl.has_alias
+    }
     a_name := decl_name(a)
     if a_name == "" {
         return false
@@ -1788,22 +1793,30 @@ emit_eval_decl_program_with_source_map :: proc(program: IR_Program, eval_decl: I
         package_name = "main",
     })
 
+    found_eval_decl := eval_decl.kind == .Ignored ||
+                       eval_decl.kind == .Package
     if eval_decl.kind == .Import {
-        append(&decls, eval_decl)
+        for decl in program.decls {
+            if decl_matches(decl, eval_decl) {
+                found_eval_decl = true
+                break
+            }
+        }
+        if !found_eval_decl {
+            append(&decls, eval_decl)
+        }
     }
 
-    found_eval_decl := eval_decl.kind == .Ignored ||
-                       eval_decl.kind == .Package ||
-                       eval_decl.kind == .Import
     for decl, idx in program.decls {
         if decl.kind == .Package {
             continue
         }
-        if proc_decl_is_main(decl) {
+        if proc_decl_is_main(decl) && !proc_decl_is_main(eval_decl) {
             continue
         }
         if decl.kind == .Raw && idx+1 < len(program.decls) && proc_decl_is_main(program.decls[idx+1]) {
-            if raw_is_proc_directive(decl.raw_text) || raw_attaches_to_next_decl(decl.raw_text) {
+            if !proc_decl_is_main(eval_decl) &&
+               (raw_is_proc_directive(decl.raw_text) || raw_attaches_to_next_decl(decl.raw_text)) {
                 continue
             }
         }
@@ -1813,17 +1826,19 @@ emit_eval_decl_program_with_source_map :: proc(program: IR_Program, eval_decl: I
         append(&decls, decl)
     }
 
-    if !found_eval_decl {
+    if !found_eval_decl && eval_decl.kind != .Import {
         append(&decls, eval_decl)
     }
 
-    append(&decls, IR_Decl{
-        kind = .Proc,
-        span = eval_decl.span,
-        proc_decl = Proc_Decl{
-            name = "main",
-        },
-    })
+    if !proc_decl_is_main(eval_decl) {
+        append(&decls, IR_Decl{
+            kind = .Proc,
+            span = eval_decl.span,
+            proc_decl = Proc_Decl{
+                name = "main",
+            },
+        })
+    }
 
     return emit_decls_with_source_map(decls[:])
 }
