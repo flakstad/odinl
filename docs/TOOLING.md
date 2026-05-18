@@ -162,10 +162,46 @@ inventing a universal printer/reader:
 (dev/load-json []User "users")
 ```
 
+These helpers should lean on Odin's existing core libraries:
+
+- `core:os` for `os.read_entire_file` and `os.write_entire_file`;
+- `core:encoding/json` for `json.marshal`, `json.unmarshal`, and JSON struct
+  tags;
+- `core:encoding/cbor` as a later binary cache option when inspectability is
+  less important than speed or size.
+
+The intended lowering is ordinary Odin. A JSON save can marshal a value and
+write the resulting bytes:
+
+```odin
+data, err := json.marshal(value)
+defer delete(data)
+if err == nil {
+    err = os.write_entire_file(path, data)
+}
+```
+
+A JSON load can read bytes and unmarshal into an explicitly requested type:
+
+```odin
+data, err := os.read_entire_file(path, context.allocator)
+defer delete(data)
+
+value: T
+if err == nil {
+    err = json.unmarshal(data, &value)
+}
+```
+
 Those names are placeholders. The design constraint is the important part:
 serialization should be explicit, file-backed, and reproducible from a fresh
 process. The editor can make the workflow feel REPL-like by remembering recent
 paths and commands, but the compiled Odin should remain ordinary.
+
+JSON should be the first supported structured format because users can inspect
+and edit it. CBOR is a reasonable later option for larger caches. Odin's custom
+marshalers/unmarshalers should remain available for special types rather than
+OdinL inventing a parallel serialization protocol.
 
 ### CLI Shape
 
@@ -180,3 +216,31 @@ Useful future `odinl` commands or flags:
 
 The exact CLI can change, but it should keep the source of truth on disk so a
 fresh process can reproduce the same development state.
+
+## Planning Areas
+
+These areas are worth planning explicitly before implementation becomes too
+large:
+
+- Macro expansion phase: CST vs AST input, hygiene expectations, macroexpand
+  output, source spans, and error reporting through expansion.
+- Tap registry: whether taps are configured through an explicit value, context,
+  environment variables, or CLI/editor flags; supported sinks such as stdout,
+  files, editor buffers, and sockets.
+- Runtime reactive utilities: whether watch/cell/signal behavior belongs in a
+  small OdinL library, and how to keep it explicit rather than part of compiler
+  semantics.
+- Disk cache layout: default cache directory, naming, invalidation, cleanup,
+  file extensions, and whether cache metadata records source file, form, type,
+  and timestamp.
+- Formatter and indentation: Clojure-like 2-space `.odinl` formatting, separate
+  from 4-space generated Odin.
+- Source maps and diagnostics: expression-level spans, generated helper spans,
+  macro expansion spans, and editor navigation from Odin errors back to OdinL.
+- Package/workspace discovery: how `odinl eval`, `check`, `run`, and future
+  watch commands find the right Odin package root and import context.
+- Tooling protocol: whether Emacs calls CLI commands only, or whether a small
+  long-lived helper process is useful for speed while still avoiding stateful
+  language semantics.
+- Example and ownership coverage: every new helper should have examples showing
+  allocation, cleanup, and eval-friendly comment forms.
