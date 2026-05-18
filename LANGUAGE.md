@@ -1534,10 +1534,10 @@ Useful editor commands later:
 - macroexpand form
 - show lowered Odin
 
-The current CLI supports the last item directly through `odinl expand
-file.odinl FORM`, which emits the generated scratch Odin for the selected form
-without running it. This is a lowering preview, not a real macro expansion
-phase yet.
+The current CLI supports both inspection levels. `odinl macroexpand file.odinl
+FORM` shows frontend expansion for macro-like forms such as `with-allocator`.
+`odinl expand file.odinl FORM` emits the generated scratch Odin for the selected
+form without running it.
 
 The development model should become richer without becoming stateful. Tooling
 may support tap-style inspection, rerun watches, and disk-backed saved values,
@@ -1569,8 +1569,9 @@ runtime facility.
 ### `with-*` forms
 
 Allocator-oriented `with-*` forms should behave like macro-expanded resource
-scopes over ordinary Odin. `with-allocator` is supported directly while the
-general macro system is still pending.
+scopes over ordinary Odin. `with-allocator` is supported directly and is
+inspectable through `odinl macroexpand` while the general macro system is still
+pending.
 
 The implemented shape is:
 

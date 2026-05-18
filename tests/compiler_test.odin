@@ -1083,6 +1083,30 @@ main :: proc() {
 }
 
 @(test)
+macroexpand_with_allocator_scope :: proc(t: ^testing.T) {
+    output, err, ok := odinl.macroexpand_source(`(with-allocator [allocator context.temp_allocator]
+  (let [buffer (make [dynamic]int)]
+    (defer (delete buffer))
+    (into! buffer (new []int [1 2]))))`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `(do
+  (let [allocator context.temp_allocator
+        odinl-old-allocator-1 context.allocator]
+    (set! context.allocator allocator)
+    (defer (do
+      (set! context.allocator odinl-old-allocator-1)))
+    (let [buffer (make [dynamic]int)] (defer (delete buffer)) (into! buffer (new []int [1 2])))))
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 compile_proc_types_and_literals :: proc(t: ^testing.T) {
     source := `(package main)
 

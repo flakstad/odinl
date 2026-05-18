@@ -85,6 +85,20 @@ if ! grep -q 'fmt.println(temp_buffer_len())' "$tmp_dir/expand.odin"; then
 fi
 odin check "$tmp_dir/expand.odin" -file
 
+printf 'tooling: macroexpand command\n'
+./odinl macroexpand examples/data-literals.odinl '(with-allocator [allocator context.temp_allocator] (let [buffer (make [dynamic]int)] (defer (delete buffer))))' -o "$tmp_dir/macroexpand.odinl"
+assert_file_nonempty "$tmp_dir/macroexpand.odinl" "macroexpand output"
+if ! grep -q '(set! context.allocator allocator)' "$tmp_dir/macroexpand.odinl"; then
+    printf 'failed: macroexpand output did not include allocator set\n' >&2
+    cat "$tmp_dir/macroexpand.odinl" >&2
+    exit 1
+fi
+if ! grep -q 'odinl-old-allocator-1 context.allocator' "$tmp_dir/macroexpand.odinl"; then
+    printf 'failed: macroexpand output did not include old allocator binding\n' >&2
+    cat "$tmp_dir/macroexpand.odinl" >&2
+    exit 1
+fi
+
 printf 'tooling: eval main command\n'
 main_eval_output=$(./odinl eval examples/hello.odinl '(main)')
 assert_eq "hello from odinl" "$main_eval_output" "eval main output"
@@ -215,7 +229,7 @@ if command -v emacs >/dev/null 2>&1; then
              (unwind-protect
                  (progn
                    (with-temp-file file
-                     (insert \"(package main)\\n(import \\\"core:fmt\\\")\\n\\n(proc add [a: int, b: int] -> int\\n  (+ a b))\\n\\n(proc main []\\n  (fmt.println \\\"from main\\\"))\\n\\n(comment\\n  (add 1 2)\\n  (main))\\n\"))
+                     (insert \"(package main)\\n(import \\\"core:fmt\\\")\\n\\n(proc add [a: int, b: int] -> int\\n  (+ a b))\\n\\n(proc main []\\n  (fmt.println \\\"from main\\\"))\\n\\n(comment\\n  (add 1 2)\\n  (with-allocator [allocator context.temp_allocator]\\n    (add 2 1))\\n  (main))\\n\"))
                    (find-file file)
                    (odinl-mode)
                    (dolist (binding (list (cons \"C-c C-e\" (quote odinl-eval-form-at-point))
@@ -224,9 +238,23 @@ if command -v emacs >/dev/null 2>&1; then
                                           (cons \"C-c C-k\" (quote odinl-eval-buffer))
                                           (cons \"C-c C-v\" (quote odinl-check-buffer))
                                           (cons \"C-c C-b\" (quote odinl-build-buffer))
-                                          (cons \"C-c C-m\" (quote odinl-expand-form-at-point))))
+                                          (cons \"C-c C-m\" (quote odinl-expand-form-at-point))
+                                          (cons \"C-c M-m\" (quote odinl-macroexpand-form-at-point))))
                      (unless (eq (key-binding (kbd (car binding))) (cdr binding))
                        (error \"Missing binding %s\" (car binding))))
+                   (goto-char (point-min))
+                   (search-forward \"  (with-allocator\")
+                   (beginning-of-line)
+                   (skip-chars-forward \" \\t\")
+                   (let* ((bounds (odinl--form-bounds-at-point))
+                          (form (buffer-substring-no-properties (car bounds) (cdr bounds))))
+                     (unless (string-prefix-p \"(with-allocator\" form)
+                       (error \"Expected with-allocator form, got: %s\" form)))
+                   (call-interactively (quote odinl-macroexpand-form-at-point))
+                   (let ((macro-text (with-current-buffer odinl-macroexpand-buffer-name
+                                       (buffer-substring-no-properties (point-min) (point-max)))))
+                     (unless (string-match-p \"context\\\\.allocator allocator\" macro-text)
+                       (error \"Expected macroexpand allocator set, got: %s\" macro-text)))
                    (goto-char (point-min))
                    (search-forward \"(add 1 2)\")
                    (call-interactively (quote odinl-expand-form-at-point))

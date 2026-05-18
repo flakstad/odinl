@@ -108,6 +108,12 @@ Inspect the generated scratch Odin without running it with:
 ./odinl expand examples/higher-order.odinl '(reduce add 0 (new []int [1 2 3]))'
 ```
 
+Inspect frontend macro-style expansion before Odin lowering with:
+
+```sh
+./odinl macroexpand examples/data-literals.odinl '(with-allocator [allocator context.temp_allocator] (temp-buffer-len))'
+```
+
 The CLI can also invoke Odin for generated files directly:
 
 ```sh
