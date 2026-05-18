@@ -160,6 +160,15 @@ read_single_eval_form :: proc(source: string) -> (form: CST_Form, err: Compile_E
 }
 
 compile_eval_source :: proc(source, eval_source: string, no_print: bool = false) -> (output: string, err: Compile_Error, ok: bool) {
+    result, err_result, ok_result := compile_eval_source_with_map(source, eval_source, no_print)
+    if !ok_result {
+        return "", err_result, false
+    }
+    defer delete(result.source_map)
+    return result.output, {}, true
+}
+
+compile_eval_source_with_map :: proc(source, eval_source: string, no_print: bool = false) -> (result: Emit_Result, err: Compile_Error, ok: bool) {
     result_allocator := context.allocator
     old_allocator := context.allocator
     temp_scope := runtime.default_temp_allocator_temp_begin()
@@ -169,25 +178,30 @@ compile_eval_source :: proc(source, eval_source: string, no_print: bool = false)
 
     forms, err_forms, ok_forms := read_top_forms(source)
     if !ok_forms {
-        return "", clone_compile_error(err_forms, result_allocator), false
+        return result, clone_compile_error(err_forms, result_allocator), false
     }
     program, err_program, ok_program := parse_program(forms[:])
     if !ok_program {
-        return "", clone_compile_error(err_program, result_allocator), false
+        return result, clone_compile_error(err_program, result_allocator), false
     }
     lowered, err_lower, ok_lower := lower_program(program)
     if !ok_lower {
-        return "", clone_compile_error(err_lower, result_allocator), false
+        return result, clone_compile_error(err_lower, result_allocator), false
     }
     eval_form, err_eval, ok_eval := read_single_eval_form(eval_source)
     if !ok_eval {
-        return "", clone_compile_error(err_eval, result_allocator), false
+        return result, clone_compile_error(err_eval, result_allocator), false
     }
-    temp_output, err_emit, ok_emit := emit_eval_program(lowered, eval_form, no_print)
+    temp_result, err_emit, ok_emit := emit_eval_program_with_source_map(lowered, eval_form, no_print)
     if !ok_emit {
-        return "", clone_compile_error(err_emit, result_allocator), false
+        return result, clone_compile_error(err_emit, result_allocator), false
     }
-    return strings.clone(temp_output, result_allocator), {}, true
+    result.output = strings.clone(temp_result.output, result_allocator)
+    context.allocator = result_allocator
+    for entry in temp_result.source_map {
+        append(&result.source_map, entry)
+    }
+    return result, {}, true
 }
 
 compile_path :: proc(path: string) -> (output: string, err: Compile_Error, ok: bool) {

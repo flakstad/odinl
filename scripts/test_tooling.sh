@@ -69,6 +69,17 @@ assert_file_nonempty "$tmp_dir/eval.odin" "eval generated output"
 printf 'tooling: eval check command\n'
 ./odinl eval examples/higher-order.odinl '(reduce-int (new [dynamic]int [1 2 3]) 0 add)' --check
 
+printf 'tooling: eval odin diagnostic mapping\n'
+if ./odinl eval examples/higher-order.odinl '(+ 1 "bad")' --check >"$tmp_dir/bad-eval-check.out" 2>"$tmp_dir/bad-eval-check.err"; then
+    printf 'failed: bad eval check unexpectedly succeeded\n' >&2
+    exit 1
+fi
+if ! grep -q 'examples/higher-order.odinl:<eval>:1:1 Error: Cannot convert' "$tmp_dir/bad-eval-check.err"; then
+    printf 'failed: bad eval check diagnostic did not point at <eval>\n' >&2
+    cat "$tmp_dir/bad-eval-check.err" >&2
+    exit 1
+fi
+
 printf 'tooling: legacy eval compile path\n'
 ./odinl examples/higher-order.odinl --eval '(reduce-int (new [dynamic]int [1 2 3]) 0 add)' -o "$tmp_dir/legacy-eval.odin"
 legacy_output=$(odin run "$tmp_dir/legacy-eval.odin" -file)

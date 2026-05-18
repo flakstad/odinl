@@ -1699,7 +1699,7 @@ make_println_form :: proc(value: CST_Form) -> CST_Form {
     }
 }
 
-emit_eval_program :: proc(program: IR_Program, eval_form: CST_Form, no_print: bool) -> (string, Compile_Error, bool) {
+emit_eval_program_with_source_map :: proc(program: IR_Program, eval_form: CST_Form, no_print: bool) -> (Emit_Result, Compile_Error, bool) {
     decls: [dynamic]IR_Decl
     append(&decls, IR_Decl{
         kind = .Package,
@@ -1750,5 +1750,14 @@ emit_eval_program :: proc(program: IR_Program, eval_form: CST_Form, no_print: bo
         },
     })
 
-    return emit_decls(decls[:])
+    return emit_decls_with_source_map(decls[:])
+}
+
+emit_eval_program :: proc(program: IR_Program, eval_form: CST_Form, no_print: bool) -> (string, Compile_Error, bool) {
+    result, err, ok := emit_eval_program_with_source_map(program, eval_form, no_print)
+    if !ok {
+        return "", err, false
+    }
+    defer delete(result.source_map)
+    return result.output, {}, true
 }
