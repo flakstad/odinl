@@ -40,6 +40,7 @@ These helpers are already in scope and should remain small:
 (partition-all n xs)
 (zipmap keys vals)
 (index-by f xs)
+(index-by :field xs)
 (frequencies xs)
 (range end)
 (range start end)
@@ -79,6 +80,7 @@ helpers:
 
 ```clojure
 (map :name users)
+(index-by :id users)
 (filter :verified users)
 (remove :archived users)
 (->> users
@@ -88,18 +90,6 @@ helpers:
 
 This means "call the field accessor" for structs and struct-like values. It is
 not general keyword-as-function map lookup.
-
-## Near-Term Additions
-
-These fit the current eager model well:
-
-```clojure
-```
-
-Expected lowering:
-
-- `split-at` should return two slices when the input is sliceable, because that
-  is the direct Odin representation and does not allocate.
 
 ## Useful Additions After That
 
@@ -234,6 +224,9 @@ Sequence helpers need an explicit ownership story:
 - Chunking helpers `partition` and `partition-all` allocate the outer dynamic
   array, but its slice chunks borrow the input collection.
 - `zipmap`, `index-by`, and `frequencies` allocate and return owned maps.
+- Owned helper results must be bound or returned. Nested owned results such as
+  `(first (map f xs))` are rejected because there is no visible place to delete
+  the intermediate dynamic array.
 - Examples that use allocating helpers should show `defer delete(...)` when the
   result lives beyond a trivial expression.
 - Future helper docs should clearly mark whether a helper returns a view or an

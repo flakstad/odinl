@@ -90,6 +90,7 @@ assert_eq "40" "$(./odinl eval examples/sequence-helpers.odinl '(rest-second-emp
 assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(concat-reversed-first)')" "concat-reversed-first"
 assert_eq "1" "$(./odinl eval examples/sequence-helpers.odinl '(ragged-chunk-size)')" "ragged-chunk-size"
 assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(threaded-first)')" "threaded-first"
+assert_eq "36" "$(./odinl eval examples/sequences.odinl '(age-for-ada)')" "age-for-ada"
 
 printf 'tooling: eval check command\n'
 ./odinl eval examples/higher-order.odinl '(reduce add 0 (new []int [1 2 3]))' --check

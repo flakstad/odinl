@@ -1422,6 +1422,7 @@ compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
   (let [users (new []User [(User {:name "Ada" :verified true})
                            (User {:name "Lin" :verified false})])
         names (map :name users)
+        by-name (index-by :name users)
         verified (filter :verified users)
         unverified (remove :verified users)
         [first ok] (find :verified users)
@@ -1438,12 +1439,14 @@ compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
     defer delete(output)
 
     testing.expect_value(t, strings.contains(output, "names := odinl_map_field_name(type_of(((users)[:])[0].name), (users)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "by_name := odinl_index_by_field_name(type_of(((users)[:])[0].name), (users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "verified := odinl_filter_field_verified((users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "unverified := odinl_remove_field_verified((users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "first, ok := odinl_find_field_verified((users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "any_p := odinl_some_p_field_verified((users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "all_p := odinl_every_p_field_verified((verified)[:])"), true)
     testing.expect_value(t, strings.contains(output, "odinl_map_field_name :: proc($Field_Type: typeid, xs: []$T) -> [dynamic]Field_Type"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_index_by_field_name :: proc($Key: typeid, xs: []$T) -> map[Key]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_filter_field_verified :: proc(xs: []$T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_remove_field_verified :: proc(xs: []$T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_find_field_verified :: proc(xs: []$T) -> (value: T, ok: bool)"), true)
@@ -1487,6 +1490,61 @@ main :: proc() {
 }
 `
     testing.expect_value(t, output, expected)
+}
+
+@(test)
+allow_returning_owned_sequence_result :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc inc [x: int] -> int
+  (+ x 1))
+
+(proc owned [xs: []int] -> [dynamic]int
+  (map inc xs))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "return odinl_map(inc, (xs)[:])"), true)
+}
+
+@(test)
+reject_discarded_owned_sequence_result :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc inc [x: int] -> int
+  (+ x 1))
+
+(proc main []
+  (let [xs (new []int [1 2 3])]
+    (map inc xs)
+    (return)))`
+
+    _, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, false)
+    defer delete(err.message)
+    testing.expect_value(t, err.message, "owned sequence result must be bound or returned; nested owned results would leak")
+}
+
+@(test)
+reject_nested_owned_sequence_result :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc inc [x: int] -> int
+  (+ x 1))
+
+(proc bad [xs: []int] -> int
+  (first (map inc xs)))`
+
+    _, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, false)
+    defer delete(err.message)
+    testing.expect_value(t, err.message, "owned sequence result must be bound or returned; nested owned results would leak")
 }
 
 @(test)

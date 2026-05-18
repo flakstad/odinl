@@ -36,6 +36,7 @@ These forms return owned values in normal OdinL code:
 (partition-all n xs)
 (zipmap keys vals)
 (index-by f xs)
+(index-by :field xs)
 (frequencies xs)
 (range end)
 (range start end)
@@ -124,6 +125,29 @@ The same rule applies to owned maps:
 ```
 
 The caller deletes the returned map.
+
+## Do Not Hide Owned Intermediates
+
+Owned helper results should be visible as a binding or a return value:
+
+```clojure
+(let [names (map :name users)]
+  (defer (delete names))
+  (first names))
+```
+
+This is rejected because the intermediate dynamic array has no visible owner:
+
+```clojure
+(first (map :name users))
+```
+
+Return the owned result directly when ownership should pass to the caller:
+
+```clojure
+(proc user-names [users: []User] -> [dynamic]string
+  (map :name users))
+```
 
 ## Borrowed Views Must Not Escape Their Backing Storage
 

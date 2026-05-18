@@ -31,6 +31,7 @@ Emitter_Features :: struct {
     core_repeatedly:  bool,
     core_iterate:     bool,
     map_fields:       [dynamic]string,
+    index_by_fields:  [dynamic]string,
     filter_fields:    [dynamic]string,
     remove_fields:    [dynamic]string,
     take_while_fields: [dynamic]string,
@@ -228,6 +229,12 @@ append_unique_string :: proc(items: ^[dynamic]string, value: string) {
 mark_core_map_field :: proc(e: ^Emitter, field: string) {
     if e.features != nil {
         append_unique_string(&e.features.map_fields, field)
+    }
+}
+
+mark_core_index_by_field :: proc(e: ^Emitter, field: string) {
+    if e.features != nil {
+        append_unique_string(&e.features.index_by_fields, field)
     }
 }
 
@@ -671,12 +678,7 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             if len(step.items) != 2 {
                 return "", Compile_Error{message = "index-by thread step expects one key function argument", span = step.span}, false
             }
-            f, err_f, ok_f := emit_expr(e, step.items[1])
-            if !ok_f {
-                return "", err_f, false
-            }
-            mark_core_index_by(e)
-            return emit_call_text("odinl_index_by", []string{f, slice_all_expr_text(current)}), {}, true
+            return emit_index_by_callback_call(e, step.items[1], slice_all_expr_text(current))
         }
         if thread_last && head.text == "frequencies" {
             if len(step.items) != 1 {
@@ -915,6 +917,74 @@ thread_return_error :: proc(form: CST_Form) -> (Compile_Error, bool) {
     return {}, false
 }
 
+owned_sequence_head :: proc(name: string) -> bool {
+    switch name {
+    case "map", "filter", "remove", "map-indexed", "keep",
+         "concat", "reverse", "partition", "partition-all",
+         "zipmap", "index-by", "frequencies",
+         "range", "repeat", "repeatedly", "iterate":
+        return true
+    }
+    return false
+}
+
+form_is_owned_sequence_result :: proc(form: CST_Form) -> bool {
+    if form.kind != .List || len(form.items) == 0 || form.items[0].kind != .Symbol {
+        return false
+    }
+    if owned_sequence_head(form.items[0].text) {
+        return true
+    }
+    if is_thread_form(form, true) || is_thread_form(form, false) {
+        kind := thread_form_final_kind(form, form.items[0].text == "->>")
+        return kind == .Owned || kind == .Owned_Borrowing
+    }
+    return false
+}
+
+owned_sequence_usage_error :: proc(form: CST_Form, allow_root_owned: bool) -> (Compile_Error, bool) {
+    if form_is_owned_sequence_result(form) {
+        if !allow_root_owned {
+            return Compile_Error{
+                message = "owned sequence result must be bound or returned; nested owned results would leak",
+                span = form.span,
+            }, true
+        }
+        if (is_thread_form(form, true) && thread_form_has_allocating_intermediate(form, true)) ||
+           (is_thread_form(form, false) && thread_form_has_allocating_intermediate(form, false)) {
+            return Compile_Error{
+                message = "threaded expression has an allocating intermediate; bind the pipeline with let so OdinL can emit cleanup",
+                span = form.span,
+            }, true
+        }
+    }
+
+    #partial switch form.kind {
+    case .List, .Vector, .Brace:
+        start := 0
+        if form.kind == .List && len(form.items) > 0 && form.items[0].kind == .Symbol {
+            head := form.items[0].text
+            if head == "make" || head == "as" {
+                start = 2
+            } else if head == "new" {
+                start = 2
+            } else if allow_root_owned && form_is_owned_sequence_result(form) {
+                start = 1
+            }
+        }
+        if start > len(form.items) {
+            start = len(form.items)
+        }
+        for item in form.items[start:] {
+            err_item, bad_item := owned_sequence_usage_error(item, false)
+            if bad_item {
+                return err_item, true
+            }
+        }
+    }
+    return {}, false
+}
+
 returned_binding_name :: proc(form: CST_Form) -> (string, bool) {
     if form.kind == .Symbol {
         return map_name(form.text), true
@@ -1055,6 +1125,23 @@ emit_map_callback_call :: proc(e: ^Emitter, callback: CST_Form, collection: stri
     }
     mark_core_map(e)
     return emit_call_text("odinl_map", []string{f, collection}), {}, true
+}
+
+emit_index_by_callback_call :: proc(e: ^Emitter, callback: CST_Form, collection: string) -> (string, Compile_Error, bool) {
+    if field, ok_field := field_from_keyword(callback); ok_field {
+        mark_core_index_by_field(e, field)
+        return emit_call_text(
+            fmt.tprintf("odinl_index_by_field_%s", field),
+            []string{field_type_expr_text(collection, field), collection},
+        ), {}, true
+    }
+
+    f, err_f, ok_f := emit_expr(e, callback)
+    if !ok_f {
+        return "", err_f, false
+    }
+    mark_core_index_by(e)
+    return emit_call_text("odinl_index_by", []string{f, collection}), {}, true
 }
 
 emit_predicate_callback_call :: proc(e: ^Emitter, helper_name: string, callback: CST_Form, collection: string, mark_helper: proc(^Emitter), mark_field: proc(^Emitter, string)) -> (string, Compile_Error, bool) {
@@ -1499,16 +1586,11 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         if len(form.items) != 3 {
             return "", Compile_Error{message = "index-by expects key function and collection", span = form.span}, false
         }
-        f, err_f, ok_f := emit_expr(e, form.items[1])
-        if !ok_f {
-            return "", err_f, false
-        }
         collection, err_collection, ok_collection := emit_expr(e, form.items[2])
         if !ok_collection {
             return "", err_collection, false
         }
-        mark_core_index_by(e)
-        return emit_call_text("odinl_index_by", []string{f, slice_all_expr_text(collection)}), {}, true
+        return emit_index_by_callback_call(e, form.items[1], slice_all_expr_text(collection))
     }
 
     if head.text == "frequencies" {
@@ -2299,6 +2381,10 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
                     return err_thread, false
                 }
             } else {
+                err_owned, bad_owned := owned_sequence_usage_error(binding.value, true)
+                if bad_owned {
+                    return err_owned, false
+                }
                 value, err_value, ok_value := emit_expr(e, binding.value)
                 if !ok_value {
                     return err_value, false
@@ -2370,6 +2456,10 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             if bad_thread_return {
                 return err_thread_return, false
             }
+            err_owned, bad_owned := owned_sequence_usage_error(form.items[1], true)
+            if bad_owned {
+                return err_owned, false
+            }
             value, err_value, ok_value := emit_expr(e, form.items[1])
             if !ok_value {
                 return err_value, false
@@ -2383,6 +2473,10 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         for item, idx in form.items[1:] {
             if idx > 0 {
                 strings.write_string(&line_builder, ", ")
+            }
+            err_owned, bad_owned := owned_sequence_usage_error(item, true)
+            if bad_owned {
+                return err_owned, false
             }
             value, err_value, ok_value := emit_expr(e, item)
             if !ok_value {
@@ -2451,6 +2545,10 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         if !ok_lhs {
             return err_lhs, false
         }
+        err_owned, bad_owned := owned_sequence_usage_error(form.items[2], true)
+        if bad_owned {
+            return err_owned, false
+        }
         rhs, err_rhs, ok_rhs := emit_expr(e, form.items[2])
         if !ok_rhs {
             return err_rhs, false
@@ -2472,6 +2570,10 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             return Compile_Error{message = "each expects [name collection] and body", span = form.span}, false
         }
         name := map_name(name_form.text)
+        err_owned, bad_owned := owned_sequence_usage_error(coll_form, false)
+        if bad_owned {
+            return err_owned, false
+        }
         coll, err_coll, ok_coll := emit_expr(e, coll_form)
         if !ok_coll {
             return err_coll, false
@@ -2528,6 +2630,11 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         emit_prefixed_expr(e, "", raw)
         return {}, true
     case:
+        allow_root_owned := last_in_proc && returns.kind == .Single
+        err_owned, bad_owned := owned_sequence_usage_error(form, allow_root_owned)
+        if bad_owned {
+            return err_owned, false
+        }
         expr, err_expr, ok_expr := emit_expr(e, form)
         if !ok_expr {
             return err_expr, false
@@ -2945,6 +3052,20 @@ emit_core_index_by_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_index_by_field_helper :: proc(e: ^Emitter, field: string) {
+    emit_line(e, fmt.tprintf("odinl_index_by_field_%s :: proc($Key: typeid, xs: []$T) -> map[Key]T %s", field, "{"))
+    e.indent += 1
+    emit_line(e, "out := make(map[Key]T)")
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, fmt.tprintf("out[x.%s] = x", field))
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_frequencies_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_frequencies :: proc(xs: []$T) -> map[T]int {")
     e.indent += 1
@@ -3283,7 +3404,8 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_index_by || features.core_frequencies ||
            features.core_range || features.core_repeat ||
            features.core_repeatedly || features.core_iterate ||
-           len(features.map_fields) > 0 || len(features.filter_fields) > 0 ||
+           len(features.map_fields) > 0 || len(features.index_by_fields) > 0 ||
+           len(features.filter_fields) > 0 ||
            len(features.remove_fields) > 0 ||
            len(features.take_while_fields) > 0 || len(features.drop_while_fields) > 0 ||
            len(features.find_fields) > 0 || len(features.some_fields) > 0 ||
@@ -3363,6 +3485,10 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_index_by {
         emit_core_helper_separator(e, &emitted)
         emit_core_index_by_helper(e)
+    }
+    for field in features.index_by_fields {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_index_by_field_helper(e, field)
     }
     if features.core_frequencies {
         emit_core_helper_separator(e, &emitted)
