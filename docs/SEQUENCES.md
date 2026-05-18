@@ -41,6 +41,12 @@ These helpers are already in scope and should remain small:
 (zipmap keys vals)
 (index-by f xs)
 (frequencies xs)
+(range end)
+(range start end)
+(range start end step)
+(repeat n x)
+(repeatedly n f)
+(iterate n f x)
 (take n xs)
 (drop n xs)
 (take-while pred xs)
@@ -62,10 +68,11 @@ lowers to `len`. `rest`, `take`, `drop`, `take-while`, and `drop-while` return
 non-owning slice views.
 
 Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
-`concat`, and `reverse` return owned dynamic arrays. `zipmap`, `index-by`, and
-`frequencies` return owned maps. `partition` and `partition-all` return owned
-dynamic arrays of borrowed slice chunks. `keep` is Odin-shaped: the callback
-returns `(value, ok)`, and only `ok` values are appended.
+`concat`, `reverse`, `range`, `repeat`, `repeatedly`, and `iterate` return
+owned dynamic arrays. `zipmap`, `index-by`, and `frequencies` return owned maps.
+`partition` and `partition-all` return owned dynamic arrays of borrowed slice
+chunks. `keep` is Odin-shaped: the callback returns `(value, ok)`, and only
+`ok` values are appended.
 
 Keyword callbacks are field-access shorthand in the supported higher-order
 helpers:
@@ -119,22 +126,12 @@ The main questions are:
 
 ## Bounded Producers
 
-Clojure's producer functions lean on laziness. OdinL should use explicit bounds:
+Producer helpers are eager and bounded. The amount of work and allocation is
+visible in the call:
 
-```clojure
-(range end)
-(range start end)
-(range start end step)
-(repeat n x)
-(repeatedly n f)
-(iterate n f x)
-```
-
-These are acceptable as eager constructors because the amount of work and
-allocation is visible in the call.
-
-Avoid unbounded forms such as plain `cycle`, `repeat`, `repeatedly`, or
-`iterate`. If a cyclic helper is ever added, it should be bounded:
+Avoid unbounded forms such as plain `cycle`, unbounded `repeat`, unbounded
+`repeatedly`, or unbounded `iterate`. If a cyclic helper is ever added, it
+should be bounded:
 
 ```clojure
 (cycle n xs)

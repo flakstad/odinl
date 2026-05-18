@@ -26,6 +26,10 @@ Emitter_Features :: struct {
     core_zipmap:      bool,
     core_index_by:    bool,
     core_frequencies: bool,
+    core_range:       bool,
+    core_repeat:      bool,
+    core_repeatedly:  bool,
+    core_iterate:     bool,
     map_fields:       [dynamic]string,
     filter_fields:    [dynamic]string,
     remove_fields:    [dynamic]string,
@@ -185,6 +189,30 @@ mark_core_index_by :: proc(e: ^Emitter) {
 mark_core_frequencies :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_frequencies = true
+    }
+}
+
+mark_core_range :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_range = true
+    }
+}
+
+mark_core_repeat :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_repeat = true
+    }
+}
+
+mark_core_repeatedly :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_repeatedly = true
+    }
+}
+
+mark_core_iterate :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_iterate = true
     }
 }
 
@@ -1493,6 +1521,94 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         }
         mark_core_frequencies(e)
         return emit_call_text("odinl_frequencies", []string{slice_all_expr_text(collection)}), {}, true
+    }
+
+    if head.text == "range" {
+        if len(form.items) < 2 || len(form.items) > 4 {
+            return "", Compile_Error{message = "range expects end, start/end, or start/end/step", span = form.span}, false
+        }
+        start := "0"
+        end: string
+        step := "1"
+        if len(form.items) == 2 {
+            end_value, err_end, ok_end := emit_expr(e, form.items[1])
+            if !ok_end {
+                return "", err_end, false
+            }
+            end = end_value
+        } else {
+            start_value, err_start, ok_start := emit_expr(e, form.items[1])
+            if !ok_start {
+                return "", err_start, false
+            }
+            end_value, err_end, ok_end := emit_expr(e, form.items[2])
+            if !ok_end {
+                return "", err_end, false
+            }
+            start = start_value
+            end = end_value
+            if len(form.items) == 4 {
+                step_value, err_step, ok_step := emit_expr(e, form.items[3])
+                if !ok_step {
+                    return "", err_step, false
+                }
+                step = step_value
+            }
+        }
+        mark_core_range(e)
+        return emit_call_text("odinl_range", []string{start, end, step}), {}, true
+    }
+
+    if head.text == "repeat" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "repeat expects count and value", span = form.span}, false
+        }
+        count, err_count, ok_count := emit_expr(e, form.items[1])
+        if !ok_count {
+            return "", err_count, false
+        }
+        value, err_value, ok_value := emit_expr(e, form.items[2])
+        if !ok_value {
+            return "", err_value, false
+        }
+        mark_core_repeat(e)
+        return emit_call_text("odinl_repeat", []string{count, value}), {}, true
+    }
+
+    if head.text == "repeatedly" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "repeatedly expects count and function", span = form.span}, false
+        }
+        count, err_count, ok_count := emit_expr(e, form.items[1])
+        if !ok_count {
+            return "", err_count, false
+        }
+        f, err_f, ok_f := emit_expr(e, form.items[2])
+        if !ok_f {
+            return "", err_f, false
+        }
+        mark_core_repeatedly(e)
+        return emit_call_text("odinl_repeatedly", []string{count, f}), {}, true
+    }
+
+    if head.text == "iterate" {
+        if len(form.items) != 4 {
+            return "", Compile_Error{message = "iterate expects count, function, and initial value", span = form.span}, false
+        }
+        count, err_count, ok_count := emit_expr(e, form.items[1])
+        if !ok_count {
+            return "", err_count, false
+        }
+        f, err_f, ok_f := emit_expr(e, form.items[2])
+        if !ok_f {
+            return "", err_f, false
+        }
+        init, err_init, ok_init := emit_expr(e, form.items[3])
+        if !ok_init {
+            return "", err_init, false
+        }
+        mark_core_iterate(e)
+        return emit_call_text("odinl_iterate", []string{count, f, init}), {}, true
     }
 
     if head.text == "reduce" {
@@ -2843,6 +2959,96 @@ emit_core_frequencies_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_range_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_range :: proc(start, end, step: int) -> [dynamic]int {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]int)")
+    emit_line(e, "if step == 0 {")
+    e.indent += 1
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "if step > 0 {")
+    e.indent += 1
+    emit_line(e, "for i := start; i < end; i += step {")
+    e.indent += 1
+    emit_line(e, "append(&out, i)")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "} else {")
+    e.indent += 1
+    emit_line(e, "for i := start; i > end; i += step {")
+    e.indent += 1
+    emit_line(e, "append(&out, i)")
+    e.indent -= 1
+    emit_line(e, "}")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_repeat_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_repeat :: proc(n: int, value: $T) -> [dynamic]T {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T)")
+    emit_line(e, "if n <= 0 {")
+    e.indent += 1
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "for i in 0..<n {")
+    e.indent += 1
+    emit_line(e, "append(&out, value)")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_repeatedly_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_repeatedly :: proc(n: int, f: proc() -> $T) -> [dynamic]T {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T)")
+    emit_line(e, "if n <= 0 {")
+    e.indent += 1
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "for i in 0..<n {")
+    e.indent += 1
+    emit_line(e, "append(&out, f())")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
+emit_core_iterate_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_iterate :: proc(n: int, f: proc(x: $T) -> T, init: T) -> [dynamic]T {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]T)")
+    emit_line(e, "if n <= 0 {")
+    e.indent += 1
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "value := init")
+    emit_line(e, "for i in 0..<n {")
+    e.indent += 1
+    emit_line(e, "append(&out, value)")
+    emit_line(e, "value = f(value)")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_reduce_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_reduce :: proc(f: proc(acc: $U, x: $T) -> U, init: U, xs: []T) -> U {")
     e.indent += 1
@@ -3075,6 +3281,8 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_split_at || features.core_partition ||
            features.core_partition_all || features.core_zipmap ||
            features.core_index_by || features.core_frequencies ||
+           features.core_range || features.core_repeat ||
+           features.core_repeatedly || features.core_iterate ||
            len(features.map_fields) > 0 || len(features.filter_fields) > 0 ||
            len(features.remove_fields) > 0 ||
            len(features.take_while_fields) > 0 || len(features.drop_while_fields) > 0 ||
@@ -3159,6 +3367,22 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_frequencies {
         emit_core_helper_separator(e, &emitted)
         emit_core_frequencies_helper(e)
+    }
+    if features.core_range {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_range_helper(e)
+    }
+    if features.core_repeat {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_repeat_helper(e)
+    }
+    if features.core_repeatedly {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_repeatedly_helper(e)
+    }
+    if features.core_iterate {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_iterate_helper(e)
     }
     if features.core_reduce {
         emit_core_helper_separator(e, &emitted)

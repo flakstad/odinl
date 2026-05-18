@@ -1371,6 +1371,45 @@ compile_map_constructing_sequence_helpers :: proc(t: ^testing.T) {
 }
 
 @(test)
+compile_bounded_sequence_producers :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc next [] -> int
+  42)
+
+(proc double [x: int] -> int
+  (* x 2))
+
+(proc main []
+  (let [xs (range 1 5)
+        ys (repeat 3 "x")
+        zs (repeatedly 2 next)
+        powers (iterate 4 double 1)]
+    (defer (delete xs))
+    (defer (delete ys))
+    (defer (delete zs))
+    (defer (delete powers))
+    (return)))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "xs := odinl_range(1, 5, 1)"), true)
+    testing.expect_value(t, strings.contains(output, "ys := odinl_repeat(3, \"x\")"), true)
+    testing.expect_value(t, strings.contains(output, "zs := odinl_repeatedly(2, next)"), true)
+    testing.expect_value(t, strings.contains(output, "powers := odinl_iterate(4, double, 1)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_range :: proc(start, end, step: int) -> [dynamic]int"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_repeat :: proc(n: int, value: $T) -> [dynamic]T"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_repeatedly :: proc(n: int, f: proc() -> $T) -> [dynamic]T"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_iterate :: proc(n: int, f: proc(x: $T) -> T, init: T) -> [dynamic]T"), true)
+}
+
+@(test)
 compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
     source := `(package main)
 

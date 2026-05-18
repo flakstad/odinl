@@ -8,11 +8,20 @@
 (proc add-index [i: int, x: int] -> int
   (+ i x))
 
+(proc add [acc: int, x: int] -> int
+  (+ acc x))
+
 (proc identity-int [x: int] -> int
   x)
 
 (proc name-key [name: string] -> string
   name)
+
+(proc next-answer [] -> int
+  42)
+
+(proc double [x: int] -> int
+  (* x 2))
 
 (proc square-even [x: int] -> [value: int, ok: bool]
   (if (even? x)
@@ -55,6 +64,26 @@
     (defer (delete by-name))
     (len by-name)))
 
+(proc range-total [] -> int
+  (let [xs (range 1 5)]
+    (defer (delete xs))
+    (reduce add 0 xs)))
+
+(proc repeated-answer-count [] -> int
+  (let [xs (repeatedly 3 next-answer)]
+    (defer (delete xs))
+    (len xs)))
+
+(proc repeated-word-last [] -> string
+  (let [xs (repeat 3 "odin")]
+    (defer (delete xs))
+    (last xs)))
+
+(proc iterated-last [] -> int
+  (let [xs (iterate 4 double 1)]
+    (defer (delete xs))
+    (last xs)))
+
 (proc threaded-first [] -> int
   (let [xs (new []int [1 2 3 4])
         threaded (->> xs
@@ -85,6 +114,18 @@
 
   (indexed-name-count)
   ;; => 3
+
+  (range-total)
+  ;; => 10
+
+  (repeated-answer-count)
+  ;; => 3
+
+  (repeated-word-last)
+  ;; => odin
+
+  (iterated-last)
+  ;; => 8
 
   (threaded-first)
   ;; => 4

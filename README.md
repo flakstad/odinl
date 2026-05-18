@@ -546,7 +546,8 @@ foreign_call :: proc(handle: Foreign_Handle) ---
   `(remove pred xs)`, `(map-indexed f xs)`, `(keep f xs)`, `(concat xs ys)`,
   `(reverse xs)`, `(split-at n xs)`, `(partition n xs)`,
   `(partition-all n xs)`, `(zipmap keys vals)`, `(index-by f xs)`, and
-  `(frequencies xs)` core sequence helpers
+  `(frequencies xs)`, plus bounded producers `(range ...)`, `(repeat n x)`,
+  `(repeatedly n f)`, and `(iterate n f x)`
 - keywords can stand in for field callbacks in those helpers, e.g. `(map :name users)`
   and `(filter :verified users)`
 - `(:field value)`, `(get value key)`, `(-> value steps...)`, and `(->> value steps...)`

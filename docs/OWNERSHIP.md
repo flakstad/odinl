@@ -37,6 +37,12 @@ These forms return owned values in normal OdinL code:
 (zipmap keys vals)
 (index-by f xs)
 (frequencies xs)
+(range end)
+(range start end)
+(range start end step)
+(repeat n x)
+(repeatedly n f)
+(iterate n f x)
 ```
 
 Use `defer delete` for local owned values:
