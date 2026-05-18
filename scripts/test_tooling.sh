@@ -57,6 +57,10 @@ if ! grep -q "$tmp_dir/bad.odinl:4:1 Error: Cannot convert" "$tmp_dir/bad-check.
     exit 1
 fi
 
+printf 'tooling: build command\n'
+./odinl build examples/hello.odinl --generated "$tmp_dir/build.odin"
+assert_file_nonempty "$tmp_dir/build.odin" "build generated output"
+
 printf 'tooling: run command\n'
 run_output=$(./odinl run examples/hello.odinl)
 assert_eq "hello from odinl" "$run_output" "run output"
@@ -109,6 +113,38 @@ if command -v emacs >/dev/null 2>&1; then
            (load-file "emacs/odinl-mode.el")
            (byte-compile-file "emacs/odinl-eval.el"))'
     rm -f emacs/odinl-mode.elc emacs/odinl-eval.elc
+
+    printf 'tooling: emacs keybindings and eval comment\n'
+    emacs -Q --batch --eval \
+        "(progn
+           (defvar clojure-mode-map (make-sparse-keymap))
+           (define-derived-mode clojure-mode prog-mode \"Clojure\")
+           (defun clojure--put-indentation-spec (&rest _args) nil)
+           (provide (quote clojure-mode))
+           (add-to-list (quote load-path) \"emacs\")
+           (require (quote odinl-eval))
+           (let ((file (make-temp-file (expand-file-name \".odinl-emacs-test-\" default-directory) nil \".odinl\")))
+             (unwind-protect
+                 (progn
+                   (with-temp-file file
+                     (insert \"(package main)\\n(import \\\"core:fmt\\\")\\n\\n(proc add [a: int, b: int] -> int\\n  (+ a b))\\n\\n(comment\\n  (add 1 2))\\n\"))
+                   (find-file file)
+                   (odinl-mode)
+                   (dolist (binding (list (cons \"C-c C-e\" (quote odinl-eval-form-at-point))
+                                          (cons \"C-c C-c\" (quote odinl-eval-top-level-form))
+                                          (cons \"C-c C-i\" (quote odinl-insert-form-result))
+                                          (cons \"C-c C-v\" (quote odinl-check-buffer))
+                                          (cons \"C-c C-b\" (quote odinl-build-buffer))))
+                     (unless (eq (key-binding (kbd (car binding))) (cdr binding))
+                       (error \"Missing binding %s\" (car binding))))
+                   (goto-char (point-min))
+                   (search-forward \"(add 1 2)\")
+                   (call-interactively (quote odinl-insert-form-result))
+                   (goto-char (point-min))
+                   (unless (search-forward \"// => 3\" nil t)
+                     (error \"Expected inserted eval comment\")))
+               (ignore-errors (kill-buffer (current-buffer)))
+               (delete-file file))))"
 else
     printf 'tooling: emacs not found, skipping byte compile\n'
 fi

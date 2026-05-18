@@ -10,13 +10,14 @@ print_usage :: proc() {
     fmt.println("usage:")
     fmt.println("  odinl <input.odinl> [-o output.odin] [--map output.map] [--eval form] [--no-print]")
     fmt.println("  odinl compile <input.odinl> [-o output.odin] [--map output.map]")
+    fmt.println("  odinl build <input.odinl> [--generated output.odin]")
     fmt.println("  odinl check <input.odinl> [--generated output.odin]")
     fmt.println("  odinl run <input.odinl> [--generated output.odin]")
     fmt.println("  odinl eval <input.odinl> <form> [--no-print] [--check] [--generated output.odin]")
 }
 
 is_command :: proc(text: string) -> bool {
-    return text == "compile" || text == "check" || text == "run" || text == "eval"
+    return text == "compile" || text == "build" || text == "check" || text == "run" || text == "eval"
 }
 
 read_source_or_exit :: proc(path: string) -> string {
@@ -106,9 +107,14 @@ remap_odin_output_locations :: proc(output, generated_path, source_path, source,
 }
 
 run_odin_file :: proc(command, generated_path, source_path, source, eval_source: string, source_map: []odinl.Source_Map_Entry) -> int {
-    args := [?]string{"odin", command, generated_path, "-file"}
+    working_dir, generated_file := os.split_path(generated_path)
+    if working_dir == "" {
+        working_dir = "."
+    }
+
+    args := [?]string{"odin", command, generated_file, "-file"}
     state, stdout, stderr, err := os.process_exec(
-        os.Process_Desc{command = args[:]},
+        os.Process_Desc{command = args[:], working_dir = working_dir},
         context.allocator,
     )
     defer delete(stdout)
@@ -429,6 +435,8 @@ main :: proc() {
     switch os.args[1] {
     case "compile":
         parse_compile_command()
+    case "build":
+        parse_run_or_check_command("build")
     case "check":
         parse_run_or_check_command("check")
     case "run":
