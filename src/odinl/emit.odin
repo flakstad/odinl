@@ -2132,9 +2132,8 @@ emit_core_reduce_helper :: proc(e: ^Emitter) {
 }
 
 emit_core_take_helper :: proc(e: ^Emitter) {
-    emit_line(e, "odinl_take :: proc(n: int, xs: []$T) -> [dynamic]T {")
+    emit_line(e, "odinl_take :: proc(n: int, xs: []$T) -> []T {")
     e.indent += 1
-    emit_line(e, "out := make([dynamic]T)")
     emit_line(e, "limit := n")
     emit_line(e, "if limit < 0 {")
     e.indent += 1
@@ -2146,20 +2145,14 @@ emit_core_take_helper :: proc(e: ^Emitter) {
     emit_line(e, "limit = len(xs)")
     e.indent -= 1
     emit_line(e, "}")
-    emit_line(e, "for i in 0..<limit {")
-    e.indent += 1
-    emit_line(e, "append(&out, xs[i])")
-    e.indent -= 1
-    emit_line(e, "}")
-    emit_line(e, "return out")
+    emit_line(e, "return xs[:limit]")
     e.indent -= 1
     emit_line(e, "}")
 }
 
 emit_core_drop_helper :: proc(e: ^Emitter) {
-    emit_line(e, "odinl_drop :: proc(n: int, xs: []$T) -> [dynamic]T {")
+    emit_line(e, "odinl_drop :: proc(n: int, xs: []$T) -> []T {")
     e.indent += 1
-    emit_line(e, "out := make([dynamic]T)")
     emit_line(e, "start := n")
     emit_line(e, "if start < 0 {")
     e.indent += 1
@@ -2171,100 +2164,75 @@ emit_core_drop_helper :: proc(e: ^Emitter) {
     emit_line(e, "start = len(xs)")
     e.indent -= 1
     emit_line(e, "}")
-    emit_line(e, "for i in start..<len(xs) {")
-    e.indent += 1
-    emit_line(e, "append(&out, xs[i])")
-    e.indent -= 1
-    emit_line(e, "}")
-    emit_line(e, "return out")
+    emit_line(e, "return xs[start:]")
     e.indent -= 1
     emit_line(e, "}")
 }
 
 emit_core_take_while_helper :: proc(e: ^Emitter) {
-    emit_line(e, "odinl_take_while :: proc(pred: proc(x: $T) -> bool, xs: []T) -> [dynamic]T {")
+    emit_line(e, "odinl_take_while :: proc(pred: proc(x: $T) -> bool, xs: []T) -> []T {")
     e.indent += 1
-    emit_line(e, "out := make([dynamic]T)")
-    emit_line(e, "for x in xs {")
+    emit_line(e, "for i in 0..<len(xs) {")
     e.indent += 1
-    emit_line(e, "if !pred(x) {")
+    emit_line(e, "if !pred(xs[i]) {")
     e.indent += 1
-    emit_line(e, "break")
+    emit_line(e, "return xs[:i]")
     e.indent -= 1
     emit_line(e, "}")
-    emit_line(e, "append(&out, x)")
     e.indent -= 1
     emit_line(e, "}")
-    emit_line(e, "return out")
+    emit_line(e, "return xs")
     e.indent -= 1
     emit_line(e, "}")
 }
 
 emit_core_take_while_field_helper :: proc(e: ^Emitter, field: string) {
-    emit_line(e, fmt.tprintf("odinl_take_while_field_%s :: proc(xs: []$T) -> [dynamic]T %s", field, "{"))
+    emit_line(e, fmt.tprintf("odinl_take_while_field_%s :: proc(xs: []$T) -> []T %s", field, "{"))
     e.indent += 1
-    emit_line(e, "out := make([dynamic]T)")
-    emit_line(e, "for x in xs {")
+    emit_line(e, "for i in 0..<len(xs) {")
     e.indent += 1
-    emit_line(e, fmt.tprintf("if !x.%s %s", field, "{"))
+    emit_line(e, fmt.tprintf("if !xs[i].%s %s", field, "{"))
     e.indent += 1
-    emit_line(e, "break")
+    emit_line(e, "return xs[:i]")
     e.indent -= 1
     emit_line(e, "}")
-    emit_line(e, "append(&out, x)")
     e.indent -= 1
     emit_line(e, "}")
-    emit_line(e, "return out")
+    emit_line(e, "return xs")
     e.indent -= 1
     emit_line(e, "}")
 }
 
 emit_core_drop_while_helper :: proc(e: ^Emitter) {
-    emit_line(e, "odinl_drop_while :: proc(pred: proc(x: $T) -> bool, xs: []T) -> [dynamic]T {")
+    emit_line(e, "odinl_drop_while :: proc(pred: proc(x: $T) -> bool, xs: []T) -> []T {")
     e.indent += 1
-    emit_line(e, "out := make([dynamic]T)")
-    emit_line(e, "dropping := true")
-    emit_line(e, "for x in xs {")
+    emit_line(e, "for i in 0..<len(xs) {")
     e.indent += 1
-    emit_line(e, "if dropping {")
+    emit_line(e, "if !pred(xs[i]) {")
     e.indent += 1
-    emit_line(e, "if pred(x) {")
-    e.indent += 1
-    emit_line(e, "continue")
+    emit_line(e, "return xs[i:]")
     e.indent -= 1
     emit_line(e, "}")
-    emit_line(e, "dropping = false")
     e.indent -= 1
     emit_line(e, "}")
-    emit_line(e, "append(&out, x)")
-    e.indent -= 1
-    emit_line(e, "}")
-    emit_line(e, "return out")
+    emit_line(e, "return xs[len(xs):]")
     e.indent -= 1
     emit_line(e, "}")
 }
 
 emit_core_drop_while_field_helper :: proc(e: ^Emitter, field: string) {
-    emit_line(e, fmt.tprintf("odinl_drop_while_field_%s :: proc(xs: []$T) -> [dynamic]T %s", field, "{"))
+    emit_line(e, fmt.tprintf("odinl_drop_while_field_%s :: proc(xs: []$T) -> []T %s", field, "{"))
     e.indent += 1
-    emit_line(e, "out := make([dynamic]T)")
-    emit_line(e, "dropping := true")
-    emit_line(e, "for x in xs {")
+    emit_line(e, "for i in 0..<len(xs) {")
     e.indent += 1
-    emit_line(e, "if dropping {")
+    emit_line(e, fmt.tprintf("if !xs[i].%s %s", field, "{"))
     e.indent += 1
-    emit_line(e, fmt.tprintf("if x.%s %s", field, "{"))
-    e.indent += 1
-    emit_line(e, "continue")
+    emit_line(e, "return xs[i:]")
     e.indent -= 1
     emit_line(e, "}")
-    emit_line(e, "dropping = false")
     e.indent -= 1
     emit_line(e, "}")
-    emit_line(e, "append(&out, x)")
-    e.indent -= 1
-    emit_line(e, "}")
-    emit_line(e, "return out")
+    emit_line(e, "return xs[len(xs):]")
     e.indent -= 1
     emit_line(e, "}")
 }

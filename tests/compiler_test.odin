@@ -1052,11 +1052,10 @@ compile_core_higher_order_helpers_and_slice_exprs :: proc(t: ^testing.T) {
         mapped (map inc xs)
         tail (slice mapped 1)
         evens (filter even? mapped)
-        total (->> xs
-                   (map inc)
-                   (filter even?)
-                   (reduce add 0))
+        total (reduce add 0 evens)
         middle (slice mapped 0 1)]
+    (defer (delete mapped))
+    (defer (delete evens))
     (return)))`
 
     output, err, ok := odinl.compile_source(source)
@@ -1086,8 +1085,10 @@ main :: proc() {
     mapped := odinl_map(inc, (xs)[:])
     tail := (mapped)[1:]
     evens := odinl_filter(even_p, (mapped)[:])
-    total := odinl_reduce(add, 0, (odinl_filter(even_p, (odinl_map(inc, (xs)[:]))[:]))[:])
+    total := odinl_reduce(add, 0, (evens)[:])
     middle := (mapped)[0:1]
+    defer delete(mapped)
+    defer delete(evens)
     return
 }
 
@@ -1118,6 +1119,43 @@ odinl_reduce :: proc(f: proc(acc: $U, x: $T) -> U, init: U, xs: []T) -> U {
 }
 `
     testing.expect_value(t, output, expected)
+}
+
+@(test)
+compile_sequence_trim_helpers_as_slice_views :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc keep? [x: int] -> bool
+  (< x 4))
+
+(proc main []
+  (let [xs (new []int [1 2 3 4])
+        prefix (take 2 xs)
+        suffix (drop 1 xs)
+        small-prefix (take-while keep? xs)
+        large-suffix (drop-while keep? xs)]
+    (return)))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "prefix := odinl_take(2, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "suffix := odinl_drop(1, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "small_prefix := odinl_take_while(keep_p, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "large_suffix := odinl_drop_while(keep_p, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_take :: proc(n: int, xs: []$T) -> []T"), true)
+    testing.expect_value(t, strings.contains(output, "return xs[:limit]"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_drop :: proc(n: int, xs: []$T) -> []T"), true)
+    testing.expect_value(t, strings.contains(output, "return xs[start:]"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_take_while :: proc(pred: proc(x: $T) -> bool, xs: []T) -> []T"), true)
+    testing.expect_value(t, strings.contains(output, "return xs[:i]"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_drop_while :: proc(pred: proc(x: $T) -> bool, xs: []T) -> []T"), true)
+    testing.expect_value(t, strings.contains(output, "return xs[i:]"), true)
 }
 
 @(test)

@@ -43,12 +43,9 @@ These helpers are already in scope and should remain small:
 (rest xs)
 ```
 
-The current implementation already supports these forms, but the ownership
-model still needs tightening. In particular, `take`, `drop`, `take-while`, and
-`drop-while` currently return allocated dynamic arrays, even though they can
-return slice views over the original collection. The desired direction is to
-change those helpers to non-owning slice views unless a future use case requires
-owned variants.
+The access and trimming helpers use the direct Odin representation where
+possible. `first`, `second`, and `nth` lower to indexing. `rest`, `take`,
+`drop`, `take-while`, and `drop-while` return non-owning slice views.
 
 Keyword callbacks are field-access shorthand in the supported higher-order
 helpers:
@@ -165,17 +162,76 @@ Possible later design:
 That later design should still produce plain Odin code. It should not introduce
 a hidden interpreter, persistent collection runtime, or lazy seq system.
 
+## Threading And Cleanup
+
+Threading forms should remain part of the language because they make nested
+data flow much easier to read:
+
+```clojure
+(->> users
+     (filter active?)
+     (map :name)
+     (take 10))
+```
+
+The hard part is ownership. If a thread step allocates and its result is passed
+directly into the next step, the compiler must not lose the only handle to that
+owned value.
+
+The immediate production-style recommendation is to bind owned intermediate
+results explicitly:
+
+```clojure
+(let [active-users (filter active? users)
+      active-names-all (map :name active-users)
+      active-names (take 10 active-names-all)]
+  (defer (delete active-users))
+  (defer (delete active-names-all))
+  ...)
+```
+
+This is slightly noisier, but it is honest and emits obvious Odin.
+
+The desired later lowering for an allocating threaded expression in statement
+position is to generate named temporaries and cleanup for owned intermediates:
+
+```odin
+odinl_tmp_1 := odinl_filter(active_p, users[:])
+defer delete(odinl_tmp_1)
+odinl_tmp_2 := odinl_map_field_name(type_of(odinl_tmp_1[0].name), odinl_tmp_1[:])
+defer delete(odinl_tmp_2)
+active_names := odinl_take(10, odinl_tmp_2[:])
+```
+
+This should only happen where the compiler is emitting statements and has a
+real scope for the generated `defer`s. In pure expression position, automatic
+cleanup is much harder to make correct without hidden control flow. The compiler
+should either keep the current expression lowering for non-allocating steps or
+eventually reject/warn on allocating threaded expressions that cannot be cleaned
+up.
+
+Transducers would improve this by compiling a composed transformation into one
+loop and one owned result:
+
+```clojure
+(into [dynamic]string
+      (comp (filter active?)
+            (map :name)
+            (take 10))
+      users)
+```
+
+That shape can avoid most intermediate allocations, but the final result is
+still owned and must be deleted or returned to transfer ownership.
+
 ## Ownership And Allocation
 
 Sequence helpers need an explicit ownership story:
 
-- Slice-view helpers such as `rest`, desired-view `take`/`drop` variants, and
-  likely `split-at` do not own data and must not be deleted.
+- Slice-view helpers such as `rest`, `take`, `drop`, `take-while`,
+  `drop-while`, and likely `split-at` do not own data and must not be deleted.
 - Dynamic-array helpers such as `map`, `filter`, `remove`, and `reverse`
   allocate and return owned dynamic arrays.
-- Until they are changed to slice views, the current `take`, `drop`,
-  `take-while`, and `drop-while` implementations also return owned dynamic
-  arrays.
 - Examples that use allocating helpers should show `defer delete(...)` when the
   result lives beyond a trivial expression.
 - Future helper docs should clearly mark whether a helper returns a view or an
