@@ -1963,7 +1963,7 @@ reject_discarded_owned_sequence_result :: proc(t: ^testing.T) {
     _, err, ok := odinl.compile_source(source)
     testing.expect_value(t, ok, false)
     defer delete(err.message)
-    testing.expect_value(t, err.message, "owned sequence result must be bound or returned; nested owned results would leak")
+    testing.expect_value(t, err.message, "owned result must be bound or returned; nested owned results would leak")
 }
 
 @(test)
@@ -1979,7 +1979,22 @@ reject_nested_owned_sequence_result :: proc(t: ^testing.T) {
     _, err, ok := odinl.compile_source(source)
     testing.expect_value(t, ok, false)
     defer delete(err.message)
-    testing.expect_value(t, err.message, "owned sequence result must be bound or returned; nested owned results would leak")
+    testing.expect_value(t, err.message, "owned result must be bound or returned; nested owned results would leak")
+}
+
+@(test)
+reject_discarded_slurp_result :: proc(t: ^testing.T) {
+    source := `(package main)
+(import os "core:os")
+
+(proc main []
+  (slurp "cache.json")
+  (return))`
+
+    _, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, false)
+    defer delete(err.message)
+    testing.expect_value(t, err.message, "owned result must be bound or returned; nested owned results would leak")
 }
 
 @(test)

@@ -1273,7 +1273,7 @@ thread_return_error :: proc(form: CST_Form) -> (Compile_Error, bool) {
     return {}, false
 }
 
-owned_sequence_head :: proc(name: string) -> bool {
+owned_result_head :: proc(name: string) -> bool {
     switch name {
     case "map", "filter", "remove", "map-indexed", "keep", "mapcat",
          "concat", "merge", "reverse", "sort", "sort-by",
@@ -1288,11 +1288,11 @@ owned_sequence_head :: proc(name: string) -> bool {
     return false
 }
 
-form_is_owned_sequence_result :: proc(form: CST_Form) -> bool {
+form_is_owned_result :: proc(form: CST_Form) -> bool {
     if form.kind != .List || len(form.items) == 0 || form.items[0].kind != .Symbol {
         return false
     }
-    if owned_sequence_head(form.items[0].text) {
+    if owned_result_head(form.items[0].text) {
         return true
     }
     if is_thread_form(form, true) || is_thread_form(form, false) {
@@ -1302,11 +1302,11 @@ form_is_owned_sequence_result :: proc(form: CST_Form) -> bool {
     return false
 }
 
-owned_sequence_usage_error :: proc(form: CST_Form, allow_root_owned: bool) -> (Compile_Error, bool) {
-    if form_is_owned_sequence_result(form) {
+owned_result_usage_error :: proc(form: CST_Form, allow_root_owned: bool) -> (Compile_Error, bool) {
+    if form_is_owned_result(form) {
         if !allow_root_owned {
             return Compile_Error{
-                message = "owned sequence result must be bound or returned; nested owned results would leak",
+                message = "owned result must be bound or returned; nested owned results would leak",
                 span = form.span,
             }, true
         }
@@ -1328,7 +1328,7 @@ owned_sequence_usage_error :: proc(form: CST_Form, allow_root_owned: bool) -> (C
                 start = 2
             } else if head == "new" {
                 start = 2
-            } else if allow_root_owned && form_is_owned_sequence_result(form) {
+            } else if allow_root_owned && form_is_owned_result(form) {
                 start = 1
             }
         }
@@ -1336,7 +1336,7 @@ owned_sequence_usage_error :: proc(form: CST_Form, allow_root_owned: bool) -> (C
             start = len(form.items)
         }
         for item in form.items[start:] {
-            err_item, bad_item := owned_sequence_usage_error(item, false)
+            err_item, bad_item := owned_result_usage_error(item, false)
             if bad_item {
                 return err_item, true
             }
@@ -1509,7 +1509,7 @@ form_is_owned_allocation_result :: proc(form: CST_Form) -> bool {
 }
 
 form_is_owned_temp_escape_result :: proc(form: CST_Form) -> bool {
-    return form_is_owned_sequence_result(form) || form_is_owned_allocation_result(form)
+    return form_is_owned_result(form) || form_is_owned_allocation_result(form)
 }
 
 with_temp_allocator_escape_error :: proc(body: []CST_Form, last_in_proc: bool, returns: Return_Spec) -> (Compile_Error, bool) {
@@ -3415,7 +3415,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
                     return err_thread, false
                 }
             } else {
-                err_owned, bad_owned := owned_sequence_usage_error(binding.value, true)
+                err_owned, bad_owned := owned_result_usage_error(binding.value, true)
                 if bad_owned {
                     return err_owned, false
                 }
@@ -3494,7 +3494,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             if bad_thread_return {
                 return err_thread_return, false
             }
-            err_owned, bad_owned := owned_sequence_usage_error(form.items[1], true)
+            err_owned, bad_owned := owned_result_usage_error(form.items[1], true)
             if bad_owned {
                 return err_owned, false
             }
@@ -3512,7 +3512,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             if idx > 0 {
                 strings.write_string(&line_builder, ", ")
             }
-            err_owned, bad_owned := owned_sequence_usage_error(item, true)
+            err_owned, bad_owned := owned_result_usage_error(item, true)
             if bad_owned {
                 return err_owned, false
             }
@@ -3583,7 +3583,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         if !ok_lhs {
             return err_lhs, false
         }
-        err_owned, bad_owned := owned_sequence_usage_error(form.items[2], true)
+        err_owned, bad_owned := owned_result_usage_error(form.items[2], true)
         if bad_owned {
             return err_owned, false
         }
@@ -3618,7 +3618,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         }
         name := map_name(name_form.text)
         value := map_name(value_form.text)
-        err_owned, bad_owned := owned_sequence_usage_error(coll_form, false)
+        err_owned, bad_owned := owned_result_usage_error(coll_form, false)
         if bad_owned {
             return err_owned, false
         }
@@ -3683,7 +3683,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         return {}, true
     case:
         allow_root_owned := last_in_proc && returns.kind != .None
-        err_owned, bad_owned := owned_sequence_usage_error(form, allow_root_owned)
+        err_owned, bad_owned := owned_result_usage_error(form, allow_root_owned)
         if bad_owned {
             return err_owned, false
         }
