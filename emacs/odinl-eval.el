@@ -46,7 +46,7 @@
     (define-key map (kbd "C-c C-r") #'odinl-eval-region)
     (define-key map (kbd "C-c C-c") #'odinl-eval-top-level-form)
     (define-key map (kbd "C-c C-x") #'odinl-eval-comment-form)
-    (define-key map (kbd "C-c C-k") #'odinl-check-form-at-point)
+    (define-key map (kbd "C-c C-k") #'odinl-eval-buffer)
     (define-key map (kbd "C-c C-a") #'odinl-run-buffer)
     (define-key map (kbd "C-c C-b") #'odinl-build-buffer)
     (define-key map (kbd "C-c C-v") #'odinl-check-buffer)
@@ -220,7 +220,8 @@
   (remove-overlays beg end 'odinl-result-overlay t)
   (let* ((trimmed (string-trim text))
          (display-text (if (string-empty-p trimmed)
-                           (format " %s<exit %s>" odinl-inline-result-prefix exit-code)
+                           (format " %s%s" odinl-inline-result-prefix
+                                   (if (zerop exit-code) "ok" (format "<exit %s>" exit-code)))
                          (format " %s%s" odinl-inline-result-prefix
                                  (replace-regexp-in-string "[\n\r\t ]+" " " trimmed))))
          (ov (make-overlay beg end)))
@@ -247,7 +248,7 @@
               (t trimmed)))))
 
 (defun odinl--insert-comment-result (buffer line-end text exit-code)
-  "Insert TEXT as a // => result comment in BUFFER after LINE-END."
+  "Insert TEXT as a ;; => result comment in BUFFER after LINE-END."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
       (save-excursion
@@ -257,12 +258,14 @@
             (insert "\n")
           (forward-line 1))
         (while (and (not (eobp))
-                    (looking-at-p "[[:space:]]*//[[:space:]]*=>"))
+                    (looking-at-p "[[:space:]]*;;[[:space:]]*=>"))
           (delete-region (line-beginning-position)
                          (min (point-max) (1+ (line-end-position)))))
         (let* ((trimmed (string-trim text))
-               (single-line (replace-regexp-in-string "[\n\r\t ]+" " " trimmed)))
-          (insert (format "// => %s%s\n"
+               (single-line (if (string-empty-p trimmed)
+                                (if (zerop exit-code) "ok" "")
+                              (replace-regexp-in-string "[\n\r\t ]+" " " trimmed))))
+          (insert (format ";; => %s%s\n"
                           (if (zerop exit-code) "" (format "<exit %s> " exit-code))
                           single-line)))))))
 
@@ -377,7 +380,7 @@ With prefix argument NO-PRINT, treat the form as a statement."
 
 ;;;###autoload
 (defun odinl-insert-form-result (&optional no-print)
-  "Evaluate the OdinL form at point and insert its result as a // => comment."
+  "Evaluate the OdinL form at point and insert its result as a ;; => comment."
   (interactive "P")
   (let ((bounds (odinl--form-bounds-at-point)))
     (odinl--eval-string
@@ -426,7 +429,7 @@ With prefix argument NO-PRINT, treat the form as a statement."
 
 ;;;###autoload
 (defun odinl-insert-comment-form-result (&optional no-print)
-  "Evaluate the enclosing `(comment ...)' body and insert a // => comment."
+  "Evaluate the enclosing `(comment ...)' body and insert a ;; => comment."
   (interactive "P")
   (let ((bounds (odinl--enclosing-comment-form-bounds)))
     (odinl--eval-string
@@ -464,6 +467,12 @@ With prefix argument NO-PRINT, treat the form as a statement."
   "Compile the current OdinL buffer and run `odin check' on generated Odin."
   (interactive)
   (odinl--buffer-command "check"))
+
+;;;###autoload
+(defun odinl-eval-buffer ()
+  "Compile the current OdinL buffer and run generated Odin."
+  (interactive)
+  (odinl--buffer-command "run"))
 
 ;;;###autoload
 (defun odinl-build-buffer ()
@@ -515,7 +524,7 @@ With prefix argument NO-PRINT, treat the form as a statement."
   (local-set-key (kbd "C-c C-r") #'odinl-eval-region)
   (local-set-key (kbd "C-c C-c") #'odinl-eval-top-level-form)
   (local-set-key (kbd "C-c C-x") #'odinl-eval-comment-form)
-  (local-set-key (kbd "C-c C-k") #'odinl-check-form-at-point)
+  (local-set-key (kbd "C-c C-k") #'odinl-eval-buffer)
   (local-set-key (kbd "C-c C-a") #'odinl-run-buffer)
   (local-set-key (kbd "C-c C-b") #'odinl-build-buffer)
   (local-set-key (kbd "C-c C-v") #'odinl-check-buffer)

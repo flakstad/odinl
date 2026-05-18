@@ -73,6 +73,16 @@ assert_file_nonempty "$tmp_dir/eval.odin" "eval generated output"
 printf 'tooling: eval check command\n'
 ./odinl eval examples/higher-order.odinl '(reduce-int (new [dynamic]int [1 2 3]) 0 add)' --check
 
+printf 'tooling: eval declaration form\n'
+cat > "$tmp_dir/decl-eval.odinl" <<'EOF'
+(package main)
+
+(struct Greeting {
+  :message string
+})
+EOF
+./odinl eval "$tmp_dir/decl-eval.odinl" '(struct Greeting { :message string })' --check
+
 printf 'tooling: eval odin diagnostic mapping\n'
 if ./odinl eval examples/higher-order.odinl '(+ 1 "bad")' --check >"$tmp_dir/bad-eval-check.out" 2>"$tmp_dir/bad-eval-check.err"; then
     printf 'failed: bad eval check unexpectedly succeeded\n' >&2
@@ -143,7 +153,7 @@ if command -v emacs >/dev/null 2>&1; then
                    (search-forward \"(add 1 2)\")
                    (call-interactively (quote odinl-insert-form-result))
                    (goto-char (point-min))
-                   (unless (search-forward \"// => 3\" nil t)
+                   (unless (search-forward \";; => 3\" nil t)
                      (error \"Expected inserted eval comment\")))
                (ignore-errors (kill-buffer (current-buffer)))
                (delete-file file))))"

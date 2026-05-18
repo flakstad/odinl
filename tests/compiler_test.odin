@@ -139,6 +139,36 @@ main :: proc() {
 }
 
 @(test)
+compile_eval_source_can_load_declaration_form :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(struct Greeting {
+  :message string
+})`
+
+    output, err, ok := odinl.compile_eval_source(source, `(struct Greeting {
+  :message string
+})`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+Greeting :: struct {
+    message: string,
+}
+
+main :: proc() {
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 compile_eval_source_reports_eval_origin :: proc(t: ^testing.T) {
     source := `(package main)
 

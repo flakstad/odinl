@@ -159,6 +159,21 @@ read_single_eval_form :: proc(source: string) -> (form: CST_Form, err: Compile_E
     return forms[0].form, {}, true
 }
 
+eval_form_head :: proc(form: CST_Form) -> string {
+    if form.kind != .List || len(form.items) == 0 || form.items[0].kind != .Symbol {
+        return ""
+    }
+    return form.items[0].text
+}
+
+eval_head_is_decl :: proc(head: string) -> bool {
+    switch head {
+    case "comment", "package", "import", "const", "struct", "enum", "union", "odin", "proc":
+        return true
+    }
+    return false
+}
+
 compile_eval_source :: proc(source, eval_source: string, no_print: bool = false) -> (output: string, err: Compile_Error, ok: bool) {
     result, err_result, ok_result := compile_eval_source_with_map(source, eval_source, no_print)
     if !ok_result {
@@ -192,7 +207,21 @@ compile_eval_source_with_map :: proc(source, eval_source: string, no_print: bool
     if !ok_eval {
         return result, clone_compile_error(err_eval, result_allocator), false
     }
-    temp_result, err_emit, ok_emit := emit_eval_program_with_source_map(lowered, eval_form, no_print)
+
+    temp_result: Emit_Result
+    err_emit: Compile_Error
+    ok_emit: bool
+
+    eval_head := eval_form_head(eval_form)
+    if eval_head_is_decl(eval_head) {
+        eval_decl, err_decl, ok_decl := parse_decl(CST_Top_Form{form = eval_form})
+        if !ok_decl {
+            return result, clone_compile_error(err_decl, result_allocator), false
+        }
+        temp_result, err_emit, ok_emit = emit_eval_decl_program_with_source_map(lowered, IR_Decl(eval_decl))
+    } else {
+        temp_result, err_emit, ok_emit = emit_eval_program_with_source_map(lowered, eval_form, no_print)
+    }
     if !ok_emit {
         return result, clone_compile_error(err_emit, result_allocator), false
     }
