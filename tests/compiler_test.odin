@@ -1259,21 +1259,30 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
     (return x true)
     (return 0 false)))
 
+(proc pair [x: int] -> []int
+  (new []int [x (+ x 10)]))
+
 (proc main []
   (let [xs (new []int [1 2 3])
         ys (new []int [4 5])
         without-evens (remove even? xs)
         indexed (map-indexed add-index xs)
         kept (keep keep-even xs)
+        flattened (mapcat pair xs)
         joined (concat without-evens ys)
         reversed (reverse joined)
+        threaded-flat (->> xs
+                           (mapcat pair)
+                           (filter even?))
         tail-last (last joined)
         no-items? (empty? (drop 3 xs))]
     (defer (delete without-evens))
     (defer (delete indexed))
     (defer (delete kept))
+    (defer (delete flattened))
     (defer (delete joined))
     (defer (delete reversed))
+    (defer (delete threaded-flat))
     (return)))`
 
     output, err, ok := odinl.compile_source(source)
@@ -1287,13 +1296,18 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "without_evens := odinl_remove(even_p, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "indexed := odinl_map_indexed(add_index, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "kept := odinl_keep(keep_even, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "flattened := odinl_mapcat(pair, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "joined := odinl_concat((without_evens)[:], (ys)[:])"), true)
     testing.expect_value(t, strings.contains(output, "reversed := odinl_reverse((joined)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_thread_1 := odinl_mapcat(pair, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "defer delete(odinl_thread_1)"), true)
+    testing.expect_value(t, strings.contains(output, "threaded_flat := odinl_filter(even_p, (odinl_thread_1)[:])"), true)
     testing.expect_value(t, strings.contains(output, "tail_last := ((joined)[:])[len((joined)[:])-1]"), true)
     testing.expect_value(t, strings.contains(output, "no_items_p := len((odinl_drop(3, (xs)[:]))[:]) == 0"), true)
     testing.expect_value(t, strings.contains(output, "odinl_remove :: proc(pred: proc(x: $T) -> bool, xs: []T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_map_indexed :: proc(f: proc(i: int, x: $T) -> $U, xs: []T) -> [dynamic]U"), true)
     testing.expect_value(t, strings.contains(output, "odinl_keep :: proc(f: proc(x: $T) -> ($U, bool), xs: []T) -> [dynamic]U"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_mapcat :: proc(f: proc(x: $T) -> []$U, xs: []T) -> [dynamic]U"), true)
 }
 
 @(test)

@@ -543,8 +543,8 @@ foreign_call :: proc(handle: Foreign_Handle) ---
   `(drop n xs)`, `(take-while pred xs)`, `(drop-while pred xs)`,
   `(find pred xs)`, `(some? pred xs)`, `(every? pred xs)`, `(first xs)`,
   `(second xs)`, `(last xs)`, `(nth xs n)`, `(rest xs)`, `(empty? xs)`,
-  `(remove pred xs)`, `(map-indexed f xs)`, `(keep f xs)`, `(concat xs ys)`,
-  `(reverse xs)`, `(split-at n xs)`, `(partition n xs)`,
+  `(remove pred xs)`, `(map-indexed f xs)`, `(keep f xs)`, `(mapcat f xs)`,
+  `(concat xs ys)`, `(reverse xs)`, `(split-at n xs)`, `(partition n xs)`,
   `(partition-all n xs)`, `(partition-by f xs)`, `(partition-by :field xs)`,
   `(zipmap keys vals)`, `(index-by f xs)`, `(index-by :field xs)`, and
   `(frequencies xs)`, plus bounded producers `(range ...)`, `(repeat n x)`,

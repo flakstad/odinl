@@ -33,6 +33,7 @@ These helpers are already in scope and should remain small:
 (reduce f init xs)
 (map-indexed f xs)
 (keep f xs)
+(mapcat f xs)
 (concat xs ys)
 (reverse xs)
 (split-at n xs)
@@ -71,11 +72,13 @@ lowers to `len`. `rest`, `take`, `drop`, `take-while`, and `drop-while` return
 non-owning slice views.
 
 Builder helpers such as `map`, `filter`, `remove`, `map-indexed`, `keep`,
-`concat`, `reverse`, `range`, `repeat`, `repeatedly`, and `iterate` return
-owned dynamic arrays. `zipmap`, `index-by`, and `frequencies` return owned maps.
-`partition`, `partition-all`, and `partition-by` return owned dynamic arrays of
-borrowed slice chunks. `keep` is Odin-shaped: the callback returns `(value, ok)`,
-and only `ok` values are appended.
+`mapcat`, `concat`, `reverse`, `range`, `repeat`, `repeatedly`, and `iterate`
+return owned dynamic arrays. `zipmap`, `index-by`, and `frequencies` return
+owned maps. `partition`, `partition-all`, and `partition-by` return owned dynamic
+arrays of borrowed slice chunks. `keep` is Odin-shaped: the callback returns
+`(value, ok)`, and only `ok` values are appended. `mapcat` is also Odin-shaped:
+the callback returns a borrowed slice, and `mapcat` appends those values into one
+owned dynamic array.
 
 Keyword callbacks are field-access shorthand in the supported higher-order
 helpers:
@@ -101,7 +104,6 @@ implementation:
 
 ```clojure
 (group-by f xs)
-(mapcat f xs)
 (sort xs)
 (sort-by f xs)
 (shuffle rng xs)
@@ -222,7 +224,8 @@ Sequence helpers need an explicit ownership story:
 - Slice-view helpers such as `rest`, `take`, `drop`, `take-while`,
   `drop-while`, and `split-at` do not own data and must not be deleted.
 - Dynamic-array helpers such as `map`, `filter`, `remove`, `map-indexed`,
-  `keep`, `concat`, and `reverse` allocate and return owned dynamic arrays.
+  `keep`, `mapcat`, `concat`, and `reverse` allocate and return owned dynamic
+  arrays.
 - Chunking helpers `partition`, `partition-all`, and `partition-by` allocate the
   outer dynamic array, but their slice chunks borrow the input collection.
 - `zipmap`, `index-by`, and `frequencies` allocate and return owned maps.

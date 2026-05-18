@@ -30,6 +30,7 @@ These forms return owned values in normal OdinL code:
 (remove pred xs)
 (map-indexed f xs)
 (keep f xs)
+(mapcat f xs)
 (concat xs ys)
 (reverse xs)
 (partition n xs)

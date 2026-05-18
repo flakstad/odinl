@@ -31,6 +31,13 @@
     (return (* x x) true)
     (return 0 false)))
 
+(struct Segment {
+  :values []int
+})
+
+(proc segment-values [segment: Segment] -> []int
+  (:values segment))
+
 (proc split-front-length [] -> int
   (let [xs (new []int [1 2 3 4])
         [front _] (split-at 2 xs)]
@@ -125,6 +132,14 @@
     (defer (delete runs))
     (len runs)))
 
+(proc flattened-total [] -> int
+  (let [segments (new []Segment [(Segment {:values (new []int [1 2])})
+                                 (Segment {:values (new []int [3])})
+                                 (Segment {:values (new []int [4 5])})])
+        values (mapcat segment-values segments)]
+    (defer (delete values))
+    (reduce add 0 values)))
+
 (proc threaded-first [] -> int
   (let [xs (new []int [1 2 3 4])
         threaded (->> xs
@@ -182,6 +197,9 @@
 
   (run-count)
   ;; => 4
+
+  (flattened-total)
+  ;; => 15
 
   (threaded-first)
   ;; => 4

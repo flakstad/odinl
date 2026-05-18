@@ -18,6 +18,7 @@ Emitter_Features :: struct {
     core_remove:      bool,
     core_map_indexed: bool,
     core_keep:        bool,
+    core_mapcat:      bool,
     core_concat:      bool,
     core_reverse:     bool,
     core_split_at:    bool,
@@ -144,6 +145,12 @@ mark_core_map_indexed :: proc(e: ^Emitter) {
 mark_core_keep :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_keep = true
+    }
+}
+
+mark_core_mapcat :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_mapcat = true
     }
 }
 
@@ -625,7 +632,7 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             }
             return emit_predicate_callback_call(e, "odinl_filter", step.items[1], collection, mark_core_filter, mark_core_filter_field)
         }
-        if thread_last && (head.text == "map-indexed" || head.text == "keep") {
+        if thread_last && (head.text == "map-indexed" || head.text == "keep" || head.text == "mapcat") {
             if len(step.items) != 2 {
                 return "", Compile_Error{message = fmt.tprintf("%s thread step expects one function argument", head.text), span = step.span}, false
             }
@@ -636,6 +643,10 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             if head.text == "map-indexed" {
                 mark_core_map_indexed(e)
                 return emit_call_text("odinl_map_indexed", []string{f, slice_all_expr_text(current)}), {}, true
+            }
+            if head.text == "mapcat" {
+                mark_core_mapcat(e)
+                return emit_call_text("odinl_mapcat", []string{f, slice_all_expr_text(current)}), {}, true
             }
             mark_core_keep(e)
             return emit_call_text("odinl_keep", []string{f, slice_all_expr_text(current)}), {}, true
@@ -854,7 +865,8 @@ thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Res
         }
         if thread_last && (head.text == "map" || head.text == "filter" ||
                            head.text == "remove" || head.text == "map-indexed" ||
-                           head.text == "keep" || head.text == "concat" ||
+                           head.text == "keep" || head.text == "mapcat" ||
+                           head.text == "concat" ||
                            head.text == "reverse" || head.text == "zipmap" ||
                            head.text == "index-by" || head.text == "frequencies") {
             return .Owned
@@ -939,7 +951,7 @@ thread_return_error :: proc(form: CST_Form) -> (Compile_Error, bool) {
 
 owned_sequence_head :: proc(name: string) -> bool {
     switch name {
-    case "map", "filter", "remove", "map-indexed", "keep",
+    case "map", "filter", "remove", "map-indexed", "keep", "mapcat",
          "concat", "reverse", "partition", "partition-all", "partition-by",
          "zipmap", "index-by", "frequencies",
          "range", "repeat", "repeatedly", "iterate":
@@ -1529,7 +1541,7 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         return emit_predicate_callback_call(e, "odinl_filter", form.items[1], collection, mark_core_filter, mark_core_filter_field)
     }
 
-    if head.text == "map-indexed" || head.text == "keep" {
+    if head.text == "map-indexed" || head.text == "keep" || head.text == "mapcat" {
         if len(form.items) != 3 {
             return "", Compile_Error{message = fmt.tprintf("%s expects function and collection", head.text), span = form.span}, false
         }
@@ -1545,6 +1557,10 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         if head.text == "map-indexed" {
             mark_core_map_indexed(e)
             return emit_call_text("odinl_map_indexed", []string{f, collection}), {}, true
+        }
+        if head.text == "mapcat" {
+            mark_core_mapcat(e)
+            return emit_call_text("odinl_mapcat", []string{f, collection}), {}, true
         }
         mark_core_keep(e)
         return emit_call_text("odinl_keep", []string{f, collection}), {}, true
@@ -2978,6 +2994,20 @@ emit_core_keep_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_mapcat_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_mapcat :: proc(f: proc(x: $T) -> []$U, xs: []T) -> [dynamic]U {")
+    e.indent += 1
+    emit_line(e, "out := make([dynamic]U)")
+    emit_line(e, "for x in xs {")
+    e.indent += 1
+    emit_line(e, "append(&out, ..f(x))")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return out")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_concat_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_concat :: proc(xs, ys: []$T) -> [dynamic]T {")
     e.indent += 1
@@ -3504,7 +3534,7 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_take_while || features.core_drop_while ||
            features.core_find || features.core_some || features.core_every ||
            features.core_remove || features.core_map_indexed || features.core_keep ||
-           features.core_concat || features.core_reverse ||
+           features.core_mapcat || features.core_concat || features.core_reverse ||
            features.core_split_at || features.core_partition ||
            features.core_partition_all || features.core_partition_by ||
            features.core_zipmap ||
@@ -3565,6 +3595,10 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_keep {
         emit_core_helper_separator(e, &emitted)
         emit_core_keep_helper(e)
+    }
+    if features.core_mapcat {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_mapcat_helper(e)
     }
     if features.core_concat {
         emit_core_helper_separator(e, &emitted)
