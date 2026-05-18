@@ -172,6 +172,7 @@ assert_eq "hello from odinl" "$main_eval_output" "eval main output"
 printf 'tooling: sequence example evals\n'
 assert_eq "2" "$(./odinl eval examples/sequence-helpers.odinl '(split-front-length)')" "split-front-length"
 assert_eq "4" "$(./odinl eval examples/sequence-helpers.odinl '(first-kept-square)')" "first-kept-square"
+assert_eq "12" "$(./odinl eval examples/sequence-helpers.odinl '(with-delete-total)')" "with-delete-total"
 assert_eq "45" "$(./odinl eval examples/sequence-helpers.odinl '(age-for-grace)')" "age-for-grace"
 assert_eq "2" "$(./odinl eval examples/sequence-helpers.odinl '(chunk-count)')" "chunk-count"
 assert_eq "2" "$(./odinl eval examples/sequence-helpers.odinl '(repeated-two-count)')" "repeated-two-count"

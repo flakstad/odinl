@@ -1239,6 +1239,47 @@ main :: proc() {
 }
 
 @(test)
+compile_with_delete_scope :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc inc [x: int] -> int
+  (+ x 1))
+
+(proc add [acc: int, x: int] -> int
+  (+ acc x))
+
+(proc total [xs: []int] -> int
+  (with-delete [mapped (map inc xs)]
+    (reduce add 0 mapped)))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "mapped := odinl_map(inc, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "defer delete(mapped)"), true)
+    testing.expect_value(t, strings.contains(output, "return odinl_reduce(add, 0, (mapped)[:])"), true)
+}
+
+@(test)
+reject_returning_with_delete_binding :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc owned [] -> [dynamic]int
+  (with-delete [xs (new [dynamic]int [1 2])]
+    xs))`
+
+    _, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, false)
+    defer delete(err.message)
+    testing.expect_value(t, err.message, "with-delete binding cannot be returned; return it without with-delete or copy it before returning")
+}
+
+@(test)
 reject_returning_owned_result_from_with_temp_allocator :: proc(t: ^testing.T) {
     source := `(package main)
 (import runtime "base:runtime")
@@ -1318,6 +1359,25 @@ macroexpand_with_temp_allocator_scope :: proc(t: ^testing.T) {
       (set! context.allocator odinl-old-allocator-1)
       (runtime.default-temp-allocator-temp-end odinl-temp-scope-1)))
     (let [buffer (make [dynamic]int)] (defer (delete buffer)) (into! buffer (new []int [1 2])))))
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+macroexpand_with_delete_scope :: proc(t: ^testing.T) {
+    output, err, ok := odinl.macroexpand_source(`(with-delete [xs (map inc users)]
+  (count xs))`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `(do
+  (let [xs (map inc users)]
+    (defer (delete xs))
+    (count xs)))
 `
     testing.expect_value(t, output, expected)
 }

@@ -88,8 +88,8 @@ runtime facility:
 - editor tooling should provide `macroexpand` for the form at point;
 - `odinl macroexpand` is the frontend expansion view; it currently handles
   built-in macro-like forms such as `with-allocator` and
-  `with-temp-allocator`, while `odinl expand` remains the generated-Odin
-  lowering preview;
+  `with-temp-allocator` and cleanup forms such as `with-delete`, while
+  `odinl expand` remains the generated-Odin lowering preview;
 - diagnostics should keep enough source information to point through expansion
   where practical;
 - macros must not introduce a hidden stateful REPL or dynamic runtime world.

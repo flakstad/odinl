@@ -237,6 +237,18 @@ The runtime import is explicit, and any owned values that escape the block must
 not borrow storage from the ended temp scope. OdinL rejects obvious direct
 escapes such as returning `(map f xs)` from a `with-temp-allocator` body.
 
+`with-delete` is the small cleanup helper for local owned values:
+
+```clojure
+(with-delete [active (filter active? users)]
+  (count active))
+```
+
+It lowers to a scope with a binding and `defer delete(active)`. Use it when the
+owned value is local to the body. Do not return the bound value from the body;
+if ownership should pass to the caller, return the owned expression directly
+without `with-delete`.
+
 ## Returning Owned Values
 
 If a proc returns an owned value, do not delete it locally:

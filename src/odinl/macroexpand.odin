@@ -109,6 +109,35 @@ macroexpand_with_temp_allocator :: proc(form: CST_Form) -> (output: string, err:
     return strings.clone(strings.to_string(builder)), {}, true
 }
 
+macroexpand_with_delete :: proc(form: CST_Form) -> (output: string, err: Compile_Error, ok: bool) {
+    if len(form.items) < 3 || form.items[1].kind != .Vector {
+        return "", Compile_Error{message = "with-delete expects binding vector and body", span = form.span}, false
+    }
+    binding := form.items[1]
+    if len(binding.items) != 2 || binding.items[0].kind != .Symbol {
+        return "", Compile_Error{message = "with-delete expects [name value] binding", span = binding.span}, false
+    }
+
+    binding_name := binding.items[0].text
+    value_expr := macro_form_text(binding.items[1])
+    defer delete(value_expr)
+
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+
+    fmt.sbprintf(&builder, "(do\n")
+    fmt.sbprintf(&builder, "  (let [%s %s]\n", binding_name, value_expr)
+    fmt.sbprintf(&builder, "    (defer (delete %s))", binding_name)
+    for item in form.items[2:] {
+        item_text := macro_form_text(item)
+        defer delete(item_text)
+        fmt.sbprintf(&builder, "\n    %s", item_text)
+    }
+    fmt.sbprintf(&builder, "))\n")
+
+    return strings.clone(strings.to_string(builder)), {}, true
+}
+
 macroexpand_form :: proc(form: CST_Form) -> (output: string, err: Compile_Error, ok: bool) {
     if form.kind == .List && len(form.items) > 0 && form.items[0].kind == .Symbol {
         switch form.items[0].text {
@@ -116,6 +145,8 @@ macroexpand_form :: proc(form: CST_Form) -> (output: string, err: Compile_Error,
             return macroexpand_with_allocator(form)
         case "with-temp-allocator":
             return macroexpand_with_temp_allocator(form)
+        case "with-delete":
+            return macroexpand_with_delete(form)
         }
     }
 

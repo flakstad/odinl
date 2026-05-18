@@ -3259,6 +3259,70 @@ emit_with_temp_allocator_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc:
     return {}, true
 }
 
+with_delete_return_error :: proc(body: []CST_Form, binding_name: string, last_in_proc: bool, returns: Return_Spec) -> (Compile_Error, bool) {
+    for item in body {
+        if item.kind != .List || len(item.items) == 0 || item.items[0].kind != .Symbol || item.items[0].text != "return" {
+            continue
+        }
+        for returned in item.items[1:] {
+            if returned.kind == .Symbol && map_name(returned.text) == binding_name {
+                return Compile_Error{
+                    message = "with-delete binding cannot be returned; return it without with-delete or copy it before returning",
+                    span = returned.span,
+                }, true
+            }
+        }
+    }
+    if last_in_proc && returns.kind != .None && len(body) > 0 {
+        final_form := body[len(body)-1]
+        if final_form.kind == .Symbol && map_name(final_form.text) == binding_name {
+            return Compile_Error{
+                message = "with-delete binding cannot be returned; return it without with-delete or copy it before returning",
+                span = final_form.span,
+            }, true
+        }
+    }
+    return {}, false
+}
+
+emit_with_delete_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Return_Spec) -> (Compile_Error, bool) {
+    if len(form.items) < 3 {
+        return Compile_Error{message = "with-delete expects binding vector and body", span = form.span}, false
+    }
+    binding := form.items[1]
+    if binding.kind != .Vector || len(binding.items) != 2 || binding.items[0].kind != .Symbol {
+        return Compile_Error{message = "with-delete expects [name value] binding", span = binding.span}, false
+    }
+    binding_name := map_name(binding.items[0].text)
+    value, err_value, ok_value := emit_expr(e, binding.items[1])
+    if !ok_value {
+        return err_value, false
+    }
+
+    body: [dynamic]CST_Form
+    for item in form.items[2:] {
+        append(&body, item)
+    }
+    err_return, bad_return := with_delete_return_error(body[:], binding_name, last_in_proc, returns)
+    if bad_return {
+        return err_return, false
+    }
+
+    emit_line(e, "{")
+    e.indent += 1
+    emit_prefixed_expr(e, fmt.tprintf("%s := ", binding_name), value)
+    emit_line(e, fmt.tprintf("defer delete(%s)", binding_name))
+
+    err_body, ok_body := emit_body_forms(e, body[:], returns_when_final(last_in_proc, returns))
+    if !ok_body {
+        return err_body, false
+    }
+
+    e.indent -= 1
+    emit_line(e, "}")
+    return {}, true
+}
+
 is_type_switch_subject :: proc(form: CST_Form) -> bool {
     return form.kind == .Vector && len(form.items) == 2 && form.items[0].kind == .Symbol
 }
@@ -3560,6 +3624,8 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         return emit_with_allocator_stmt(e, form, last_in_proc, returns)
     case "with-temp-allocator":
         return emit_with_temp_allocator_stmt(e, form, last_in_proc, returns)
+    case "with-delete":
+        return emit_with_delete_stmt(e, form, last_in_proc, returns)
     case "switch":
         return emit_switch_stmt(e, form, last_in_proc, returns)
     case "return":

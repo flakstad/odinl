@@ -552,6 +552,11 @@ rule applies.
 This is an important design constraint: avoid growing the special-form set
 casually.
 
+The current implementation also recognizes a few built-in macro-like resource
+forms before the general macro system exists: `with-allocator`,
+`with-temp-allocator`, and `with-delete`. They are intentionally scoped cleanup
+forms that lower to ordinary Odin blocks with `defer`.
+
 ### Ordinary calls
 
 Any list whose head is not a special form and not a dedicated syntactic head
@@ -1670,6 +1675,27 @@ OdinL runtime. Owned values allocated in this scope must not escape it; the
 compiler rejects obvious direct returns of owned helper results from
 `with-temp-allocator`.
 
+For the common "bind owned value, delete at scope exit" shape, use:
+
+```clojure
+(with-delete [active (filter active? users)]
+  ...)
+```
+
+It lowers to the moral equivalent of:
+
+```odin
+{
+    active := odinl_filter(active_p, users[:])
+    defer delete(active)
+    ...
+}
+```
+
+This is intentionally not an ownership transfer form. Do not return the bound
+value from the body; return it directly without `with-delete`, or copy the data
+into a different owned result first.
+
 Other `with-*` forms are still attractive because they can expand into
 combinations of existing core forms such as:
 
@@ -1697,6 +1723,9 @@ For example, allocator helpers should keep ownership visible:
   (let [buffer (make [dynamic]int)]
     (defer (delete buffer))
     ...))
+
+(with-delete [buffer (make [dynamic]int)]
+  ...)
 
 (with-arena [arena (make-arena allocator)]
   (work (:allocator arena)))

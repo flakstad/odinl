@@ -58,6 +58,11 @@
     (defer (delete kept))
     (first kept)))
 
+(proc with-delete-total [] -> int
+  (let [xs (new []int [1 2 3])]
+    (with-delete [doubled (map double xs)]
+      (reduce add 0 doubled))))
+
 (proc age-for-grace [] -> int
   (let [names (new []string ["Ada" "Lin" "Grace"])
         ages (new []int [36 17 45])
@@ -310,6 +315,9 @@
 
   (first-kept-square)
   ;; => 4
+
+  (with-delete-total)
+  ;; => 12
 
   (age-for-grace)
   ;; => 45
