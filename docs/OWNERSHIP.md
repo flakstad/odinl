@@ -115,17 +115,30 @@ Bang helpers mutate existing storage and do not create owned results:
 (sort! xs)
 (sort-by! f xs)
 (sort-by! :field xs)
+(map! f xs)
+(map-indexed! f xs)
+(filter! pred xs)
+(filter! :field xs)
+(remove! pred xs)
+(remove! :field xs)
+(keep! f xs)
 ```
 
 Use them when mutation is the right Odin choice. They do not need `delete`
 because they do not allocate a result, but the value they mutate may still need
-deletion if it is an owned dynamic array:
+deletion if it is an owned dynamic array. Length-changing helpers require a
+dynamic array because they compact and resize the existing storage:
 
 ```clojure
 (let [xs (new [dynamic]int [3 1 2])]
   (defer (delete xs))
   (sort! xs)
   (first xs))
+
+(let [xs (new [dynamic]int [1 2 3 4])]
+  (defer (delete xs))
+  (filter! even? xs)
+  (len xs))
 ```
 
 ## Returning Owned Values

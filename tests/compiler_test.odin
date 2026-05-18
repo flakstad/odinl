@@ -1267,6 +1267,7 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
 
 (proc main []
   (let [xs (new []int [1 2 3])
+        mutable (new [dynamic]int [1 2 3])
         ys (new []int [4 5])
         without-evens (remove even? xs)
         indexed (map-indexed add-index xs)
@@ -1284,6 +1285,7 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
                              (filter even?))
         tail-last (last joined)
         no-items? (empty? (drop 3 xs))]
+    (defer (delete mutable))
     (defer (delete without-evens))
     (defer (delete indexed))
     (defer (delete kept))
@@ -1297,6 +1299,11 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
     (reverse! xs)
     (sort! xs)
     (sort-by! neg xs)
+    (map! neg mutable)
+    (map-indexed! add-index mutable)
+    (filter! even? mutable)
+    (remove! even? mutable)
+    (keep! keep-even mutable)
     (return)))`
 
     output, err, ok := odinl.compile_source(source)
@@ -1324,6 +1331,11 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "odinl_reverse_in_place((xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "odinl_sort_in_place((xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "odinl_sort_by_in_place(neg, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_map_in_place(neg, (mutable)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_map_indexed_in_place(add_index, (mutable)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_filter_in_place(even_p, &(mutable))"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_remove_in_place(even_p, &(mutable))"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_keep_in_place(keep_even, &(mutable))"), true)
     testing.expect_value(t, strings.contains(output, "tail_last := ((joined)[:])[len((joined)[:])-1]"), true)
     testing.expect_value(t, strings.contains(output, "no_items_p := len((odinl_drop(3, (xs)[:]))[:]) == 0"), true)
     testing.expect_value(t, strings.contains(output, "odinl_remove :: proc(pred: proc(x: $T) -> bool, xs: []T) -> [dynamic]T"), true)
@@ -1335,6 +1347,11 @@ compile_additional_sequence_helpers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "odinl_reverse_in_place :: proc(xs: []$T)"), true)
     testing.expect_value(t, strings.contains(output, "odinl_sort_in_place :: proc(xs: []$T)"), true)
     testing.expect_value(t, strings.contains(output, "odinl_sort_by_in_place :: proc(f: proc(x: $T) -> $K, xs: []T)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_map_in_place :: proc(f: proc(x: $T) -> T, xs: []T)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_map_indexed_in_place :: proc(f: proc(i: int, x: $T) -> T, xs: []T)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_filter_in_place :: proc(pred: proc(x: $T) -> bool, xs: ^[dynamic]T)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_remove_in_place :: proc(pred: proc(x: $T) -> bool, xs: ^[dynamic]T)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_keep_in_place :: proc(f: proc(x: $T) -> (T, bool), xs: ^[dynamic]T)"), true)
 }
 
 @(test)
@@ -1481,6 +1498,8 @@ compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
         any? (some? :verified users)
         all? (every? :verified verified)]
     (sort-by! :name mutated)
+    (filter! :verified mutated)
+    (remove! :verified mutated)
     (return)))`
 
     output, err, ok := odinl.compile_source(source)
@@ -1496,6 +1515,8 @@ compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "groups := odinl_partition_by_field_verified(type_of(((users)[:])[0].verified), (users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "sorted := odinl_sort_by_field_name(type_of(((users)[:])[0].name), (users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "odinl_sort_by_in_place_field_name((mutated)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_filter_in_place_field_verified(&(mutated))"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_remove_in_place_field_verified(&(mutated))"), true)
     testing.expect_value(t, strings.contains(output, "verified := odinl_filter_field_verified((users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "unverified := odinl_remove_field_verified((users)[:])"), true)
     testing.expect_value(t, strings.contains(output, "first, ok := odinl_find_field_verified((users)[:])"), true)
@@ -1506,6 +1527,8 @@ compile_keyword_callbacks_for_sequence_helpers :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "odinl_partition_by_field_verified :: proc($Key: typeid, xs: []$T) -> [dynamic][]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_sort_by_field_name :: proc($Key: typeid, xs: []$T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_sort_by_in_place_field_name :: proc(xs: []$T)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_filter_in_place_field_verified :: proc(xs: ^[dynamic]$T)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_remove_in_place_field_verified :: proc(xs: ^[dynamic]$T)"), true)
     testing.expect_value(t, strings.contains(output, "odinl_filter_field_verified :: proc(xs: []$T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_remove_field_verified :: proc(xs: []$T) -> [dynamic]T"), true)
     testing.expect_value(t, strings.contains(output, "odinl_find_field_verified :: proc(xs: []$T) -> (value: T, ok: bool)"), true)

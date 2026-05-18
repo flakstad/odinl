@@ -546,7 +546,10 @@ foreign_call :: proc(handle: Foreign_Handle) ---
   `(remove pred xs)`, `(map-indexed f xs)`, `(keep f xs)`, `(mapcat f xs)`,
   `(concat xs ys)`, `(reverse xs)`, `(sort xs)`, `(sort-by f xs)`,
   `(sort-by :field xs)`, mutating `(reverse! xs)`, `(sort! xs)`,
-  `(sort-by! f xs)`, `(sort-by! :field xs)`, `(split-at n xs)`,
+  `(sort-by! f xs)`, `(sort-by! :field xs)`, `(map! f xs)`,
+  `(map-indexed! f xs)`, `(filter! pred xs)`, `(filter! :field xs)`,
+  `(remove! pred xs)`, `(remove! :field xs)`, `(keep! f xs)`,
+  `(split-at n xs)`,
   `(partition n xs)`, `(partition-all n xs)`, `(partition-by f xs)`,
   `(partition-by :field xs)`, `(zipmap keys vals)`, `(index-by f xs)`,
   `(index-by :field xs)`, and `(frequencies xs)`, plus bounded producers

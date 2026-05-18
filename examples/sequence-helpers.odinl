@@ -153,6 +153,36 @@
     (sort-by! negative xs)
     (first xs)))
 
+(proc doubled-in-place-total [] -> int
+  (let [xs (new [dynamic]int [1 2 3])]
+    (defer (delete xs))
+    (map! double xs)
+    (reduce add 0 xs)))
+
+(proc indexed-in-place-second [] -> int
+  (let [xs (new [dynamic]int [1 2 3])]
+    (defer (delete xs))
+    (map-indexed! add-index xs)
+    (second xs)))
+
+(proc filtered-in-place-count [] -> int
+  (let [xs (new [dynamic]int [1 2 3 4])]
+    (defer (delete xs))
+    (filter! even? xs)
+    (len xs)))
+
+(proc removed-in-place-first [] -> int
+  (let [xs (new [dynamic]int [1 2 3 4])]
+    (defer (delete xs))
+    (remove! even? xs)
+    (first xs)))
+
+(proc kept-in-place-first [] -> int
+  (let [xs (new [dynamic]int [1 2 3 4])]
+    (defer (delete xs))
+    (keep! square-even xs)
+    (first xs)))
+
 (proc ragged-chunk-size [] -> int
   (let [xs (new []int [1 2 3 4 5])
         chunks (partition-all 2 xs)]
@@ -238,6 +268,21 @@
   ;; => 4
 
   (descending-in-place-first)
+  ;; => 4
+
+  (doubled-in-place-total)
+  ;; => 12
+
+  (indexed-in-place-second)
+  ;; => 3
+
+  (filtered-in-place-count)
+  ;; => 2
+
+  (removed-in-place-first)
+  ;; => 1
+
+  (kept-in-place-first)
   ;; => 4
 
   (ragged-chunk-size)

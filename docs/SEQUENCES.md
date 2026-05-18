@@ -43,6 +43,13 @@ These helpers are already in scope and should remain small:
 (sort! xs)
 (sort-by! f xs)
 (sort-by! :field xs)
+(map! f xs)
+(map-indexed! f xs)
+(filter! pred xs)
+(filter! :field xs)
+(remove! pred xs)
+(remove! :field xs)
+(keep! f xs)
 (split-at n xs)
 (partition n xs)
 (partition-all n xs)
@@ -90,9 +97,12 @@ owned dynamic array.
 `sort` and `sort-by` copy before sorting. They do not mutate the input
 collection, and their result is owned.
 
-Bang helpers are explicitly mutating statement forms. `reverse!`, `sort!`, and
-`sort-by!` mutate the passed slice or dynamic array in place and do not return an
-owned value.
+Bang helpers are explicitly mutating statement forms. `reverse!`, `sort!`,
+`sort-by!`, `map!`, and `map-indexed!` mutate the passed slice or dynamic array
+in place and do not return an owned value. `filter!`, `remove!`, and `keep!`
+resize the collection, so they require an owned dynamic array binding. `keep!`
+uses an Odin-shaped callback returning `(value, ok)` and writes kept values back
+into the same dynamic array; the value type must match the array element type.
 
 Keyword callbacks are field-access shorthand in the supported higher-order
 helpers:
@@ -139,8 +149,8 @@ For hot paths, prefer one of these shapes:
 
 - use slice-view helpers such as `take`, `drop`, `rest`, and `split-at` when a
   borrowed view is enough;
-- use bang helpers such as `sort!` and `reverse!` when mutating existing storage
-  is the right Odin choice;
+- use bang helpers such as `sort!`, `reverse!`, `map!`, `filter!`, `remove!`,
+  and `keep!` when mutating existing storage is the right Odin choice;
 - write an explicit `each` loop when one pass and no intermediate collection is
   needed;
 - later, use transducer-style lowering once it exists to fuse pipelines into one
