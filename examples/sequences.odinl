@@ -1,0 +1,61 @@
+// Exercises core sequence helpers over structs, enums, and strings.
+(package main)
+(import "core:fmt")
+
+(enum Status [
+  Active
+  Paused
+  Archived
+])
+
+(struct User {
+  :name string
+  :age int
+  :status Status
+})
+
+(proc active? [user: User] -> bool
+  (== (:status user) .Active))
+
+(proc archived? [user: User] -> bool
+  (== (:status user) .Archived))
+
+(proc adult? [user: User] -> bool
+  (>= (:age user) 18))
+
+(proc young? [user: User] -> bool
+  (< (:age user) 40))
+
+(proc user-name [user: User] -> string
+  (:name user))
+
+(proc add-age [total: int, user: User] -> int
+  (+ total (:age user)))
+
+(proc main []
+  (let [users (new []User [(User {:name "Ada" :age 36 :status .Active})
+                           (User {:name "Lin" :age 17 :status .Paused})
+                           (User {:name "Grace" :age 45 :status .Active})
+                           (User {:name "Edsger" :age 72 :status .Archived})])
+        active-users (filter active? users)
+        first-active (take 1 active-users)
+        remaining-active (drop 1 active-users)
+        young-prefix (take-while young? users)
+        after-young-prefix (drop-while young? users)
+        active-names (->> users
+                          (filter active?)
+                          (map user-name)
+                          (take 2))
+        active-age-total (->> users
+                              (filter active?)
+                              (reduce add-age 0))
+        [first-adult found?] (find adult? users)
+        has-archived? (some? archived? users)
+        active-users-adults? (every? adult? active-users)]
+    (fmt.println (len active-users))
+    (fmt.println (get active-names 0))
+    (fmt.println active-age-total)
+    (fmt.println found? (:name first-adult))
+    (fmt.println has-archived? active-users-adults?)
+    (fmt.println (len first-active) (len remaining-active))
+    (fmt.println (len young-prefix) (:name (get after-young-prefix 0)))))

@@ -56,6 +56,7 @@ compile_all_examples :: proc(t: ^testing.T) {
         "examples/interop-directives.odinl",
         "examples/pointers-and-raw.odinl",
         "examples/proc-values.odinl",
+        "examples/sequences.odinl",
         "examples/unions.odinl",
     }
 

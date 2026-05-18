@@ -883,6 +883,11 @@ The intended surface style can still be familiar:
 (map job-to-be-done xs)
 (filter useful? xs)
 (reduce combine init xs)
+(take 10 xs)
+(drop 2 xs)
+(find ready? xs)
+(some? archived? xs)
+(every? valid? xs)
 ```
 
 These are now core eager helpers that lower to generated generic Odin
