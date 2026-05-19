@@ -327,6 +327,20 @@ read.
 Use named constructors for nominal types and `new` for anonymous typed
 composite literals.
 
+For Odin polymorphic type constructors, use `(type Head Arg...)` where Odin
+would write `Head(Arg, ...)`. This is intentionally mechanical and exists for
+host interop such as channels:
+
+```clojure
+(type chan.Chan int)
+```
+
+which lowers to:
+
+```odin
+chan.Chan(int)
+```
+
 ## Odin Feature Sketches
 
 These examples are design sketches. They are here to make the proposed surface
@@ -600,9 +614,9 @@ foreign_call :: proc(handle: Foreign_Handle) ---
   and `(distinct-by :field xs)`, plus bounded producers
   `(range ...)`, `(repeat n x)`, `(repeatedly n f)`, `(iterate n f x)`,
   and `(cycle n xs)`
-- file-backed dev helpers `(slurp path)`, `(spit path data)`, and
-  `(save-json path value)`, which require explicit `core:os`/`core:encoding/json`
-  imports and lower directly to Odin core calls
+- file-backed dev helpers `(slurp path)` and `(spit path data)`, which require
+  an explicit `core:os` import and lower directly to Odin core calls; JSON
+  marshal/unmarshal stays explicit through `core:encoding/json`
 - `(tap> value)` and `(tap> :label value)` for explicit stdout inspection;
   require `core:fmt` and return the tapped value
 - keywords can stand in for field callbacks in those helpers, e.g. `(map :name users)`,
@@ -610,6 +624,7 @@ foreign_call :: proc(handle: Foreign_Handle) ---
   `(sum-by :region :amount orders)`, `(partition-by :status users)`,
   `(sort-by :age users)`, and `(filter :verified users)`
 - `(:field value)`, `(get value key)`, `(get map key default)`, `(-> value steps...)`, and `(->> value steps...)`
+- `(type Head Arg...)` for Odin polymorphic type instantiation in type/value positions
 - `(^ ptr)` and `(& place)`
 - numbers, booleans, `nil`, and `(nil? value)`
 - calls: `(foo a b)` -> `foo(a, b)`

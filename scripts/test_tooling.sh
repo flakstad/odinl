@@ -315,6 +315,8 @@ assert_eq "2" "$(./odinl eval examples/core-time-slice.odinl '(fixed-date-weekda
 assert_eq "10" "$(./odinl eval examples/core-time-slice.odinl '(fixed-date-string-length)')" "fixed-date-string-length"
 assert_eq "17" "$(./odinl eval examples/core-time-slice.odinl '(min-max-score)')" "min-max-score"
 assert_eq "2" "$(./odinl eval examples/core-time-slice.odinl '(search-score)')" "search-score"
+assert_eq "49" "$(./odinl eval examples/core-concurrency.odinl '(future-like-square)')" "future-like-square"
+assert_eq "2" "$(./odinl eval examples/core-concurrency.odinl '(mutex-protected-count)')" "mutex-protected-count"
 parallel_eval_output=$(
     printf '%s\n' \
         '(duration-ms)' \

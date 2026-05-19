@@ -50,6 +50,7 @@ main :: proc() {
 compile_all_examples :: proc(t: ^testing.T) {
     examples := [?]string{
         "examples/control-flow.odinl",
+        "examples/core-concurrency.odinl",
         "examples/core-math-linalg.odinl",
         "examples/core-os-paths.odinl",
         "examples/core-text-encoding.odinl",
@@ -2769,6 +2770,66 @@ main :: proc() {
     buffer := make([dynamic]int)
     lookup := make(map[string]int)
     return
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+compile_polymorphic_type_form :: proc(t: ^testing.T) {
+    source := `(package main)
+(import chan "core:sync/chan")
+
+(struct Queue {
+  :jobs (type chan.Chan int)
+})
+
+(proc recv-job [jobs: (type chan.Chan int)] -> int
+  (let [[value ok] (chan.recv jobs)]
+    (if ok value 0)))
+
+(proc main []
+  (let [[jobs err] (chan.create (type chan.Chan int) context.allocator)]
+    (defer (chan.destroy jobs))
+    (if (== err .None)
+      (return)
+      (return))))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+import chan "core:sync/chan"
+
+Queue :: struct {
+    jobs: chan.Chan(int),
+}
+
+recv_job :: proc(jobs: chan.Chan(int)) -> int {
+    value, ok := chan.recv(jobs)
+    if ok {
+        return value
+    }
+    else {
+        return 0
+    }
+}
+
+main :: proc() {
+    jobs, err := chan.create(chan.Chan(int), context.allocator)
+    defer chan.destroy(jobs)
+    if (err) == (.None) {
+        return
+    }
+    else {
+        return
+    }
 }
 `
     testing.expect_value(t, output, expected)

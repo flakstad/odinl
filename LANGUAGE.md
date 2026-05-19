@@ -1208,6 +1208,23 @@ rather than being replaced by surface sugar:
 (make map[string]int allocator)
 ```
 
+Odin polymorphic type constructors use an explicit type form:
+
+```clojure
+(type chan.Chan int)
+(type chan.Chan int .Recv)
+```
+
+These lower mechanically to:
+
+```odin
+chan.Chan(int)
+chan.Chan(int, .Recv)
+```
+
+The form is valid anywhere Odin expects a type expression, including parameter
+types, struct fields, and value-level type arguments such as `chan.create`.
+
 The intended split is:
 
 - named nominal constructor call for structs/unions
@@ -1353,6 +1370,7 @@ surface syntax.
 - `for`, `each`
 - field access, keyed lookup, threading
 - named type construction and generic `new`
+- Odin polymorphic type instantiation with `(type Head Arg...)`
 - procedure values and higher-order procedures
 - raw `odin` escape hatch
 

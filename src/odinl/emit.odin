@@ -3291,6 +3291,13 @@ emit_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, bool) 
             }
             return unquote_string(form.items[1].text), {}, true
         }
+        if is_symbol(form.items[0], "type") {
+            type_text, err_type, ok_type := parse_type_text(form)
+            if !ok_type {
+                return "", err_type, false
+            }
+            return type_text, {}, true
+        }
         return emit_call_like(e, form)
     case .Vector:
         return emit_vector_literal(e, "", form)

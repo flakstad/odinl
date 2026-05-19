@@ -33,6 +33,7 @@
   '("package" "import" "const" "struct" "enum" "union" "proc" "odin"
     "let" "do" "if" "when" "cond" "switch" "set!" "return" "defer"
     "for" "each" "comment" "new" "make" "get" "nil?" "in" "not-in"
+    "type"
     "break" "continue" "with-allocator" "with-temp-allocator"
     "with-delete" "when-let" "if-let" "when-ok" "if-ok"
     "slurp" "spit" "tap>"
@@ -64,7 +65,9 @@
     ("when-ok" . ("odinl macro" "[value err expr]"
                   "Bind a value and Odin error result from a multi-return expression. Run the body only when the error equals Odin's zero value {}. Expands to a destructuring let plus when."))
     ("if-ok" . ("odinl macro" "[value err expr] then else"
-                "Bind a value and Odin error result from a multi-return expression. Evaluate the then branch when the error equals Odin's zero value {}, otherwise the else branch. Expands to a destructuring let plus if.")))
+                "Bind a value and Odin error result from a multi-return expression. Evaluate the then branch when the error equals Odin's zero value {}, otherwise the else branch. Expands to a destructuring let plus if."))
+    ("type" . ("odinl form" "Head Arg..."
+               "Instantiate an Odin polymorphic type constructor. For example, (type chan.Chan int) lowers to chan.Chan(int) in both type and value positions.")))
   "Static documentation for compiler-defined OdinL forms.")
 
 (defun odinl--inside-string-on-line-p (pos)
@@ -474,6 +477,7 @@
     ("make" . ("src/odinl/emit.odin" "if head.text == \"make\"" "odinl form"))
     ("get" . ("src/odinl/emit.odin" "if head.text == \"get\"" "odinl form"))
     ("nil?" . ("src/odinl/emit.odin" "if head.text == \"nil?\"" "odinl form"))
+    ("type" . ("src/odinl/parse.odin" "if is_symbol(form.items[0], \"type\")" "odinl form"))
     ("in" . ("src/odinl/emit.odin" "if op == \"in\" || op == \"not-in\"" "odinl form"))
     ("not-in" . ("src/odinl/emit.odin" "if op == \"in\" || op == \"not-in\"" "odinl form"))
     ("break" . ("src/odinl/emit.odin" "case \"break\":" "odinl form"))

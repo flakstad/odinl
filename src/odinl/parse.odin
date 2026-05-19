@@ -83,6 +83,33 @@ parse_type_text :: proc(form: CST_Form) -> (text: string, err: Compile_Error, ok
             return fmt.tprintf("^%s", pointee_text), {}, true
         }
 
+        if is_symbol(form.items[0], "type") {
+            if len(form.items) < 3 {
+                return "", Compile_Error{message = "type form expects a type constructor and at least one argument", span = form.span}, false
+            }
+            constructor_text, err_constructor, ok_constructor := parse_type_text(form.items[1])
+            if !ok_constructor {
+                return "", err_constructor, false
+            }
+
+            builder := strings.builder_make()
+            defer strings.builder_destroy(&builder)
+            strings.write_string(&builder, constructor_text)
+            strings.write_byte(&builder, '(')
+            for arg, idx in form.items[2:] {
+                arg_text, err_arg, ok_arg := parse_type_text(arg)
+                if !ok_arg {
+                    return "", err_arg, false
+                }
+                if idx > 0 {
+                    strings.write_string(&builder, ", ")
+                }
+                strings.write_string(&builder, arg_text)
+            }
+            strings.write_byte(&builder, ')')
+            return strings.clone(strings.to_string(builder)), {}, true
+        }
+
         if !is_symbol(form.items[0], "proc") {
             return "", Compile_Error{message = "unsupported type form", span = form.span}, false
         }

@@ -29,6 +29,7 @@ thumb.
 
 ## Odin Core Interop
 
+- `core-concurrency.odinl`: `core:thread`, `core:sync`, and `sync/chan`.
 - `core-os-paths.odinl`: `core:os` path, directory, file IO, owned bytes.
 - `core-text-encoding.odinl`: `core:strings`, `strconv`, base64, hex, sha2.
 - `core-math-linalg.odinl`: `core:math`, `math/rand`, and `math/linalg`.
