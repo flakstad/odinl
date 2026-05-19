@@ -24,6 +24,11 @@
   :type 'string
   :group 'odinl)
 
+(defcustom odinl-doc-buffer-name "*OdinL Doc*"
+  "Buffer name used for OdinL documentation lookup."
+  :type 'string
+  :group 'odinl)
+
 (defconst odinl-special-forms
   '("package" "import" "const" "struct" "enum" "union" "proc" "odin"
     "let" "do" "if" "when" "cond" "switch" "set!" "return" "defer"
@@ -135,15 +140,42 @@
 
 (defun odinl--parse-symbol-line (line file)
   "Parse one `odinl symbols' LINE for FILE."
-  (pcase-let ((`(,kind ,name ,line-text ,column-text ,detail)
-               (split-string line "\t")))
-    (when (and kind name line-text column-text)
+  (let ((fields (split-string line "\t")))
+    (when (>= (length fields) 4)
+      (let ((kind (nth 0 fields))
+            (name (nth 1 fields))
+            (line-text (nth 2 fields))
+            (column-text (nth 3 fields))
+            (detail (or (nth 4 fields) ""))
+            (doc (or (nth 5 fields) "")))
       (list :kind kind
             :name name
             :line (string-to-number line-text)
             :column (string-to-number column-text)
             :detail (or detail "")
-            :file file))))
+              :doc (odinl--unescape-doc doc)
+              :file file)))))
+
+(defun odinl--unescape-doc (text)
+  "Decode escaped documentation TEXT from `odinl symbols'."
+  (let ((i 0)
+        (out ""))
+    (while (< i (length text))
+      (let ((ch (aref text i)))
+        (if (and (= ch ?\\) (< (1+ i) (length text)))
+            (let ((next (aref text (1+ i))))
+              (setq out
+                    (concat out
+                            (pcase next
+                              (?n "\n")
+                              (?t "\t")
+                              (?r "\r")
+                              (?\\ "\\")
+                              (_ (char-to-string next)))))
+              (setq i (+ i 2)))
+          (setq out (concat out (char-to-string ch)))
+          (setq i (1+ i)))))
+    out))
 
 (defun odinl--symbols (&optional file)
   "Return current buffer symbols from `odinl symbols'."
@@ -217,9 +249,45 @@
                         :line (line-number-at-pos (match-beginning 1))
                         :column (1+ (- (match-beginning 1) (line-beginning-position)))
                         :detail import-path
+                        :doc (odinl--preceding-odin-doc (match-beginning 0))
                         :file file)
                   symbols)))))
     (nreverse symbols)))
+
+(defun odinl--clean-doc-comment-line (line)
+  "Return LINE with a leading line-comment marker removed."
+  (setq line (string-trim-left line))
+  (cond
+   ((string-prefix-p "///" line)
+    (string-trim-left (substring line 3)))
+   ((string-prefix-p "//" line)
+    (string-trim-left (substring line 2)))
+   (t line)))
+
+(defun odinl--preceding-odin-doc (pos)
+  "Return contiguous line comments immediately preceding POS."
+  (save-excursion
+    (goto-char pos)
+    (beginning-of-line)
+    (let (lines done)
+      (while (not done)
+        (let ((line-end (point)))
+          (if (not (= 0 (forward-line -1)))
+              (setq done t)
+            (let ((line (buffer-substring-no-properties
+                         (line-beginning-position)
+                         (line-end-position))))
+              (cond
+               ((string-match-p "\\`[ \t]*//" line)
+                (push (odinl--clean-doc-comment-line line) lines)
+                (beginning-of-line))
+               ((string-match-p "\\`[ \t]*\\'" line)
+                (goto-char line-end)
+                (setq done t))
+               (t
+                (goto-char line-end)
+                (setq done t)))))))
+      (string-join lines "\n"))))
 
 (defun odinl--import-symbols ()
   "Return import symbols from the current buffer."
@@ -278,6 +346,60 @@
                    (ignore-errors (append (odinl--symbols)
                                           (odinl--package-symbols-for-current-buffer)))))))
 
+(defun odinl--symbol-doc-candidates (identifier)
+  "Return documentation candidates for IDENTIFIER."
+  (let* ((symbols (append (ignore-errors (odinl--symbols))
+                          (ignore-errors (odinl--package-definitions identifier))))
+         (matches (seq-filter (lambda (symbol)
+                                (odinl--symbol-matches-identifier-p symbol identifier))
+                              symbols)))
+    (seq-filter (lambda (symbol)
+                  (not (string-empty-p (or (plist-get symbol :doc) ""))))
+                matches)))
+
+(defun odinl--show-doc (symbol)
+  "Show documentation for SYMBOL."
+  (let ((buffer (get-buffer-create odinl-doc-buffer-name))
+        (name (plist-get symbol :name))
+        (kind (plist-get symbol :kind))
+        (detail (plist-get symbol :detail))
+        (doc (plist-get symbol :doc))
+        (file (plist-get symbol :file))
+        (line (plist-get symbol :line)))
+    (with-current-buffer buffer
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert (format "%s %s\n" kind name))
+        (when (and detail (not (string-empty-p detail)))
+          (insert (format "%s\n" detail)))
+        (when file
+          (insert (format "%s:%s\n" file line)))
+        (insert "\n")
+        (insert doc)
+        (insert "\n")
+        (goto-char (point-min))
+        (special-mode)))
+    (display-buffer buffer)))
+
+;;;###autoload
+(defun odinl-doc-at-point ()
+  "Show documentation for the OdinL or imported Odin symbol at point."
+  (interactive)
+  (let* ((identifier (or (odinl--identifier-at-point)
+                         (user-error "No symbol at point")))
+         (matches (odinl--symbol-doc-candidates identifier)))
+    (cond
+     ((null matches)
+      (user-error "No docs found for %s" identifier))
+     ((= (length matches) 1)
+      (odinl--show-doc (car matches)))
+     (t
+      (let* ((names (mapcar (lambda (symbol)
+                              (format "%s %s" (plist-get symbol :kind) (plist-get symbol :name)))
+                            matches))
+             (choice (completing-read "Doc: " names nil t)))
+        (odinl--show-doc (nth (cl-position choice names :test #'equal) matches)))))))
+
 (defun odinl-completion-at-point ()
   "Complete OdinL special forms and symbols in the current file."
   (when-let ((bounds (odinl--completion-bounds)))
@@ -299,6 +421,7 @@
   (odinl--setup-indentation))
 
 (define-key odinl-mode-map (kbd "M-.") #'xref-find-definitions)
+(define-key odinl-mode-map (kbd "C-c C-.") #'odinl-doc-at-point)
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.odinl\\'" . odinl-mode))

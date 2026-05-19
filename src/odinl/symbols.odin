@@ -32,7 +32,48 @@ import_default_alias :: proc(path: string) -> string {
 
 symbols_write_record :: proc(builder: ^strings.Builder, kind, name: string, source: string, span: Span, detail: string = "") {
     line, column, _, _ := source_position(source, span.start)
-    fmt.sbprintf(builder, "%s\t%s\t%d\t%d\t%s\n", kind, name, line, column, detail)
+    fmt.sbprintf(builder, "%s\t%s\t%d\t%d\t%s\t\n", kind, name, line, column, detail)
+}
+
+symbols_clean_doc_line :: proc(line: string) -> string {
+    text := line
+    if len(text) >= 2 && text[0] == '/' && text[1] == '/' {
+        text = text[2:]
+    }
+    if len(text) > 0 && text[0] == ' ' {
+        text = text[1:]
+    }
+    return text
+}
+
+symbols_write_escaped_doc :: proc(builder: ^strings.Builder, doc_lines: []string) {
+    for line, i in doc_lines {
+        if i > 0 {
+            strings.write_string(builder, "\\n")
+        }
+        text := symbols_clean_doc_line(line)
+        for ch in text {
+            switch ch {
+            case '\\':
+                strings.write_string(builder, "\\\\")
+            case '\t':
+                strings.write_string(builder, "\\t")
+            case '\r':
+                strings.write_string(builder, "\\r")
+            case '\n':
+                strings.write_string(builder, "\\n")
+            case:
+                strings.write_rune(builder, ch)
+            }
+        }
+    }
+}
+
+symbols_write_record_doc :: proc(builder: ^strings.Builder, kind, name: string, source: string, span: Span, detail: string, doc_lines: []string) {
+    line, column, _, _ := source_position(source, span.start)
+    fmt.sbprintf(builder, "%s\t%s\t%d\t%d\t%s\t", kind, name, line, column, detail)
+    symbols_write_escaped_doc(builder, doc_lines)
+    strings.write_byte(builder, '\n')
 }
 
 symbols_write_fields :: proc(builder: ^strings.Builder, source, parent: string, fields: CST_Form) {
@@ -116,7 +157,7 @@ symbols_source :: proc(source: string) -> (output: string, err: Compile_Error, o
 
     builder := strings.builder_make()
     defer strings.builder_destroy(&builder)
-    strings.write_string(&builder, "kind\tname\tline\tcolumn\tdetail\n")
+    strings.write_string(&builder, "kind\tname\tline\tcolumn\tdetail\tdoc\n")
 
     for top in forms {
         form := top.form
@@ -130,38 +171,38 @@ symbols_source :: proc(source: string) -> (output: string, err: Compile_Error, o
                 path := import_path_text(form.items[1])
                 alias := import_default_alias(path)
                 if alias != "" {
-                    symbols_write_record(&builder, "import", alias, source, form.items[1].span, path)
+                    symbols_write_record_doc(&builder, "import", alias, source, form.items[1].span, path, top.doc_lines[:])
                 }
             } else if len(form.items) == 3 && form.items[1].kind == .Symbol && form.items[2].kind == .String {
                 alias := form.items[1].text
                 path := import_path_text(form.items[2])
-                symbols_write_record(&builder, "import", alias, source, form.items[1].span, path)
+                symbols_write_record_doc(&builder, "import", alias, source, form.items[1].span, path, top.doc_lines[:])
             }
         case "const":
             if len(form.items) >= 2 && form.items[1].kind == .Symbol {
-                symbols_write_record(&builder, "const", form.items[1].text, source, form.items[1].span)
+                symbols_write_record_doc(&builder, "const", form.items[1].text, source, form.items[1].span, "", top.doc_lines[:])
             }
         case "struct":
             if len(form.items) == 3 && form.items[1].kind == .Symbol {
                 name := form.items[1].text
-                symbols_write_record(&builder, "struct", name, source, form.items[1].span)
+                symbols_write_record_doc(&builder, "struct", name, source, form.items[1].span, "", top.doc_lines[:])
                 symbols_write_fields(&builder, source, name, form.items[2])
             }
         case "enum":
             if len(form.items) == 3 && form.items[1].kind == .Symbol {
                 name := form.items[1].text
-                symbols_write_record(&builder, "enum", name, source, form.items[1].span)
+                symbols_write_record_doc(&builder, "enum", name, source, form.items[1].span, "", top.doc_lines[:])
                 symbols_write_enum_variants(&builder, source, name, form.items[2])
             }
         case "union":
             if len(form.items) == 3 && form.items[1].kind == .Symbol {
                 name := form.items[1].text
-                symbols_write_record(&builder, "union", name, source, form.items[1].span)
+                symbols_write_record_doc(&builder, "union", name, source, form.items[1].span, "", top.doc_lines[:])
                 symbols_write_union_variants(&builder, source, name, form.items[2])
             }
         case "proc":
             if len(form.items) >= 2 && form.items[1].kind == .Symbol {
-                symbols_write_record(&builder, "proc", form.items[1].text, source, form.items[1].span)
+                symbols_write_record_doc(&builder, "proc", form.items[1].text, source, form.items[1].span, "", top.doc_lines[:])
             }
         case:
         }

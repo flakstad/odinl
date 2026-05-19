@@ -334,7 +334,7 @@ if command -v emacs >/dev/null 2>&1; then
              (unwind-protect
                  (progn
                    (with-temp-file file
-                     (insert \"(package main)\\n(import \\\"core:fmt\\\")\\n\\n(proc add [a: int, b: int] -> int\\n  (+ a b))\\n\\n(proc main []\\n  (fmt.println \\\"from main\\\"))\\n\\n(comment\\n  (add 1 2)\\n  (with-allocator [allocator context.temp_allocator]\\n    (add 2 1))\\n  (main))\\n\"))
+                     (insert \"(package main)\\n(import \\\"core:fmt\\\")\\n\\n// Adds two ints.\\n(proc add [a: int, b: int] -> int\\n  (+ a b))\\n\\n(proc main []\\n  (fmt.println \\\"from main\\\"))\\n\\n(comment\\n  (add 1 2)\\n  (with-allocator [allocator context.temp_allocator]\\n    (add 2 1))\\n  (main))\\n\"))
                    (find-file file)
                    (odinl-mode)
                    (unless (eq (key-binding (kbd \"M-.\")) (quote xref-find-definitions))
@@ -342,6 +342,20 @@ if command -v emacs >/dev/null 2>&1; then
                    (let ((symbols (odinl--symbols)))
                      (unless (seq-find (lambda (sym) (equal (plist-get sym :name) \"add\")) symbols)
                        (error \"Expected add in odinl symbols: %S\" symbols)))
+                   (let ((docs (odinl--symbol-doc-candidates \"add\")))
+                     (unless (and docs (equal (plist-get (car docs) :doc) \"Adds two ints.\"))
+                       (error \"Expected add docs, got: %S\" docs)))
+                   (let ((docs (odinl--symbol-doc-candidates \"fmt.println\")))
+                     (unless docs
+                       (error \"Expected fmt.println docs\")))
+                   (goto-char (point-min))
+                   (search-forward \"add [\")
+                   (backward-word)
+                   (call-interactively (quote odinl-doc-at-point))
+                   (let ((doc-text (with-current-buffer odinl-doc-buffer-name
+                                     (buffer-substring-no-properties (point-min) (point-max)))))
+                     (unless (string-match-p \"Adds two ints\" doc-text)
+                       (error \"Expected displayed add docs, got: %s\" doc-text)))
                    (let ((defs (xref-backend-definitions (quote odinl) \"add\")))
                      (unless defs
                        (error \"Expected xref definition for add\")))
@@ -357,6 +371,7 @@ if command -v emacs >/dev/null 2>&1; then
                    (dolist (binding (list (cons \"C-c C-e\" (quote odinl-eval-form-at-point))
                                           (cons \"C-c C-c\" (quote odinl-eval-top-level-form))
                                           (cons \"C-c C-i\" (quote odinl-insert-form-result))
+                                          (cons \"C-c C-.\" (quote odinl-doc-at-point))
                                           (cons \"C-c C-k\" (quote odinl-eval-buffer))
                                           (cons \"C-c C-v\" (quote odinl-check-buffer))
                                           (cons \"C-c C-b\" (quote odinl-build-buffer))

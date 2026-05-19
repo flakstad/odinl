@@ -121,6 +121,7 @@ symbols_source_indexes_top_level_forms :: proc(t: ^testing.T) {
     source := `(package main)
 (import strings "core:strings")
 
+// A user record.
 (struct User {
   :name string
   :active bool
@@ -138,6 +139,8 @@ symbols_source_indexes_top_level_forms :: proc(t: ^testing.T) {
 
 (const max-age int 120)
 
+// Returns true for active users.
+// Used by sequence examples.
 (proc active? [user: User] -> bool
   (:active user))`
 
@@ -149,16 +152,16 @@ symbols_source_indexes_top_level_forms :: proc(t: ^testing.T) {
     }
     defer delete(output)
 
-    testing.expect_value(t, strings.contains(output, "kind\tname\tline\tcolumn\tdetail\n"), true)
-    testing.expect_value(t, strings.contains(output, "import\tstrings\t2\t9\tcore:strings\n"), true)
-    testing.expect_value(t, strings.contains(output, "struct\tUser\t4\t9\t\n"), true)
-    testing.expect_value(t, strings.contains(output, "field\tUser.name\t5\t3\tUser\n"), true)
-    testing.expect_value(t, strings.contains(output, "enum\tStatus\t9\t7\t\n"), true)
-    testing.expect_value(t, strings.contains(output, "variant\tStatus.Active\t10\t3\tStatus\n"), true)
-    testing.expect_value(t, strings.contains(output, "union\tValue\t14\t8\t\n"), true)
-    testing.expect_value(t, strings.contains(output, "variant\tValue.i\t15\t3\tValue\n"), true)
-    testing.expect_value(t, strings.contains(output, "const\tmax-age\t19\t8\t\n"), true)
-    testing.expect_value(t, strings.contains(output, "proc\tactive?\t21\t7\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "kind\tname\tline\tcolumn\tdetail\tdoc\n"), true)
+    testing.expect_value(t, strings.contains(output, "import\tstrings\t2\t9\tcore:strings\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "struct\tUser\t5\t9\t\tA user record.\n"), true)
+    testing.expect_value(t, strings.contains(output, "field\tUser.name\t6\t3\tUser\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "enum\tStatus\t10\t7\t\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "variant\tStatus.Active\t11\t3\tStatus\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "union\tValue\t15\t8\t\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "variant\tValue.i\t16\t3\tValue\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "const\tmax-age\t20\t8\t\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "proc\tactive?\t24\t7\t\tReturns true for active users.\\nUsed by sequence examples.\n"), true)
 }
 
 @(test)

@@ -20,6 +20,11 @@ declarations and simple imported Odin package definitions like `fmt.println`.
 Completion includes OdinL forms, sequence helpers, current-file declarations,
 and imported package members.
 
+`C-c C-.` shows docs for the symbol at point without jumping. OdinL docs come
+from contiguous `//` or `;` comments immediately preceding a top-level
+declaration. Imported Odin docs come from contiguous `//` comments immediately
+preceding the imported package definition.
+
 `odinl-eval` shells out to the `odinl` CLI for eval, build, check, and run commands.
 The CLI generates temporary Odin and invokes Odin itself. Build the local
 compiler first:
@@ -31,6 +36,7 @@ odin build cmd/odinl
 Default keys:
 
 - `M-.`: go to definition
+- `C-c C-.`: show docs for symbol at point
 - `C-c C-e`: eval form at point inline
 - `C-c C-p`: eval form at point in the result buffer
 - `C-c C-i`: eval form at point and insert a `;; =>` comment
