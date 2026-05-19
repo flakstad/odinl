@@ -136,11 +136,25 @@ When DIAGNOSTIC is non-nil, use `compilation-mode'."
   (if diagnostic
       (progn
         (compilation-mode)
-        (setq-local compilation-directory default-directory))
+        (setq-local compilation-directory default-directory)
+        (setq next-error-last-buffer (current-buffer)))
     (special-mode))
   (setq-local truncate-lines nil)
   (setq-local word-wrap t)
   (visual-line-mode 1))
+
+(defun odinl--remap-output-source-path (text temp-source source-buffer)
+  "Replace TEMP-SOURCE diagnostic paths in TEXT with SOURCE-BUFFER's file."
+  (if (and temp-source
+           (buffer-live-p source-buffer)
+           (buffer-file-name source-buffer))
+      (replace-regexp-in-string
+       (regexp-quote (expand-file-name temp-source))
+       (expand-file-name (buffer-file-name source-buffer))
+       text
+       t
+       t)
+    text))
 
 (defun odinl--call (program args output-buffer &optional diagnostic)
   "Call PROGRAM with ARGS, writing output to OUTPUT-BUFFER."
@@ -375,6 +389,7 @@ CLI cache."
             (setq exit-code (odinl--call (odinl--executable) args output-buffer t))
             (setq result (with-current-buffer output-buffer
                            (buffer-substring-no-properties (point-min) (point-max)))))
+          (setq result (odinl--remap-output-source-path result source source-buffer))
           (odinl--show-generated generated)
           (pcase display
             ('inline
@@ -393,7 +408,8 @@ CLI cache."
 (defun odinl--buffer-command (command)
   "Run OdinL buffer COMMAND, one of build, check, or run."
   (setq odinl--last-source-buffer (current-buffer))
-  (let* ((source (odinl--source-temp-file))
+  (let* ((source-buffer (current-buffer))
+         (source (odinl--source-temp-file))
          (generated (when odinl-show-generated
                       (make-temp-file "odinl-buffer-" nil ".odin")))
          (output-buffer (odinl--prepare-diagnostic-buffer odinl-result-buffer-name))
@@ -405,6 +421,7 @@ CLI cache."
                (exit-code (odinl--call (odinl--executable) args output-buffer t))
                (result (with-current-buffer output-buffer
                          (buffer-substring-no-properties (point-min) (point-max)))))
+          (setq result (odinl--remap-output-source-path result source source-buffer))
           (odinl--show-generated generated)
           (if (zerop exit-code)
               (let ((trimmed (odinl--trim-output result)))
