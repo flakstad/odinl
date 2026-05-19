@@ -1,6 +1,6 @@
-# OdinL Language Draft
+# Kvist Language Draft
 
-This document captures the current design direction for OdinL as a
+This document captures the current design direction for Kvist as a
 Clojure-smelling Lisp that compiles to Odin.
 
 This is a draft, not a stability promise. The goal is to make the design
@@ -9,7 +9,7 @@ instead of accumulating parser hacks.
 
 ## Direction
 
-OdinL is no longer framed as "Odin in parens". The stronger direction is:
+Kvist is no longer framed as "Odin in parens". The stronger direction is:
 
 - a small Lisp-shaped source language
 - Clojure-flavored syntax and editing feel
@@ -34,9 +34,9 @@ These are explicit non-goals for the first language design:
 - no opaque generated code that must not be read
 - no attempt to use Odin as a compiler IR for arbitrarily high-level features
 
-## Relationship to `odineval`
+## Relationship to `probe`
 
-`odineval` remains the right execution harness for REPL-like workflows:
+`probe` remains the right execution harness for REPL-like workflows:
 
 - generate scratch Odin packages
 - support internal and external eval
@@ -44,19 +44,19 @@ These are explicit non-goals for the first language design:
 - show generated Odin during debugging
 - support editor integration
 
-OdinL should reuse that execution model rather than invent an interpreter.
+Kvist should reuse that execution model rather than invent an interpreter.
 
 The architectural split should be:
 
 ```text
-odinl
+kvist
   reader
   expander
   resolver
   lowering
   Odin emitter
 
-odineval
+probe
   scratch package generation
   internal/external eval
   odin run/check/build/test
@@ -68,14 +68,14 @@ odineval
 The old Python prototype should be treated as superseded rather than gradually
 evolved into the new language.
 
-The serious OdinL compiler/transpiler should be implemented in Odin itself.
+The serious Kvist compiler/transpiler should be implemented in Odin itself.
 
 Reasons:
 
 - the project is now a real language frontend, not a throwaway syntax sketch
 - implementing it in Odin keeps the toolchain aligned with the host language
 - the emitted-code model, type vocabulary, and interop concerns stay close to
-  the environment OdinL targets
+  the environment Kvist targets
 - long-term maintenance is cleaner if the compiler lives in the same ecosystem
 
 This implies a clean break:
@@ -92,7 +92,7 @@ The surface grammar uses three primary container shapes:
 - `[...]` for signatures and ordered binding lists
 - `{...}` for named fields and keyed literals
 
-`.odinl` source should be formatted like Clojure-family code, with 2-space
+`.kvist` source should be formatted like Clojure-family code, with 2-space
 indentation. This is separate from generated `.odin` and compiler `.odin`
 source, which use ordinary Odin 4-space indentation.
 
@@ -110,7 +110,7 @@ Qualified Odin names such as `fmt.println`, `strings.clone`, and
 
 ## File Model
 
-For v0.1, `.odinl` files should be pure OdinL source.
+For v0.1, `.kvist` files should be pure Kvist source.
 
 That means:
 
@@ -119,7 +119,7 @@ That means:
 - no partial "copy this chunk through unchanged" file model
 - raw Odin only through explicit escape hatches such as `(odin "...")`
 
-Ordinary `.odin` files remain ordinary Odin and should not require OdinL.
+Ordinary `.odin` files remain ordinary Odin and should not require Kvist.
 
 This keeps the compiler architecture much cleaner:
 
@@ -164,7 +164,7 @@ enough that common Odin names do not require escaping.
 
 ## Name Mapping
 
-OdinL source names and emitted Odin identifiers do not need to use exactly the
+Kvist source names and emitted Odin identifiers do not need to use exactly the
 same spelling, but the mapping should be simple and predictable.
 
 The conservative default is:
@@ -259,7 +259,7 @@ Likewise, enum tag references should map the same way:
 
 ### Qualified names
 
-Qualified names should map component-wise when they refer to OdinL-defined
+Qualified names should map component-wise when they refer to Kvist-defined
 identifiers, while existing imported Odin names should remain as written.
 
 This means the compiler should resolve names first and emit them second, rather
@@ -986,7 +986,7 @@ mutation:
 ### Higher-order procedures
 
 Higher-order procedures are supported because Odin procedure values are
-first-class. OdinL should expose that directly, but honestly:
+first-class. Kvist should expose that directly, but honestly:
 
 - anonymous procedures are non-capturing
 - any callback that needs runtime context must receive that context explicitly
@@ -1041,7 +1041,7 @@ procedures in the same output file. Keywords used as callbacks in these helpers
 lower to generated field-specific helper procedures; they are shorthand for
 field access, not a general callable keyword/map-lookup abstraction. The broader
 collection-processing model is still intentionally not locked down yet. In
-particular, OdinL should not prematurely commit to:
+particular, Kvist should not prematurely commit to:
 
 - `*-into` helper families
 - seq semantics
@@ -1061,7 +1061,7 @@ Anonymous procedures use `proc` as an expression form:
      allocator)
 ```
 
-Because Odin only has non-capturing lambda procedures, OdinL should not pretend
+Because Odin only has non-capturing lambda procedures, Kvist should not pretend
 to support Clojure-style closure capture unless it later grows a deliberate
 closure-lowering model.
 
@@ -1097,7 +1097,7 @@ they return slice views or owned dynamic arrays.
 
 ### File-backed development values
 
-OdinL supports the first small piece of a disk-backed iterative workflow with
+Kvist supports the first small piece of a disk-backed iterative workflow with
 thin `core:os` forms:
 
 ```clojure
@@ -1127,7 +1127,7 @@ thin `core:os` forms:
 `slurp` lowers to `os.read_entire_file(path, context.allocator)` and returns
 owned `[]byte` plus `os.Error`. The caller must delete the bytes when keeping
 the value local, or return them to transfer ownership. Data marshalling is not
-OdinL core syntax: use Odin's libraries explicitly, such as `json.marshal` and
+Kvist core syntax: use Odin's libraries explicitly, such as `json.marshal` and
 `json.unmarshal` from `core:encoding/json`. The caller owns any data allocated
 inside a successfully decoded value.
 
@@ -1357,7 +1357,7 @@ These stay deferred until the core language is stable:
 
 ## Planned Supported Subset
 
-OdinL should not attempt to support all of Odin. The language should only cover
+Kvist should not attempt to support all of Odin. The language should only cover
 the parts that are common, mechanically lowerable, and worth having in Lisp
 surface syntax.
 
@@ -1416,7 +1416,7 @@ surface syntax.
 ## Attributes and Directives
 
 Attributes and directives occur in real Odin code, but they do not yet justify a
-rich OdinL surface.
+rich Kvist surface.
 
 Examples of the kind of thing this covers:
 
@@ -1461,7 +1461,7 @@ and should lower transparently to ordinary Odin spellings.
 ## Documentation Comments
 
 Odin's documentation tooling works from ordinary preceding comments, not from a
-special runtime docstring construct. OdinL should align with that model.
+special runtime docstring construct. Kvist should align with that model.
 
 That means the v0.1 documentation story should be simple:
 
@@ -1577,7 +1577,7 @@ inventing tuple-packing surface syntax.
 
 ## Nil and Optional Conventions
 
-OdinL should expose `nil` where Odin itself already has nil-capable values, but
+Kvist should expose `nil` where Odin itself already has nil-capable values, but
 `nil` should not become the language's universal success/failure convention.
 
 The preferred core style is Odin-first explicit multi-return:
@@ -1617,7 +1617,7 @@ The intended stance is:
 - `nil` exists where Odin already supports it
 - `nil` is not the universal absence/failure protocol
 - lookup and parse-style operations should prefer explicit multi-return
-- OdinL should not invent a language-level Maybe/Result abstraction in v0.1
+- Kvist should not invent a language-level Maybe/Result abstraction in v0.1
 
 ## Odin Interop
 
@@ -1663,11 +1663,11 @@ This should lower to ordinary Odin with:
 
 ## Evaluation Model
 
-OdinL should support REPL-like development, but not a real interpreter.
+Kvist should support REPL-like development, but not a real interpreter.
 
 The intended workflow is:
 
-1. select one or more OdinL forms
+1. select one or more Kvist forms
 2. lower them to scratch Odin
 3. generate a temp runner package
 4. invoke `odin run` or `odin check`
@@ -1681,10 +1681,10 @@ Useful editor commands later:
 - macroexpand form
 - show lowered Odin
 
-The current CLI supports both inspection levels. `odinl macroexpand file.odinl
+The current CLI supports both inspection levels. `kvist macroexpand file.kvist
 FORM` shows frontend expansion for macro-like forms such as `with-allocator`;
 `--map output.map` also writes a line-oriented expansion map back to the
-original form. `odinl expand file.odinl FORM` emits the generated scratch Odin
+original form. `kvist expand file.kvist FORM` emits the generated scratch Odin
 for the selected form without running it.
 
 The development model should become richer without becoming stateful. Tooling
@@ -1713,7 +1713,7 @@ used as a `->` / `->>` step, where it is a pass-through expression:
 
 Ownership passes through `tap>`. If a tapped threaded value is an owned final
 result, the caller or local binding still owns it. If a tapped owned value is an
-intermediate, OdinL emits the same cleanup it would for the underlying pipeline
+intermediate, Kvist emits the same cleanup it would for the underlying pipeline
 step.
 
 See `docs/TOOLING.md` for the current plan around tap-style inspection,
@@ -1721,7 +1721,7 @@ file-backed dev values, watches, and Emacs integration.
 
 ## Macros
 
-Because OdinL is a Lisp, macros are likely an important later feature. But they
+Because Kvist is a Lisp, macros are likely an important later feature. But they
 should arrive only after the core surface language is stable. They are now one
 of the next major design areas after the direct compiler surface and eager
 sequence library are in good shape.
@@ -1729,7 +1729,7 @@ sequence library are in good shape.
 The intended macro direction is:
 
 - compile-time only
-- source-to-source over OdinL forms and AST, not runtime metaprogramming
+- source-to-source over Kvist forms and AST, not runtime metaprogramming
 - no hidden interpreter world
 - no requirement for a persistent dynamic environment
 - expansion results should still lower to ordinary readable Odin
@@ -1739,12 +1739,12 @@ runtime facility.
 
 The current compiler has an explicit compiler-defined macro registry for the
 forms that behave like macros today. `with-allocator`, `with-temp-allocator`,
-and `with-delete` are classified there and shown by `odinl macroexpand`.
+and `with-delete` are classified there and shown by `kvist macroexpand`.
 Compilation still lowers them directly in statement emission where necessary,
 because that path currently carries the ownership escape checks for temp
 allocator scopes and `with-delete` bindings. This is a deliberate intermediate
 state: macro classification is explicit, but arbitrary user-defined macros and a
-full expansion pass are still future work. `odinl macroexpand` does expand
+full expansion pass are still future work. `kvist macroexpand` does expand
 nested compiler-defined macro forms inside ordinary wrapper forms and `with-*`
 bodies, which keeps stacked resource-scope previews honest. The resulting text
 is an inspection view, not a source formatter.
@@ -1753,7 +1753,7 @@ is an inspection view, not a source formatter.
 
 Allocator-oriented `with-*` forms should behave like macro-expanded resource
 scopes over ordinary Odin. `with-allocator` and `with-temp-allocator` are
-supported directly and are inspectable through `odinl macroexpand` while the
+supported directly and are inspectable through `kvist macroexpand` while the
 general macro system is still pending.
 
 The implemented shape is:
@@ -1804,7 +1804,7 @@ It lowers to the moral equivalent of:
 
 The explicit `base:runtime` import is intentional for now. The generated Odin
 uses Odin's normal temp allocator API directly instead of hiding it behind an
-OdinL runtime. Owned values allocated in this scope must not escape it; the
+Kvist runtime. Owned values allocated in this scope must not escape it; the
 compiler rejects obvious direct returns of owned helper results from
 `with-temp-allocator`.
 
@@ -1823,7 +1823,7 @@ It lowers to the moral equivalent of:
 
 ```odin
 {
-    active := odinl_filter(active_p, users[:])
+    active := kvist_filter(active_p, users[:])
     defer delete(active)
     ...
 }
@@ -1969,7 +1969,7 @@ committing too early to semantic interpretation.
 
 #### AST
 
-The AST should model OdinL constructs directly when doing so improves the
+The AST should model Kvist constructs directly when doing so improves the
 compiler. Declaration-level AST nodes are worth having immediately:
 
 - `PackageDecl`
@@ -2002,7 +2002,7 @@ does the job.
 The IR should be Odin-shaped and intentionally boring.
 
 It is not a generic optimizer IR. It exists only where it makes emission simple,
-keeps diagnostics precise, or makes the boundary between OdinL semantics and
+keeps diagnostics precise, or makes the boundary between Kvist semantics and
 Odin output explicit.
 
 Likely IR nodes that may earn their place over time:
@@ -2016,7 +2016,7 @@ Likely IR nodes that may earn their place over time:
 - loops
 - raw emitted snippets only where deliberately allowed
 
-The key discipline is that when code reaches IR, any represented OdinL sugar
+The key discipline is that when code reaches IR, any represented Kvist sugar
 should already be gone. But trivial expression sugar does not need an IR node
 until having one improves the compiler.
 
@@ -2028,7 +2028,7 @@ Minimum expectation:
 
 - every significant parsed/lowered node has a span
 - declarations keep attached leading doc comments
-- parse/lower errors point back to `.odinl` locations, not just generated Odin
+- parse/lower errors point back to `.kvist` locations, not just generated Odin
 
 Comments themselves should not be preserved indiscriminately forever, but the
 compiler should preserve enough information to:
@@ -2038,7 +2038,7 @@ compiler should preserve enough information to:
 - support future macro/source inspection tools
 
 The CLI can emit a line-oriented source map with `--map`: generated start/end
-lines paired with the original OdinL byte span. Declaration spans are the
+lines paired with the original Kvist byte span. Declaration spans are the
 fallback, and the emitter also records narrower spans for body forms, binding
 assignments, and common statement subforms such as conditions, loop collections,
 return values, and assignment values. Diagnostic remapping prefers the narrowest
@@ -2105,7 +2105,7 @@ format-preserving ambitions.
 
 The first implementation milestone should remain modest:
 
-1. parse pure `.odinl`
+1. parse pure `.kvist`
 2. support comments, `#_`, keywords, symbols, vectors, and brace forms
 3. build a clean declaration AST
 4. lower a small locked subset to readable Odin
@@ -2129,8 +2129,8 @@ Building the compiler in Odin does not require a mystical bootstrap story.
 The practical approach is:
 
 - use ordinary Odin tooling to build the compiler binary
-- keep test fixtures in `.odinl` plus expected `.odin`
-- use `odineval` later for interactive workflows around the compiler's output
+- keep test fixtures in `.kvist` plus expected `.odin`
+- use `probe` later for interactive workflows around the compiler's output
 
-The important point is that OdinL should compile to Odin, while the OdinL
+The important point is that Kvist should compile to Odin, while the Kvist
 compiler itself is just an ordinary Odin program.

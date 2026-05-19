@@ -1,4 +1,4 @@
-# odinl
+# Kvist
 
 An experiment in writing Odin with a small Clojure/Lisp-shaped syntax: Odin in
 parens, not Clojure on Odin.
@@ -16,10 +16,10 @@ new semantic layer. The goal is:
 ## Plan
 
 The first milestone is a small Odin compiler/transpiler that is pleasant enough
-for small pure `.odinl` files:
+for small pure `.kvist` files:
 
-- one `.odinl` file emits one `.odin` file
-- `.odinl` files use OdinL forms rather than mixed raw Odin top-level text
+- one `.kvist` file emits one `.odin` file
+- `.kvist` files use Kvist forms rather than mixed raw Odin top-level text
 - forms map mechanically to Odin constructs
 - generated Odin stays readable and debuggable
 - Odin remains responsible for type checking, semantics, and diagnostics
@@ -72,8 +72,8 @@ main :: proc() {
 ## Usage
 
 ```sh
-odin build cmd/odinl
-./odinl examples/hello.odinl -o /tmp/hello.odin
+odin build cmd/kvist
+./kvist examples/hello.kvist -o /tmp/hello.odin
 odin check /tmp/hello.odin -file
 ```
 
@@ -81,10 +81,10 @@ If `-o` is omitted, generated Odin is written to stdout.
 Pass `--map /tmp/hello.map` to also write a declaration-level source map:
 
 ```sh
-./odinl examples/hello.odinl -o /tmp/hello.odin --map /tmp/hello.map
+./kvist examples/hello.kvist -o /tmp/hello.odin --map /tmp/hello.map
 ```
 
-Run the executable examples through OdinL and then `odin check` with:
+Run the executable examples through Kvist and then `odin check` with:
 
 ```sh
 ./scripts/check_examples.sh
@@ -99,26 +99,26 @@ Run CLI and Emacs-tooling integration checks with:
 Generate a scratch runner for one selected form with:
 
 ```sh
-./odinl eval examples/higher-order.odinl '(reduce add 0 (new []int [1 2 3]))'
+./kvist eval examples/higher-order.kvist '(reduce add 0 (new []int [1 2 3]))'
 ```
 
 Inspect the generated scratch Odin without running it with:
 
 ```sh
-./odinl expand examples/higher-order.odinl '(reduce add 0 (new []int [1 2 3]))'
+./kvist expand examples/higher-order.kvist '(reduce add 0 (new []int [1 2 3]))'
 ```
 
 Inspect frontend macro-style expansion before Odin lowering with:
 
 ```sh
-./odinl macroexpand examples/data-literals.odinl '(with-allocator [allocator context.temp_allocator] (temp-buffer-len))'
+./kvist macroexpand examples/data-literals.kvist '(with-allocator [allocator context.temp_allocator] (temp-buffer-len))'
 ```
 
 The CLI can also invoke Odin for generated files directly:
 
 ```sh
-./odinl check examples/hello.odinl
-./odinl run examples/hello.odinl
+./kvist check examples/hello.kvist
+./kvist run examples/hello.kvist
 ```
 
 The examples cover control flow, collection literals, procedure values,
@@ -146,8 +146,8 @@ For the current-only aggregate helper comparison against direct Odin, run:
 ./scripts/bench_aggregate_helpers.sh
 ```
 
-The compiler implementation is in Odin under `src/odinl`; the CLI entry point
-is `cmd/odinl/main.odin`.
+The compiler implementation is in Odin under `src/kvist`; the CLI entry point
+is `cmd/kvist/main.odin`.
 
 Tooling notes for the post-compiler Emacs/eval work are in
 [docs/TOOLING.md](docs/TOOLING.md).
@@ -156,15 +156,15 @@ The eager sequence helper direction is documented in
 Ownership and deletion rules are documented in
 [docs/OWNERSHIP.md](docs/OWNERSHIP.md).
 The runnable example guide is in [examples/README.md](examples/README.md).
-Emacs support is in [emacs/odinl-mode.el](emacs/odinl-mode.el) and
-[emacs/odinl-eval.el](emacs/odinl-eval.el).
+Emacs support is in [emacs/kvist-mode.el](emacs/kvist-mode.el) and
+[emacs/kvist-eval.el](emacs/kvist-eval.el).
 
 ## File Model
 
-The intended source extension is `.odinl`.
+The intended source extension is `.kvist`.
 
 Normal `.odin` files should remain ordinary Odin and should not require this
-translator. For v0.1, `.odinl` files are pure OdinL source. Raw Odin is
+translator. For v0.1, `.kvist` files are pure Kvist source. Raw Odin is
 available through explicit `(odin "...")` escape hatches rather than implicit
 passthrough.
 
@@ -187,7 +187,7 @@ Example:
 ```
 
 The Odin compiler should only see generated `.odin` files. That keeps normal
-Odin tooling honest while OdinL remains a source-to-source layer.
+Odin tooling honest while Kvist remains a source-to-source layer.
 
 ## Syntax Shape
 
@@ -225,7 +225,7 @@ answer :: proc() -> int {
 
 ## REPL-Like Development
 
-Odin does not have a Lisp-style stateful REPL, but `odinl` can still aim for
+Odin does not have a Lisp-style stateful REPL, but `kvist` can still aim for
 a useful eval-selection workflow.
 
 The idea is to make editor tooling that takes one selected form, generates a
@@ -243,12 +243,12 @@ Possible levels:
   enough to feel interactive from Emacs
 
 The constraint is important: eval should preserve Odin semantics exactly. If a
-form only works because `odinl` invented a hidden dynamic environment, that
+form only works because `kvist` invented a hidden dynamic environment, that
 is the wrong direction.
 
-## Relationship to odineval
+## Relationship to probe
 
-`odineval` can be a useful base for OdinL tooling, but not for the OdinL
+`probe` can be a useful base for Kvist tooling, but not for the Kvist
 language layer itself.
 
 The parts that should transfer well are execution and editor workflow:
@@ -260,34 +260,34 @@ The parts that should transfer well are execution and editor workflow:
   commands
 - generated-code inspection and compiler failure handling
 
-The parts that should remain OdinL-specific are:
+The parts that should remain Kvist-specific are:
 
-- `.odinl` parsing
-- OdinL-to-Odin lowering
-- source mapping from `.odinl` locations to generated `.odin` locations
+- `.kvist` parsing
+- Kvist-to-Odin lowering
+- source mapping from `.kvist` locations to generated `.odin` locations
 - syntax decisions around `let`, literals, proc forms, implicit returns, and
   raw Odin escape hatches
 
 The likely architecture, if this project moves forward, is:
 
 ```text
-odinl
-  parser/lowering: .odinl -> .odin
+kvist
+  parser/lowering: .kvist -> .odin
   basic execution: compile/check/run/eval generated Odin
 
-odineval
+probe
   reference implementation and inspiration for richer Odin eval workflows
 
 shared later
   package discovery, temp workspace, command runner, Emacs result display
 ```
 
-The current `odinl` CLI already owns the basic eval/check/run loop so editor
-tooling can call one tool. `odineval` remains useful as a design reference for
+The current `kvist` CLI already owns the basic eval/check/run loop so editor
+tooling can call one tool. `probe` remains useful as a design reference for
 larger package-aware workflows and polished editor interaction.
 
-Do not merge the projects prematurely. `odineval` is useful because it makes
-ordinary Odin more interactive. OdinL is a syntax experiment. Keeping them
+Do not merge the projects prematurely. `probe` is useful because it makes
+ordinary Odin more interactive. Kvist is a syntax experiment. Keeping them
 separate avoids contaminating a practical tool with speculative syntax work.
 
 ## Data Literals
@@ -555,7 +555,7 @@ Conditionals as expressions when useful:
       "positive")))
 ```
 
-Raw Odin should remain available directly in `.odinl`:
+Raw Odin should remain available directly in `.kvist`:
 
 ```odin
 Foreign_Handle :: distinct rawptr

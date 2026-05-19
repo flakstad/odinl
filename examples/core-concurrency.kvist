@@ -3,7 +3,7 @@
 // Odin concurrency is explicit: OS threads, thread pools, channels, mutexes,
 // atomics, and allocators. There is no hidden green-thread runtime and no
 // Clojure-style derefable future in core. This file shows the boring Odin
-// shapes directly, with OdinL only providing parens and the small `(type ...)`
+// shapes directly, with Kvist only providing parens and the small `(type ...)`
 // spelling needed for polymorphic host types like chan.Chan(int).
 (package main)
 (import "core:fmt")
@@ -25,13 +25,13 @@
   ;; This is the manual Odin equivalent of a tiny future: create a result
   ;; channel, run a worker thread, receive the answer. The channel is an owned
   ;; value because chan.create was passed context.allocator.
-  (let [[result err] (chan.create (type chan.Chan int) 1 context.allocator)]
+  (let [[result-ch err] (chan.create (type chan.Chan int) 1 context.allocator)]
     (if (!= err .None)
       0
       (do
-        (defer (chan.destroy result))
-        (thread.run-with-poly-data result send-square)
-        (let [[value ok] (chan.recv result)]
+        (defer (chan.destroy result-ch))
+        (thread.run-with-poly-data result-ch send-square)
+        (let [[value ok] (chan.recv result-ch)]
           (if ok value 0))))))
 
 (proc increment-once [counter: (ptr Counter)]
@@ -58,7 +58,7 @@
 
 (comment
   ;; A channel plus a worker thread is the basic future-like pattern. This is
-  ;; deliberately not an OdinL abstraction yet; the underlying Odin ownership
+  ;; deliberately not a Kvist abstraction yet; the underlying Odin ownership
   ;; and blocking behavior stay visible.
   (future-like-square)
   ;; => 49

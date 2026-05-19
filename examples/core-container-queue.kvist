@@ -14,7 +14,7 @@
 })
 
 (proc fifo-total [] -> int
-  ;; queue.Queue(int) is an Odin polymorphic type constructor. OdinL spells it
+  ;; queue.Queue(int) is an Odin polymorphic type constructor. Kvist spells it
   ;; `(type queue.Queue int)` and then uses the ordinary queue API.
   (let [q: (type queue.Queue int) {}]
     (let [err (queue.init (addr q))]
@@ -44,7 +44,7 @@
 
 (proc safe-pop-score [] -> int
   ;; Safe pop returns value + bool. That is a normal Odin found/ok convention,
-  ;; so OdinL uses if-let rather than error handling.
+  ;; so Kvist uses if-let rather than error handling.
   (let [q: (type queue.Queue int) {}]
     (let [err (queue.init (addr q))]
       (if (!= err nil)
