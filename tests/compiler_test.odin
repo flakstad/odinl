@@ -200,6 +200,55 @@ main :: proc() {
 }
 
 @(test)
+compile_eval_source_prints_block_forms_as_statements :: proc(t: ^testing.T) {
+    source := `(package main)
+(import os "core:os")
+
+(proc load-note [path: string] -> [data: []byte, err: os.Error]
+  (slurp path))`
+
+    output, err, ok := odinl.compile_eval_source(source, `(let [[data err] (load-note "tmp/odinl-note.txt")]
+  (if (!= err nil)
+    0
+    (do
+      (defer (delete data))
+      (len data))))`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+import fmt "core:fmt"
+
+import os "core:os"
+
+load_note :: proc(path: string) -> (data: []byte, err: os.Error) {
+    return os.read_entire_file(path, context.allocator)
+}
+
+main :: proc() {
+    {
+        data, err := load_note("tmp/odinl-note.txt")
+        if (err) != (nil) {
+            fmt.println(0)
+        }
+        else {
+            {
+                defer delete(data)
+                fmt.println(len(data))
+            }
+        }
+    }
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 compile_eval_source_can_load_declaration_form :: proc(t: ^testing.T) {
     source := `(package main)
 

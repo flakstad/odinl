@@ -1240,6 +1240,11 @@ thread_temp_name :: proc(e: ^Emitter) -> string {
     return fmt.tprintf("odinl_thread_%d", e.temp_counter)
 }
 
+eval_temp_name :: proc(e: ^Emitter) -> string {
+    e.temp_counter += 1
+    return fmt.tprintf("odinl_eval_%d", e.temp_counter)
+}
+
 is_tap_thread_step :: proc(step: CST_Form) -> bool {
     return step.kind == .List && len(step.items) > 0 &&
            step.items[0].kind == .Symbol && step.items[0].text == "tap>"
@@ -4030,6 +4035,143 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
     }
 }
 
+emit_eval_print_expr :: proc(e: ^Emitter, form: CST_Form) -> (Compile_Error, bool) {
+    if form_is_owned_result(form) || form_is_owned_allocation_result(form) {
+        value, err_value, ok_value := emit_expr(e, form)
+        if !ok_value {
+            return err_value, false
+        }
+        temp := eval_temp_name(e)
+        emit_prefixed_expr(e, fmt.tprintf("%s := ", temp), value)
+        emit_line(e, fmt.tprintf("defer delete(%s)", temp))
+        emit_line(e, fmt.tprintf("fmt.println(%s)", temp))
+        return {}, true
+    }
+
+    value, err_value, ok_value := emit_expr(e, form)
+    if !ok_value {
+        return err_value, false
+    }
+    emit_line(e, fmt.tprintf("fmt.println(%s)", value))
+    return {}, true
+}
+
+emit_eval_print_body :: proc(e: ^Emitter, body: []CST_Form) -> (Compile_Error, bool) {
+    if len(body) == 0 {
+        return Compile_Error{message = "eval print body is empty"}, false
+    }
+    for form, idx in body {
+        last := idx == len(body)-1
+        if last {
+            return emit_eval_print_stmt(e, form)
+        }
+        err_stmt, ok_stmt := emit_stmt(e, form, false, Return_Spec{kind = .None})
+        if !ok_stmt {
+            return err_stmt, false
+        }
+    }
+    return {}, true
+}
+
+emit_eval_print_stmt :: proc(e: ^Emitter, form: CST_Form) -> (Compile_Error, bool) {
+    if form.kind != .List || len(form.items) == 0 || form.items[0].kind != .Symbol {
+        return emit_eval_print_expr(e, form)
+    }
+
+    head := form.items[0].text
+    switch head {
+    case "let":
+        if len(form.items) < 3 {
+            return Compile_Error{message = "let expects bindings and body", span = form.span}, false
+        }
+        bindings, err_bind, ok_bind := parse_let_bindings(form.items[1])
+        if !ok_bind {
+            return err_bind, false
+        }
+
+        emit_line(e, "{")
+        e.indent += 1
+        for binding in bindings {
+            if is_thread_form(binding.value, true) {
+                err_thread, ok_thread := emit_thread_binding_assignment(e, binding, true)
+                if !ok_thread {
+                    return err_thread, false
+                }
+            } else if is_thread_form(binding.value, false) {
+                err_thread, ok_thread := emit_thread_binding_assignment(e, binding, false)
+                if !ok_thread {
+                    return err_thread, false
+                }
+            } else {
+                err_owned, bad_owned := owned_result_usage_error(binding.value, true)
+                if bad_owned {
+                    return err_owned, false
+                }
+                value, err_value, ok_value := emit_expr(e, binding.value)
+                if !ok_value {
+                    return err_value, false
+                }
+                emit_binding_assignment(e, binding, value)
+            }
+        }
+        err_body, ok_body := emit_eval_print_body(e, form.items[2:])
+        if !ok_body {
+            return err_body, false
+        }
+        e.indent -= 1
+        emit_line(e, "}")
+        return {}, true
+    case "do":
+        if len(form.items) < 2 {
+            return Compile_Error{message = "do expects a body", span = form.span}, false
+        }
+        emit_line(e, "{")
+        e.indent += 1
+        err_body, ok_body := emit_eval_print_body(e, form.items[1:])
+        if !ok_body {
+            return err_body, false
+        }
+        e.indent -= 1
+        emit_line(e, "}")
+        return {}, true
+    case "if":
+        if len(form.items) < 3 || len(form.items) > 4 {
+            return Compile_Error{message = "if expects test, then, and optional else", span = form.span}, false
+        }
+        test, err_test, ok_test := emit_expr(e, form.items[1])
+        if !ok_test {
+            return err_test, false
+        }
+        emit_indent(e)
+        strings.write_string(&e.builder, "if ")
+        strings.write_string(&e.builder, test)
+        strings.write_string(&e.builder, " {")
+        emit_raw_newline(e)
+        e.indent += 1
+        err_then, ok_then := emit_eval_print_stmt(e, form.items[2])
+        if !ok_then {
+            return err_then, false
+        }
+        e.indent -= 1
+        emit_line(e, "}")
+        if len(form.items) == 4 {
+            emit_indent(e)
+            strings.write_string(&e.builder, "else {")
+            emit_raw_newline(e)
+            e.indent += 1
+            err_else, ok_else := emit_eval_print_stmt(e, form.items[3])
+            if !ok_else {
+                return err_else, false
+            }
+            e.indent -= 1
+            emit_line(e, "}")
+        }
+        return {}, true
+    }
+
+    return emit_eval_print_expr(e, form)
+}
+
 emit_return_spec :: proc(e: ^Emitter, returns: Return_Spec) {
     #partial switch returns.kind {
     case .None:
@@ -5864,6 +6006,90 @@ emit_decls_with_source_map :: proc(decls: []IR_Decl) -> (Emit_Result, Compile_Er
     return result, {}, true
 }
 
+emit_eval_decls_with_source_map :: proc(decls: []IR_Decl, eval_form: CST_Form, no_print: bool) -> (Emit_Result, Compile_Error, bool) {
+    result := Emit_Result{}
+    features := Emitter_Features{}
+    e := Emitter{
+        builder  = strings.builder_make(),
+        features = &features,
+        line     = 1,
+    }
+    defer strings.builder_destroy(&e.builder)
+    for decl in decls {
+        if decl.kind == .Union {
+            append(&e.unions, decl.union_decl)
+        }
+    }
+    for decl, idx in decls {
+        start_line := e.line
+        err_decl, ok_decl := emit_decl(&e, decl)
+        if !ok_decl {
+            return result, err_decl, false
+        }
+        emitted_lines := e.line > start_line
+        end_line := e.line - 1
+        if !emitted_lines {
+            end_line = start_line
+        }
+        append(&result.source_map, Source_Map_Entry{
+            generated_start_line = start_line,
+            generated_end_line   = end_line,
+            source_span          = decl.span,
+        })
+        if idx+1 < len(decls) && emitted_lines {
+            if e.attach_next_decl {
+                e.attach_next_decl = false
+                continue
+            }
+            strings.write_byte(&e.builder, '\n')
+            e.line += 1
+        }
+    }
+
+    if e.line > 1 {
+        strings.write_byte(&e.builder, '\n')
+        e.line += 1
+    }
+
+    start_line := e.line
+    emit_line(&e, "main :: proc() {")
+    e.indent += 1
+    if no_print {
+        err_stmt, ok_stmt := emit_stmt(&e, eval_form, false, Return_Spec{kind = .None})
+        if !ok_stmt {
+            return result, err_stmt, false
+        }
+    } else {
+        err_stmt, ok_stmt := emit_eval_print_stmt(&e, eval_form)
+        if !ok_stmt {
+            return result, err_stmt, false
+        }
+    }
+    e.indent -= 1
+    emit_line(&e, "}")
+    append(&result.source_map, Source_Map_Entry{
+        generated_start_line = start_line,
+        generated_end_line   = e.line - 1,
+        source_span          = eval_form.span,
+    })
+
+    emit_core_helpers(&e, features)
+    if features.dynamic_literals {
+        output_builder := strings.builder_make()
+        defer strings.builder_destroy(&output_builder)
+        strings.write_string(&output_builder, "#+feature dynamic-literals\n")
+        strings.write_string(&output_builder, strings.to_string(e.builder))
+        for &entry in result.source_map {
+            entry.generated_start_line += 1
+            entry.generated_end_line += 1
+        }
+        result.output = strings.clone(strings.to_string(output_builder))
+        return result, {}, true
+    }
+    result.output = strings.clone(strings.to_string(e.builder))
+    return result, {}, true
+}
+
 emit_ir_program :: proc(program: IR_Program) -> (string, Compile_Error, bool) {
     return emit_decls(program.decls[:])
 }
@@ -5941,23 +6167,7 @@ emit_eval_program_with_source_map :: proc(program: IR_Program, eval_form: CST_Fo
         append(&decls, decl)
     }
 
-    body: [dynamic]CST_Form
-    if no_print {
-        append(&body, eval_form)
-    } else {
-        append(&body, make_println_form(eval_form))
-    }
-
-    append(&decls, IR_Decl{
-        kind = .Proc,
-        span = eval_form.span,
-        proc_decl = Proc_Decl{
-            name = "main",
-            body = body,
-        },
-    })
-
-    return emit_decls_with_source_map(decls[:])
+    return emit_eval_decls_with_source_map(decls[:], eval_form, no_print)
 }
 
 decl_name :: proc(decl: IR_Decl) -> string {
