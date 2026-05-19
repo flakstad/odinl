@@ -34,7 +34,7 @@
     "let" "do" "if" "when" "cond" "switch" "set!" "return" "defer"
     "for" "each" "comment" "new" "make" "get" "nil?" "in" "not-in"
     "break" "continue" "with-allocator" "with-temp-allocator"
-    "with-delete" "slurp" "spit" "save-json" "load-json" "tap>"
+    "with-delete" "slurp" "spit" "tap>"
     "->" "->>")
   "OdinL special forms and syntactic heads.")
 
@@ -61,6 +61,16 @@
     ("\\_<\\.[[:alnum:]_][[:alnum:]_?!-]*\\_>" . font-lock-constant-face)
     (":[[:alnum:]_][[:alnum:]_?!-]*" . font-lock-builtin-face))
   "Extra font-lock rules for `odinl-mode'.")
+
+(defvar odinl-mode-syntax-table
+  (let ((table (copy-syntax-table clojure-mode-syntax-table)))
+    ;; Keep Clojure/Lisp comments, and also recognize Odin comments.
+    (modify-syntax-entry ?\; "<" table)
+    (modify-syntax-entry ?/ ". 124b" table)
+    (modify-syntax-entry ?* ". 23" table)
+    (modify-syntax-entry ?\n "> b" table)
+    table)
+  "Syntax table for `odinl-mode'.")
 
 (defun odinl--put-indent (symbol spec)
   "Install OdinL indentation SPEC for SYMBOL."
@@ -619,6 +629,7 @@
 ;;;###autoload
 (define-derived-mode odinl-mode clojure-mode "OdinL"
   "Major mode for editing OdinL source files."
+  :syntax-table odinl-mode-syntax-table
   (setq-local clojure-indent-style 'align-arguments)
   (setq-local clojure-align-forms-automatically nil)
   (setq-local lisp-body-indent odinl-indent-offset)
