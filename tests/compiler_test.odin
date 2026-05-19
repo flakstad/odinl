@@ -50,6 +50,9 @@ main :: proc() {
 compile_all_examples :: proc(t: ^testing.T) {
     examples := [?]string{
         "examples/control-flow.odinl",
+        "examples/core-math-linalg.odinl",
+        "examples/core-os-paths.odinl",
+        "examples/core-text-encoding.odinl",
         "examples/data-literals.odinl",
         "examples/declarations.odinl",
         "examples/dev-io.odinl",
@@ -62,6 +65,7 @@ compile_all_examples :: proc(t: ^testing.T) {
         "examples/sequences.odinl",
         "examples/tap.odinl",
         "examples/unions.odinl",
+        "examples/vendor-stb-easy-font.odinl",
     }
 
     for path in examples {
