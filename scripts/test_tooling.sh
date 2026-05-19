@@ -375,11 +375,11 @@ if command -v emacs >/dev/null 2>&1; then
                      (unless defs
                        (error \"Expected xref definition for same-file hyphenated proc\")))
                    (let ((defs (xref-backend-definitions (quote odinl) \"map\")))
-                     (unless defs
-                       (error \"Expected xref definition for OdinL helper map\")))
+                     (unless (and defs (string-match-p \"src/odinl/emit\\\\.odin\" (format \"%S\" defs)))
+                       (error \"Expected implementation xref for OdinL helper map, got: %S\" defs)))
                    (let ((defs (xref-backend-definitions (quote odinl) \"proc\")))
-                     (unless defs
-                       (error \"Expected xref definition for OdinL form proc\")))
+                     (unless (and defs (string-match-p \"src/odinl/parse\\\\.odin\" (format \"%S\" defs)))
+                       (error \"Expected implementation xref for OdinL form proc, got: %S\" defs)))
                    (let ((defs (xref-backend-definitions (quote odinl) \"fmt.println\")))
                      (unless defs
                        (error \"Expected xref definition for fmt.println\")))
