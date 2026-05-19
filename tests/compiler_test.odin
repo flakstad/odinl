@@ -1257,7 +1257,7 @@ compile_json_interop_is_explicit :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "data, marshal_err := json.marshal(user)"), true)
     testing.expect_value(t, strings.contains(output, "return (os.write_entire_file(path, data)) == (nil)"), true)
     testing.expect_value(t, strings.contains(output, "data, read_err := os.read_entire_file(path, context.allocator)"), true)
-    testing.expect_value(t, strings.contains(output, "unmarshal_err := json.unmarshal(data, &(user))"), true)
+    testing.expect_value(t, strings.contains(output, "unmarshal_err := json.unmarshal(data, &user)"), true)
     testing.expect_value(t, strings.contains(output, "defer delete(data)"), true)
     testing.expect_value(t, strings.contains(output, "odinl_save_json"), false)
     testing.expect_value(t, strings.contains(output, "odinl_load_json"), false)
