@@ -62,15 +62,20 @@
     (":[[:alnum:]_][[:alnum:]_?!-]*" . font-lock-builtin-face))
   "Extra font-lock rules for `odinl-mode'.")
 
-(defvar odinl-mode-syntax-table
+(defun odinl--make-syntax-table ()
+  "Return a fresh syntax table for `odinl-mode'."
   (let ((table (copy-syntax-table clojure-mode-syntax-table)))
     ;; Keep Clojure/Lisp comments, and also recognize Odin comments.
     (modify-syntax-entry ?\; "< b" table)
     (modify-syntax-entry ?/ ". 124b" table)
     (modify-syntax-entry ?* ". 23" table)
     (modify-syntax-entry ?\n "> b" table)
-    table)
+    table))
+
+(defvar odinl-mode-syntax-table (odinl--make-syntax-table)
   "Syntax table for `odinl-mode'.")
+
+(setq odinl-mode-syntax-table (odinl--make-syntax-table))
 
 (defun odinl--put-indent (symbol spec)
   "Install OdinL indentation SPEC for SYMBOL."
@@ -630,6 +635,7 @@
 (define-derived-mode odinl-mode clojure-mode "OdinL"
   "Major mode for editing OdinL source files."
   :syntax-table odinl-mode-syntax-table
+  (set-syntax-table odinl-mode-syntax-table)
   (setq-local clojure-indent-style 'align-arguments)
   (setq-local clojure-align-forms-automatically nil)
   (setq-local lisp-body-indent odinl-indent-offset)
