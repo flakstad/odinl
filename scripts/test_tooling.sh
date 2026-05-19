@@ -315,6 +315,18 @@ assert_eq "2" "$(./odinl eval examples/core-time-slice.odinl '(fixed-date-weekda
 assert_eq "10" "$(./odinl eval examples/core-time-slice.odinl '(fixed-date-string-length)')" "fixed-date-string-length"
 assert_eq "17" "$(./odinl eval examples/core-time-slice.odinl '(min-max-score)')" "min-max-score"
 assert_eq "2" "$(./odinl eval examples/core-time-slice.odinl '(search-score)')" "search-score"
+parallel_eval_output=$(
+    printf '%s\n' \
+        '(duration-ms)' \
+        '(fixed-date-weekday)' \
+        '(fixed-date-string-length)' \
+        '(min-max-score)' \
+        '(search-score)' |
+        xargs -P 5 -I FORM ./odinl eval examples/core-time-slice.odinl FORM |
+        sort
+)
+parallel_eval_expected=$(printf '10\n1500\n17\n2\n2')
+assert_eq "$parallel_eval_expected" "$parallel_eval_output" "parallel eval output"
 assert_eq "parsed 1" "$(./odinl eval examples/error-handling.odinl "(parse-label \"one\")")" "parse-label"
 assert_eq "not parsed" "$(./odinl eval examples/error-handling.odinl "(parse-label \"missing\")")" "parse-label-missing"
 assert_eq "3" "$(./odinl eval examples/error-handling.odinl "(parsed-total \"one\" \"two\")")" "parsed-total"
