@@ -1669,6 +1669,17 @@ The intended macro direction is:
 This means macros should be designed as a language frontend feature, not as a
 runtime facility.
 
+The current compiler has an explicit compiler-defined macro registry for the
+forms that behave like macros today. `with-allocator`, `with-temp-allocator`,
+and `with-delete` are classified there and shown by `odinl macroexpand`.
+Compilation still lowers them directly in statement emission where necessary,
+because that path currently carries the ownership escape checks for temp
+allocator scopes and `with-delete` bindings. This is a deliberate intermediate
+state: macro classification is explicit, but arbitrary user-defined macros and a
+full expansion pass are still future work. `odinl macroexpand` does expand
+nested compiler-defined macro forms inside `with-*` bodies, which keeps stacked
+resource-scope previews honest.
+
 ### `with-*` forms
 
 Allocator-oriented `with-*` forms should behave like macro-expanded resource

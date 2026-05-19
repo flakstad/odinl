@@ -10,6 +10,25 @@ Macro_Expander :: struct {
     source_map: ^[dynamic]Source_Map_Entry,
 }
 
+builtin_macro_kind :: proc(head: string) -> Builtin_Macro_Kind {
+    switch head {
+    case "with-allocator":
+        return .With_Allocator
+    case "with-temp-allocator":
+        return .With_Temp_Allocator
+    case "with-delete":
+        return .With_Delete
+    }
+    return .None
+}
+
+builtin_macro_form_kind :: proc(form: CST_Form) -> Builtin_Macro_Kind {
+    if form.kind != .List || len(form.items) == 0 || form.items[0].kind != .Symbol {
+        return .None
+    }
+    return builtin_macro_kind(form.items[0].text)
+}
+
 macro_record_source_map :: proc(e: ^Macro_Expander, start_line, end_line: int, span: Span) {
     if e.source_map == nil || end_line < start_line {
         return
@@ -26,6 +45,63 @@ macro_emit_line :: proc(e: ^Macro_Expander, text: string, span: Span) {
     strings.write_byte(&e.builder, '\n')
     macro_record_source_map(e, e.line, e.line, span)
     e.line += 1
+}
+
+macro_emit_expanded_form :: proc(e: ^Macro_Expander, indent: string, form: CST_Form, suffix: string = "") -> (Compile_Error, bool) {
+    expanded, err_expand, ok_expand := macroexpand_form(form)
+    if !ok_expand {
+        return err_expand, false
+    }
+    defer delete(expanded.output)
+    defer delete(expanded.source_map)
+
+    start_line := e.line
+    text_end := len(expanded.output)
+    if text_end > 0 && expanded.output[text_end-1] == '\n' {
+        text_end -= 1
+    }
+
+    start := 0
+    i := 0
+    for i < text_end {
+        if expanded.output[i] == '\n' {
+            strings.write_string(&e.builder, indent)
+            strings.write_string(&e.builder, expanded.output[start:i])
+            strings.write_byte(&e.builder, '\n')
+            e.line += 1
+            start = i + 1
+        }
+        i += 1
+    }
+    strings.write_string(&e.builder, indent)
+    strings.write_string(&e.builder, expanded.output[start:text_end])
+    strings.write_string(&e.builder, suffix)
+    strings.write_byte(&e.builder, '\n')
+    e.line += 1
+
+    if len(expanded.source_map) == 0 {
+        macro_record_source_map(e, start_line, e.line-1, form.span)
+        return {}, true
+    }
+
+    for entry in expanded.source_map {
+        adjusted := entry
+        adjusted.generated_start_line = start_line + entry.generated_start_line - 1
+        adjusted.generated_end_line = start_line + entry.generated_end_line - 1
+        append(e.source_map, adjusted)
+    }
+    return {}, true
+}
+
+macro_emit_body_form :: proc(e: ^Macro_Expander, item: CST_Form, suffix: string) -> (Compile_Error, bool) {
+    if builtin_macro_form_kind(item) != .None {
+        return macro_emit_expanded_form(e, "    ", item, suffix)
+    }
+
+    item_text := macro_form_text(item)
+    defer delete(item_text)
+    macro_emit_line(e, fmt.tprintf("    %s%s", item_text, suffix), item.span)
+    return {}, true
 }
 
 write_macro_form :: proc(builder: ^strings.Builder, form: CST_Form) {
@@ -93,13 +169,14 @@ macroexpand_with_allocator :: proc(form: CST_Form) -> (result: Emit_Result, err:
     macro_emit_line(&e, "      (set! context.allocator odinl-old-allocator-1)))", form.span)
     body := form.items[2:]
     for item, idx in body {
-        item_text := macro_form_text(item)
-        defer delete(item_text)
         suffix := ""
         if idx == len(body)-1 {
             suffix = "))"
         }
-        macro_emit_line(&e, fmt.tprintf("    %s%s", item_text, suffix), item.span)
+        err_body, ok_body := macro_emit_body_form(&e, item, suffix)
+        if !ok_body {
+            return result, err_body, false
+        }
     }
 
     result.output = strings.clone(strings.to_string(e.builder))
@@ -130,13 +207,14 @@ macroexpand_with_temp_allocator :: proc(form: CST_Form) -> (result: Emit_Result,
     macro_emit_line(&e, "      (runtime.default-temp-allocator-temp-end odinl-temp-scope-1)))", form.span)
     body := form.items[2:]
     for item, idx in body {
-        item_text := macro_form_text(item)
-        defer delete(item_text)
         suffix := ""
         if idx == len(body)-1 {
             suffix = "))"
         }
-        macro_emit_line(&e, fmt.tprintf("    %s%s", item_text, suffix), item.span)
+        err_body, ok_body := macro_emit_body_form(&e, item, suffix)
+        if !ok_body {
+            return result, err_body, false
+        }
     }
 
     result.output = strings.clone(strings.to_string(e.builder))
@@ -183,13 +261,14 @@ macroexpand_with_delete :: proc(form: CST_Form) -> (result: Emit_Result, err: Co
     }
     body := form.items[2:]
     for item, idx in body {
-        item_text := macro_form_text(item)
-        defer delete(item_text)
         suffix := ""
         if idx == len(body)-1 {
             suffix = "))"
         }
-        macro_emit_line(&e, fmt.tprintf("    %s%s", item_text, suffix), item.span)
+        err_body, ok_body := macro_emit_body_form(&e, item, suffix)
+        if !ok_body {
+            return result, err_body, false
+        }
     }
 
     result.output = strings.clone(strings.to_string(e.builder))
@@ -197,15 +276,14 @@ macroexpand_with_delete :: proc(form: CST_Form) -> (result: Emit_Result, err: Co
 }
 
 macroexpand_form :: proc(form: CST_Form) -> (result: Emit_Result, err: Compile_Error, ok: bool) {
-    if form.kind == .List && len(form.items) > 0 && form.items[0].kind == .Symbol {
-        switch form.items[0].text {
-        case "with-allocator":
-            return macroexpand_with_allocator(form)
-        case "with-temp-allocator":
-            return macroexpand_with_temp_allocator(form)
-        case "with-delete":
-            return macroexpand_with_delete(form)
-        }
+    switch builtin_macro_form_kind(form) {
+    case .With_Allocator:
+        return macroexpand_with_allocator(form)
+    case .With_Temp_Allocator:
+        return macroexpand_with_temp_allocator(form)
+    case .With_Delete:
+        return macroexpand_with_delete(form)
+    case .None:
     }
 
     builder := strings.builder_make()

@@ -1631,6 +1631,32 @@ macroexpand_with_delete_multiple_bindings :: proc(t: ^testing.T) {
 }
 
 @(test)
+macroexpand_expands_nested_builtin_macro_body :: proc(t: ^testing.T) {
+    output, err, ok := odinl.macroexpand_source(`(with-allocator [allocator context.temp_allocator]
+  (with-delete [xs (new [dynamic]int [1 2])]
+    (count xs)))`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `(do
+  (let [allocator context.temp_allocator
+        odinl-old-allocator-1 context.allocator]
+    (set! context.allocator allocator)
+    (defer (do
+      (set! context.allocator odinl-old-allocator-1)))
+    (do
+      (let [xs (new [dynamic]int [1 2])]
+        (defer (delete xs))
+        (count xs)))))
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 macroexpand_source_map_marks_generated_lines :: proc(t: ^testing.T) {
     source := `(with-delete [xs (map inc users) ys (filter even? xs)]
   (count ys))`

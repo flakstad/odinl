@@ -3908,6 +3908,16 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         }
     }
 
+    switch builtin_macro_kind(head.text) {
+    case .With_Allocator:
+        return emit_with_allocator_stmt(e, form, last_in_proc, returns)
+    case .With_Temp_Allocator:
+        return emit_with_temp_allocator_stmt(e, form, last_in_proc, returns)
+    case .With_Delete:
+        return emit_with_delete_stmt(e, form, last_in_proc, returns)
+    case .None:
+    }
+
     switch head.text {
     case "comment":
         return {}, true
@@ -4024,12 +4034,6 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         return emit_if_like(e, "if", form, last_in_proc, returns)
     case "cond":
         return emit_cond_stmt(e, form, last_in_proc, returns)
-    case "with-allocator":
-        return emit_with_allocator_stmt(e, form, last_in_proc, returns)
-    case "with-temp-allocator":
-        return emit_with_temp_allocator_stmt(e, form, last_in_proc, returns)
-    case "with-delete":
-        return emit_with_delete_stmt(e, form, last_in_proc, returns)
     case "switch":
         return emit_switch_stmt(e, form, last_in_proc, returns)
     case "return":

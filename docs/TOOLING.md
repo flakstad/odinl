@@ -105,6 +105,16 @@ runtime facility:
   where practical;
 - macros must not introduce a hidden stateful REPL or dynamic runtime world.
 
+The current implementation has a small compiler-defined macro registry rather
+than user-defined macros. The registry is shared by `odinl macroexpand` and the
+normal emitter so supported macro-like forms have one explicit classification
+point. For now, normal compilation still lowers these forms directly where that
+keeps ownership checks precise; a later expansion phase can move more of that
+lowering into frontend form rewriting once diagnostics and ownership rules stay
+equally clear. `odinl macroexpand` expands nested compiler-defined macro forms
+inside `with-*` bodies so resource-scope previews show the shape of stacked
+cleanup/resource helpers.
+
 Good first macro candidates are resource-scope and repetition helpers that
 clearly expand to existing forms, such as allocator setup/teardown,
 `with-*`-style cleanup, and repetitive check/error propagation.

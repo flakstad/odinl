@@ -189,3 +189,10 @@ Compile_Error :: struct {
     message: string,
     span:    Span,
 }
+
+Builtin_Macro_Kind :: enum {
+    None,
+    With_Allocator,
+    With_Temp_Allocator,
+    With_Delete,
+}
