@@ -1631,6 +1631,38 @@ macroexpand_with_delete_multiple_bindings :: proc(t: ^testing.T) {
 }
 
 @(test)
+macroexpand_source_map_marks_generated_lines :: proc(t: ^testing.T) {
+    source := `(with-delete [xs (map inc users) ys (filter even? xs)]
+  (count ys))`
+    result, err, ok := odinl.macroexpand_source_with_map(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(result.output)
+    defer delete(result.source_map)
+
+    testing.expect_value(t, len(result.source_map), 6)
+
+    xs_value_start := strings.index(source, "(map inc users)")
+    ys_value_start := strings.index(source, "(filter even? xs)")
+    body_start := strings.index(source, "(count ys)")
+
+    xs_entry, xs_found := odinl.source_map_entry_for_generated_line(result.source_map[:], 2)
+    testing.expect_value(t, xs_found, true)
+    testing.expect_value(t, xs_entry.source_span.start, xs_value_start)
+
+    ys_entry, ys_found := odinl.source_map_entry_for_generated_line(result.source_map[:], 3)
+    testing.expect_value(t, ys_found, true)
+    testing.expect_value(t, ys_entry.source_span.start, ys_value_start)
+
+    body_entry, body_found := odinl.source_map_entry_for_generated_line(result.source_map[:], 6)
+    testing.expect_value(t, body_found, true)
+    testing.expect_value(t, body_entry.source_span.start, body_start)
+}
+
+@(test)
 compile_proc_types_and_literals :: proc(t: ^testing.T) {
     source := `(package main)
 

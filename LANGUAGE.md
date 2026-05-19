@@ -1581,9 +1581,10 @@ Useful editor commands later:
 - show lowered Odin
 
 The current CLI supports both inspection levels. `odinl macroexpand file.odinl
-FORM` shows frontend expansion for macro-like forms such as `with-allocator`.
-`odinl expand file.odinl FORM` emits the generated scratch Odin for the selected
-form without running it.
+FORM` shows frontend expansion for macro-like forms such as `with-allocator`;
+`--map output.map` also writes a line-oriented expansion map back to the
+original form. `odinl expand file.odinl FORM` emits the generated scratch Odin
+for the selected form without running it.
 
 The development model should become richer without becoming stateful. Tooling
 may support tap-style inspection, rerun watches, and disk-backed saved values,

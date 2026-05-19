@@ -18,7 +18,7 @@ print_usage :: proc() {
     fmt.println("  odinl run <input.odinl> [--generated output.odin]")
     fmt.println("  odinl eval <input.odinl> <form> [--no-print] [--check] [--generated output.odin] [--save name]")
     fmt.println("  odinl expand <input.odinl> <form> [--no-print] [-o output.odin]")
-    fmt.println("  odinl macroexpand <input.odinl> <form> [-o output.odinl]")
+    fmt.println("  odinl macroexpand <input.odinl> <form> [-o output.odinl] [--map output.map]")
     fmt.println("  odinl symbols <input.odinl>")
     fmt.println("  odinl cache path <name>")
     fmt.println("  odinl cache list")
@@ -377,23 +377,30 @@ compile_eval_emit_command :: proc(input, eval_source, output_path: string, no_pr
     }
 }
 
-macroexpand_command :: proc(input, eval_source, output_path: string) {
+macroexpand_command :: proc(input, eval_source, output_path, map_path: string) {
     data := read_source_or_exit(input)
     defer delete(transmute([]byte)data)
 
-    output, err, ok := odinl.macroexpand_source(eval_source)
+    result, err, ok := odinl.macroexpand_source_with_map(eval_source)
     if !ok {
         formatted := odinl.format_eval_compile_error(input, data, eval_source, err)
         fmt.eprint(formatted)
         delete(formatted)
         os.exit(1)
     }
-    defer delete(output)
+    defer delete(result.output)
+    defer delete(result.source_map)
 
     if output_path != "" {
-        write_output_or_exit(output_path, output)
+        write_output_or_exit(output_path, result.output)
     } else {
-        fmt.print(output)
+        fmt.print(result.output)
+    }
+
+    if map_path != "" {
+        map_output := odinl.format_source_map(result.source_map[:])
+        write_output_or_exit(map_path, map_output)
+        delete(map_output)
     }
 }
 
@@ -686,6 +693,7 @@ parse_macroexpand_command :: proc() {
     input := os.args[2]
     eval_source := os.args[3]
     output_path := ""
+    map_path := ""
 
     i := 4
     for i < len(os.args) {
@@ -697,13 +705,20 @@ parse_macroexpand_command :: proc() {
             }
             output_path = os.args[i+1]
             i += 2
+        case "--map":
+            if i+1 >= len(os.args) {
+                print_usage()
+                os.exit(2)
+            }
+            map_path = os.args[i+1]
+            i += 2
         case:
             print_usage()
             os.exit(2)
         }
     }
 
-    macroexpand_command(input, eval_source, output_path)
+    macroexpand_command(input, eval_source, output_path, map_path)
 }
 
 parse_symbols_command :: proc() {

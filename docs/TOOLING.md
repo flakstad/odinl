@@ -94,6 +94,9 @@ runtime facility:
   built-in macro-like forms such as `with-allocator` and
   `with-temp-allocator` and cleanup forms such as `with-delete`, while
   `odinl expand` remains the generated-Odin lowering preview;
+- `odinl macroexpand file.odinl FORM --map output.map` writes a simple
+  line-oriented expansion map so generated macroexpand lines can be related
+  back to the original macro call, binding values, and body forms;
 - diagnostics should keep enough source information to point through expansion
   where practical;
 - macros must not introduce a hidden stateful REPL or dynamic runtime world.

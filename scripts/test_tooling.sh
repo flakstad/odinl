@@ -227,8 +227,9 @@ fi
 odin check "$tmp_dir/expand.odin" -file
 
 printf 'tooling: macroexpand command\n'
-./odinl macroexpand examples/data-literals.odinl '(with-allocator [allocator context.temp_allocator] (let [buffer (make [dynamic]int)] (defer (delete buffer))))' -o "$tmp_dir/macroexpand.odinl"
+./odinl macroexpand examples/data-literals.odinl '(with-allocator [allocator context.temp_allocator] (let [buffer (make [dynamic]int)] (defer (delete buffer))))' -o "$tmp_dir/macroexpand.odinl" --map "$tmp_dir/macroexpand.map"
 assert_file_nonempty "$tmp_dir/macroexpand.odinl" "macroexpand output"
+assert_file_nonempty "$tmp_dir/macroexpand.map" "macroexpand source map"
 if ! grep -q '(set! context.allocator allocator)' "$tmp_dir/macroexpand.odinl"; then
     printf 'failed: macroexpand output did not include allocator set\n' >&2
     cat "$tmp_dir/macroexpand.odinl" >&2
@@ -237,6 +238,11 @@ fi
 if ! grep -q 'odinl-old-allocator-1 context.allocator' "$tmp_dir/macroexpand.odinl"; then
     printf 'failed: macroexpand output did not include old allocator binding\n' >&2
     cat "$tmp_dir/macroexpand.odinl" >&2
+    exit 1
+fi
+if ! grep -q '^2 2 ' "$tmp_dir/macroexpand.map"; then
+    printf 'failed: macroexpand source map did not include allocator expression line\n' >&2
+    cat "$tmp_dir/macroexpand.map" >&2
     exit 1
 fi
 ./odinl macroexpand examples/data-literals.odinl '(with-temp-allocator [allocator] (let [buffer (make [dynamic]int)] (defer (delete buffer))))' -o "$tmp_dir/macroexpand-temp.odinl"
