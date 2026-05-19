@@ -117,6 +117,51 @@ main :: proc() {
 }
 
 @(test)
+symbols_source_indexes_top_level_forms :: proc(t: ^testing.T) {
+    source := `(package main)
+(import strings "core:strings")
+
+(struct User {
+  :name string
+  :active bool
+})
+
+(enum Status [
+  Active
+  Archived
+])
+
+(union Value {
+  :i int
+  :s string
+})
+
+(const max-age int 120)
+
+(proc active? [user: User] -> bool
+  (:active user))`
+
+    output, err, ok := odinl.symbols_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "kind\tname\tline\tcolumn\tdetail\n"), true)
+    testing.expect_value(t, strings.contains(output, "import\tstrings\t2\t9\tcore:strings\n"), true)
+    testing.expect_value(t, strings.contains(output, "struct\tUser\t4\t9\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "field\tUser.name\t5\t3\tUser\n"), true)
+    testing.expect_value(t, strings.contains(output, "enum\tStatus\t9\t7\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "variant\tStatus.Active\t10\t3\tStatus\n"), true)
+    testing.expect_value(t, strings.contains(output, "union\tValue\t14\t8\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "variant\tValue.i\t15\t3\tValue\n"), true)
+    testing.expect_value(t, strings.contains(output, "const\tmax-age\t19\t8\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "proc\tactive?\t21\t7\t\n"), true)
+}
+
+@(test)
 compile_eval_source_can_emit_statement_runner :: proc(t: ^testing.T) {
     source := `(package main)
 (import "core:fmt")

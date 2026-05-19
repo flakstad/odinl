@@ -34,6 +34,19 @@ assert_file_nonempty "$tmp_dir/hello.odin" "compile output"
 assert_file_nonempty "$tmp_dir/hello.map" "compile source map"
 odin check "$tmp_dir/hello.odin" -file
 
+printf 'tooling: symbols command\n'
+./odinl symbols examples/sequences.odinl > "$tmp_dir/symbols.tsv"
+if ! grep -q "$(printf 'proc\tactive-count')" "$tmp_dir/symbols.tsv"; then
+    printf 'failed: symbols output did not include active-count proc\n' >&2
+    cat "$tmp_dir/symbols.tsv" >&2
+    exit 1
+fi
+if ! grep -q "$(printf 'field\tUser.name')" "$tmp_dir/symbols.tsv"; then
+    printf 'failed: symbols output did not include User.name field\n' >&2
+    cat "$tmp_dir/symbols.tsv" >&2
+    exit 1
+fi
+
 printf 'tooling: check command\n'
 ./odinl check examples/hello.odinl --generated "$tmp_dir/check.odin"
 assert_file_nonempty "$tmp_dir/check.odin" "check generated output"
@@ -324,6 +337,23 @@ if command -v emacs >/dev/null 2>&1; then
                      (insert \"(package main)\\n(import \\\"core:fmt\\\")\\n\\n(proc add [a: int, b: int] -> int\\n  (+ a b))\\n\\n(proc main []\\n  (fmt.println \\\"from main\\\"))\\n\\n(comment\\n  (add 1 2)\\n  (with-allocator [allocator context.temp_allocator]\\n    (add 2 1))\\n  (main))\\n\"))
                    (find-file file)
                    (odinl-mode)
+                   (unless (eq (key-binding (kbd \"M-.\")) (quote xref-find-definitions))
+                     (error \"Missing M-. xref binding\"))
+                   (let ((symbols (odinl--symbols)))
+                     (unless (seq-find (lambda (sym) (equal (plist-get sym :name) \"add\")) symbols)
+                       (error \"Expected add in odinl symbols: %S\" symbols)))
+                   (let ((defs (xref-backend-definitions (quote odinl) \"add\")))
+                     (unless defs
+                       (error \"Expected xref definition for add\")))
+                   (let ((defs (xref-backend-definitions (quote odinl) \"fmt.println\")))
+                     (unless defs
+                       (error \"Expected xref definition for fmt.println\")))
+                   (let ((candidates (odinl--completion-candidates)))
+                     (unless (and (member \"add\" candidates)
+                                  (member \"proc\" candidates)
+                                  (member \"map\" candidates)
+                                  (member \"fmt.println\" candidates))
+                       (error \"Expected completion candidates, got: %S\" candidates)))
                    (dolist (binding (list (cons \"C-c C-e\" (quote odinl-eval-form-at-point))
                                           (cons \"C-c C-c\" (quote odinl-eval-top-level-form))
                                           (cons \"C-c C-i\" (quote odinl-insert-form-result))
