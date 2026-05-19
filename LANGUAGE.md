@@ -1055,30 +1055,31 @@ thin `core:os` forms:
 (import os "core:os")
 
 (spit "tmp/users.json" text)
-(let [[marshal-err write-err] (save-json "tmp/users.json" users)]
-  (and (== marshal-err nil)
-       (== write-err nil)))
 
-(let [[users read-err unmarshal-err] (load-json []User "tmp/users.json")]
-  ...)
+(let [[data marshal-err] (json.marshal user)]
+  (if (!= marshal-err nil)
+    false
+    (do
+      (defer (delete data))
+      (== (spit "tmp/users.json" data) nil))))
 
 (let [[data err] (slurp "tmp/users.json")]
   (if (!= err nil)
     0
     (do
       (defer (delete data))
-      (len data))))
+      (let [user (User {})
+            unmarshal-err (json.unmarshal data (& user))]
+        ...)))))
 ```
 
 `spit` lowers to `os.write_entire_file(path, data)` and returns `os.Error`.
 `slurp` lowers to `os.read_entire_file(path, context.allocator)` and returns
 owned `[]byte` plus `os.Error`. The caller must delete the bytes when keeping
-the value local, or return them to transfer ownership. `save-json` lowers
-through a generated helper that marshals with `json.marshal`, deletes the
-temporary JSON bytes, and writes with `os.write_entire_file`. `load-json`
-lowers through a generated helper that reads the file, defers deleting the file
-bytes, and unmarshals into the explicit destination type. The caller owns any
-data allocated inside a successfully decoded value.
+the value local, or return them to transfer ownership. Data marshalling is not
+OdinL core syntax: use Odin's libraries explicitly, such as `json.marshal` and
+`json.unmarshal` from `core:encoding/json`. The caller owns any data allocated
+inside a successfully decoded value.
 
 ## Literals and Construction
 
@@ -1613,9 +1614,10 @@ Useful editor commands later:
 - show lowered Odin
 
 The current CLI supports both inspection levels. `odinl macroexpand file.odinl
-FORM` shows frontend expansion for macro-like forms such as `with-allocator`.
-`odinl expand file.odinl FORM` emits the generated scratch Odin for the selected
-form without running it.
+FORM` shows frontend expansion for macro-like forms such as `with-allocator`;
+`--map output.map` also writes a line-oriented expansion map back to the
+original form. `odinl expand file.odinl FORM` emits the generated scratch Odin
+for the selected form without running it.
 
 The development model should become richer without becoming stateful. Tooling
 may support tap-style inspection, rerun watches, and disk-backed saved values,
@@ -1955,11 +1957,14 @@ compiler should preserve enough information to:
 - support good diagnostics
 - support future macro/source inspection tools
 
-The CLI can emit a declaration-level source map with `--map`. The current map is
-line-oriented and intentionally simple: generated start/end lines paired with
-the original OdinL byte span. Finer-grained expression mapping can be layered on
-later where editor tooling or diagnostics need it; it should not force a
-wholesale expression IR first.
+The CLI can emit a line-oriented source map with `--map`: generated start/end
+lines paired with the original OdinL byte span. Declaration spans are the
+fallback, and the emitter also records narrower spans for body forms, binding
+assignments, and common statement subforms such as conditions, loop collections,
+return values, and assignment values. Diagnostic remapping prefers the narrowest
+generated range and, when Odin reports a generated column, the matching generated
+column range. This lets ordinary Odin type errors point at smaller source forms
+without requiring a wholesale expression IR first.
 
 Implementation status: the compiler now names these stages explicitly. The
 reader produces `CST_Form` / `CST_Top_Form`, parsing produces `AST_Program` and
