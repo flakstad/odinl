@@ -3915,8 +3915,8 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         return emit_with_temp_allocator_stmt(e, form, last_in_proc, returns)
     case .With_Delete:
         return emit_with_delete_stmt(e, form, last_in_proc, returns)
-    case .When_Ok:
-        expanded, err_expand, ok_expand := expand_when_ok_form(form)
+    case .When_Let:
+        expanded, err_expand, ok_expand := expand_when_let_form(form)
         if !ok_expand {
             return err_expand, false
         }

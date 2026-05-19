@@ -18,8 +18,8 @@ builtin_macro_kind :: proc(head: string) -> Builtin_Macro_Kind {
         return .With_Temp_Allocator
     case "with-delete":
         return .With_Delete
-    case "when-ok":
-        return .When_Ok
+    case "when-let":
+        return .When_Let
     }
     return .None
 }
@@ -53,13 +53,13 @@ macro_symbol :: proc(text: string, span: Span) -> CST_Form {
     return CST_Form{kind = .Symbol, text = text, span = span}
 }
 
-expand_when_ok_form :: proc(form: CST_Form) -> (expanded: CST_Form, err: Compile_Error, ok: bool) {
+expand_when_let_form :: proc(form: CST_Form) -> (expanded: CST_Form, err: Compile_Error, ok: bool) {
     if len(form.items) < 3 || form.items[1].kind != .Vector {
-        return expanded, Compile_Error{message = "when-ok expects [value ok expr] binding and body", span = form.span}, false
+        return expanded, Compile_Error{message = "when-let expects [value condition expr] binding and body", span = form.span}, false
     }
     binding := form.items[1]
     if len(binding.items) != 3 || binding.items[0].kind != .Symbol || binding.items[1].kind != .Symbol {
-        return expanded, Compile_Error{message = "when-ok expects [value ok expr] binding", span = binding.span}, false
+        return expanded, Compile_Error{message = "when-let expects [value condition expr] binding", span = binding.span}, false
     }
 
     destructure := CST_Form{kind = .Vector, span = binding.span}
@@ -394,8 +394,8 @@ macroexpand_with_delete :: proc(form: CST_Form) -> (result: Emit_Result, err: Co
     return result, {}, true
 }
 
-macroexpand_when_ok :: proc(form: CST_Form) -> (result: Emit_Result, err: Compile_Error, ok: bool) {
-    expanded, err_expand, ok_expand := expand_when_ok_form(form)
+macroexpand_when_let :: proc(form: CST_Form) -> (result: Emit_Result, err: Compile_Error, ok: bool) {
+    expanded, err_expand, ok_expand := expand_when_let_form(form)
     if !ok_expand {
         return result, err_expand, false
     }
@@ -410,8 +410,8 @@ macroexpand_form :: proc(form: CST_Form) -> (result: Emit_Result, err: Compile_E
         return macroexpand_with_temp_allocator(form)
     case .With_Delete:
         return macroexpand_with_delete(form)
-    case .When_Ok:
-        return macroexpand_when_ok(form)
+    case .When_Let:
+        return macroexpand_when_let(form)
     case .None:
     }
 

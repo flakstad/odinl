@@ -685,20 +685,21 @@ Examples:
 This keeps the core language explicit while leaving room for later macro-based
 binding abstractions.
 
-`when-ok` is the first such compiler-defined binding macro. It is deliberately
+`when-let` is the first such compiler-defined binding macro. It is deliberately
 Odin-shaped: it is for multi-return procs that return a value and an explicit
-boolean success flag. It does not add Clojure truthiness.
+boolean such as `ok`, `found`, `present`, or `valid`. It does not add Clojure
+truthiness.
 
 ```clojure
-(when-ok [value ok (query)]
+(when-let [value found (query)]
   (use value))
 ```
 
 It expands to:
 
 ```clojure
-(let [[value ok] (query)]
-  (when ok
+(let [[value found] (query)]
+  (when found
     (use value)))
 ```
 
