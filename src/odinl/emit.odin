@@ -851,7 +851,23 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
             return "", Compile_Error{message = "thread list step expects symbol or keyword head", span = head.span}, false
         }
         if head.text == "tap>" {
-            return "", Compile_Error{message = "tap> is not supported as a thread step yet; bind the value before tapping", span = step.span}, false
+            if len(step.items) > 2 {
+                return "", Compile_Error{message = "tap> thread step expects optional label", span = step.span}, false
+            }
+            mark_core_tap(e)
+            if len(step.items) == 1 {
+                return emit_call_text("odinl_tap", []string{current}), {}, true
+            }
+            label_form := step.items[1]
+            label := ""
+            if label_form.kind == .Keyword {
+                label = fmt.tprintf("\"%s\"", label_form.text[1:])
+            } else if label_form.kind == .String {
+                label = label_form.text
+            } else {
+                return "", Compile_Error{message = "tap> label must be a keyword or string literal", span = label_form.span}, false
+            }
+            return emit_call_text("odinl_tap_labeled", []string{label, current}), {}, true
         }
         if thread_last && (head.text == "map" || head.text == "filter" || head.text == "remove") {
             if len(step.items) != 2 {
@@ -1181,6 +1197,11 @@ thread_temp_name :: proc(e: ^Emitter) -> string {
     return fmt.tprintf("odinl_thread_%d", e.temp_counter)
 }
 
+is_tap_thread_step :: proc(step: CST_Form) -> bool {
+    return step.kind == .List && len(step.items) > 0 &&
+           step.items[0].kind == .Symbol && step.items[0].text == "tap>"
+}
+
 thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Result_Kind {
     #partial switch step.kind {
     case .Keyword:
@@ -1239,6 +1260,15 @@ thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Res
     return .Unknown
 }
 
+thread_steps_after_include_non_tap :: proc(steps: []CST_Form, idx: int) -> bool {
+    for step in steps[idx+1:] {
+        if !is_tap_thread_step(step) {
+            return true
+        }
+    }
+    return false
+}
+
 is_thread_form :: proc(form: CST_Form, thread_last: bool) -> bool {
     if form.kind != .List || len(form.items) == 0 || form.items[0].kind != .Symbol {
         return false
@@ -1253,12 +1283,17 @@ thread_form_has_allocating_intermediate :: proc(form: CST_Form, thread_last: boo
     if !is_thread_form(form, thread_last) || len(form.items) < 3 {
         return false
     }
-    for step, idx in form.items[2:] {
-        last_step := idx == len(form.items[2:])-1
+    steps := form.items[2:]
+    current_kind := Thread_Result_Kind.Unknown
+    for step, idx in steps {
         kind := thread_step_result_kind(step, thread_last)
-        if !last_step && (kind == .Owned || kind == .Owned_Borrowing) {
+        if is_tap_thread_step(step) {
+            kind = current_kind
+        }
+        if (kind == .Owned || kind == .Owned_Borrowing) && thread_steps_after_include_non_tap(steps, idx) {
             return true
         }
+        current_kind = kind
     }
     return false
 }
@@ -1267,7 +1302,14 @@ thread_form_final_kind :: proc(form: CST_Form, thread_last: bool) -> Thread_Resu
     if !is_thread_form(form, thread_last) || len(form.items) < 3 {
         return .Unknown
     }
-    return thread_step_result_kind(form.items[len(form.items)-1], thread_last)
+    current_kind := Thread_Result_Kind.Unknown
+    for step in form.items[2:] {
+        if is_tap_thread_step(step) {
+            continue
+        }
+        current_kind = thread_step_result_kind(step, thread_last)
+    }
+    return current_kind
 }
 
 thread_form_final_view_borrows_owned_intermediate :: proc(form: CST_Form, thread_last: bool) -> bool {
@@ -1279,6 +1321,9 @@ thread_form_final_view_borrows_owned_intermediate :: proc(form: CST_Form, thread
         return false
     }
     for step in form.items[2:len(form.items)-1] {
+        if is_tap_thread_step(step) {
+            continue
+        }
         kind := thread_step_result_kind(step, thread_last)
         if kind == .Owned || kind == .Owned_Borrowing {
             return true
@@ -1460,15 +1505,21 @@ emit_thread_binding_assignment :: proc(e: ^Emitter, binding: Binding, thread_las
         return err_current, false
     }
 
-    for step, idx in form.items[2:] {
+    steps := form.items[2:]
+    current_kind := Thread_Result_Kind.Unknown
+    for step, idx in steps {
         next, err_step, ok_step := emit_thread_step(e, current, step, thread_last)
         if !ok_step {
             return err_step, false
         }
 
         kind := thread_step_result_kind(step, thread_last)
-        last_step := idx == len(form.items[2:])-1
-        if (kind == .Owned || kind == .Owned_Borrowing) && !last_step {
+        tap_step := is_tap_thread_step(step)
+        if tap_step {
+            kind = current_kind
+        }
+        if !tap_step && (kind == .Owned || kind == .Owned_Borrowing) &&
+           thread_steps_after_include_non_tap(steps, idx) {
             temp := thread_temp_name(e)
             emit_prefixed_expr(e, fmt.tprintf("%s := ", temp), next)
             emit_line(e, fmt.tprintf("defer delete(%s)", temp))
@@ -1476,6 +1527,7 @@ emit_thread_binding_assignment :: proc(e: ^Emitter, binding: Binding, thread_las
         } else {
             current = next
         }
+        current_kind = kind
     }
 
     emit_binding_assignment(e, binding, current)

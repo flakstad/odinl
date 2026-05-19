@@ -16,7 +16,8 @@ The practical rule is:
 
 `tap>` prints and returns its value. It does not allocate an owned result by
 itself, but ownership passes through it: `(tap> (map f xs))` is still an owned
-result and must be bound or returned.
+result and must be bound or returned. The same is true in threaded code:
+`(->> xs (map f) (tap> :mapped))` still returns an owned dynamic array.
 
 ## Delete These
 

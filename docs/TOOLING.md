@@ -129,15 +129,18 @@ explicitly. That is intentionally modest: it works in normal runs and editor
 evals, it is visible in the generated Odin, and it does not depend on a hidden
 global tap registry.
 
-`tap>` is not supported as a `->` / `->>` thread step yet. Bind the value first
-when ownership matters:
+`tap>` also works as a `->` / `->>` thread step:
 
 ```clojure
-(let [active (filter active? users)]
-  (defer (delete active))
-  (tap> :active-count (len active))
-  ...)
+(->> users
+     (filter active?)
+     (tap> :active)
+     (map :name))
 ```
+
+The step is ownership-transparent. A tapped owned final value remains owned by
+the binding or caller. A tapped owned intermediate is still cleaned up by the
+threaded `let` lowering before later steps run.
 
 A richer tap sink can come later as an explicit CLI/editor option or ordinary
 Odin value, not as ambient language state.

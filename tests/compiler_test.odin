@@ -1132,20 +1132,50 @@ compile_tap_helper :: proc(t: ^testing.T) {
 }
 
 @(test)
-reject_tap_thread_step_for_now :: proc(t: ^testing.T) {
+compile_tap_thread_steps :: proc(t: ^testing.T) {
     source := `(package main)
 (import "core:fmt")
 
-(proc main []
-  (let [answer (-> 41
-                   (+ 1)
-                   (tap> :answer))]
-    (fmt.println answer)))`
+(proc inc [x: int] -> int
+  (+ x 1))
 
-    _, err, ok := odinl.compile_source(source)
-    testing.expect_value(t, ok, false)
-    defer delete(err.message)
-    testing.expect_value(t, err.message, "tap> is not supported as a thread step yet; bind the value before tapping")
+(proc even? [x: int] -> bool
+  (== (% x 2) 0))
+
+(proc add [acc: int, x: int] -> int
+  (+ acc x))
+
+(proc main []
+  (let [xs (new []int [1 2 3 4])
+        answer (-> 41
+                   inc
+                   (tap> :answer))
+        mapped (->> xs
+                    (map inc)
+                    (tap> :mapped))
+        total (->> xs
+                   (map inc)
+                   (tap> "mapped")
+                   (filter even?)
+                   (reduce add 0))]
+    (defer (delete mapped))
+    (fmt.println answer total)))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "answer := odinl_tap_labeled(\"answer\", inc(41))"), true)
+    testing.expect_value(t, strings.contains(output, "mapped := odinl_tap_labeled(\"mapped\", odinl_map(inc, (xs)[:]))"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_thread_1 := odinl_map(inc, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "defer delete(odinl_thread_1)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_thread_2 := odinl_filter(even_p, (odinl_tap_labeled(\"mapped\", odinl_thread_1))[:])"), true)
+    testing.expect_value(t, strings.contains(output, "defer delete(odinl_thread_2)"), true)
+    testing.expect_value(t, strings.contains(output, "total := odinl_reduce(add, 0, (odinl_thread_2)[:])"), true)
 }
 
 @(test)

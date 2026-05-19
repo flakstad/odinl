@@ -1595,9 +1595,20 @@ The first tap form is deliberately simple:
 ```
 
 It lowers through generated helpers that call `fmt.print` / `fmt.println` and
-return the tapped value. The `core:fmt` import is explicit. `tap>` is not
-currently a thread step because owned threaded pipelines need a more precise
-ownership design.
+return the tapped value. The `core:fmt` import is explicit. `tap>` can also be
+used as a `->` / `->>` step, where it is a pass-through expression:
+
+```clojure
+(->> users
+     (filter :active)
+     (tap> :active-users)
+     (map :name))
+```
+
+Ownership passes through `tap>`. If a tapped threaded value is an owned final
+result, the caller or local binding still owns it. If a tapped owned value is an
+intermediate, OdinL emits the same cleanup it would for the underlying pipeline
+step.
 
 See `docs/TOOLING.md` for the current plan around tap-style inspection,
 file-backed dev values, watches, and Emacs integration.
