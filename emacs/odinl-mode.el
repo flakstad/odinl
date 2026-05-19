@@ -197,7 +197,7 @@
 
 (defun odinl--symbol-bounds ()
   "Return bounds of the OdinL symbol-like token at point."
-  (let ((chars "[:alnum:]_?!+*/<>=.-:"))
+  (let ((chars "-[:alnum:]_?!+*/<>=.:"))
     (save-excursion
       (skip-chars-backward chars)
       (let ((beg (point)))
@@ -350,6 +350,54 @@
                          (string= (plist-get symbol :name) identifier)))
                   (odinl--package-symbols-for-current-buffer)))))
 
+(defun odinl--repo-file (relative)
+  "Return RELATIVE inside the current OdinL checkout."
+  (expand-file-name relative (file-name-as-directory (odinl--project-root))))
+
+(defun odinl--file-location-for-regexp (file regexp)
+  "Return a plist location for first REGEXP in FILE."
+  (when (file-readable-p file)
+    (with-temp-buffer
+      (insert-file-contents file)
+      (goto-char (point-min))
+      (when (re-search-forward regexp nil t)
+        (list :file file
+              :line (line-number-at-pos (match-beginning 0))
+              :column (1+ (- (match-beginning 0) (line-beginning-position))))))))
+
+(defun odinl--language-form-definition (identifier)
+  "Return an xref symbol for OdinL language form IDENTIFIER."
+  (when (member identifier odinl-special-forms)
+    (let* ((file (odinl--repo-file "LANGUAGE.md"))
+           (quoted (regexp-quote identifier))
+           (location (or (odinl--file-location-for-regexp file (format "^### `%s`" quoted))
+                         (odinl--file-location-for-regexp file (format "`%s`" quoted))
+                         (odinl--file-location-for-regexp file (format "\\_<%s\\_>" quoted)))))
+      (when location
+        (append (list :kind "odinl form"
+                      :name identifier
+                      :detail "LANGUAGE.md")
+                location)))))
+
+(defun odinl--core-helper-definition (identifier)
+  "Return an xref symbol for OdinL core helper IDENTIFIER."
+  (when (member identifier odinl-core-helpers)
+    (let* ((file (odinl--repo-file "docs/SEQUENCES.md"))
+           (quoted (regexp-quote identifier))
+           (location (or (odinl--file-location-for-regexp file (format "(%s\\(?:[[:space:])]\\)" quoted))
+                         (odinl--file-location-for-regexp file (format "`%s`" quoted)))))
+      (when location
+        (append (list :kind "odinl helper"
+                      :name identifier
+                      :detail "docs/SEQUENCES.md")
+                location)))))
+
+(defun odinl--builtin-definitions (identifier)
+  "Return built-in OdinL definitions matching IDENTIFIER."
+  (delq nil
+        (list (odinl--language-form-definition identifier)
+              (odinl--core-helper-definition identifier))))
+
 (defun odinl--xref-backend () 'odinl)
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql odinl)))
@@ -357,7 +405,8 @@
 
 (cl-defmethod xref-backend-definitions ((_backend (eql odinl)) identifier)
   (let* ((symbols (append (odinl--symbols)
-                          (odinl--package-definitions identifier)))
+                          (odinl--package-definitions identifier)
+                          (odinl--builtin-definitions identifier)))
          (matches (seq-filter (lambda (symbol)
                                 (odinl--symbol-matches-identifier-p symbol identifier))
                               symbols)))
