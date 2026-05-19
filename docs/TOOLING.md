@@ -74,10 +74,12 @@ tooling entry points:
 - optionally write generated Odin for editor inspection with `--generated`
 
 The current `--map` output is line-oriented. Declarations are still the fallback
-mapping, but emitted body forms and binding assignments carry narrower source
-spans where the generated line has a clear OdinL origin. Eval forms carry an
-origin marker, so compiler errors in selected eval text can be reported against
-`file:<eval>:line:column` instead of the surrounding file.
+mapping, but emitted body forms, binding assignments, conditions, loop
+collections, return values, and assignment values carry narrower source spans
+where the generated line has a clear OdinL origin. Internally, diagnostic
+remapping also uses generated columns when Odin reports them. Eval forms carry
+an origin marker, so compiler errors in selected eval text can be reported
+against `file:<eval>:line:column` instead of the surrounding file.
 
 ## Near-Term Language Tooling
 

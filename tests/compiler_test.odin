@@ -614,6 +614,13 @@ format_declaration_source_map :: proc(t: ^testing.T) {
             generated_end_line = 2,
             source_span = odinl.Span{start = 30, end = 35},
         },
+        {
+            generated_start_line = 2,
+            generated_end_line = 2,
+            generated_start_column = 8,
+            generated_end_column = 12,
+            source_span = odinl.Span{start = 40, end = 45},
+        },
     }
 
     formatted := odinl.format_source_map(entries[:])
@@ -622,12 +629,21 @@ format_declaration_source_map :: proc(t: ^testing.T) {
     expected := `generated_start generated_end source_start source_end
 1 3 10 20
 2 2 30 35
+2 2 40 45
 `
     testing.expect_value(t, formatted, expected)
 
     entry, found := odinl.source_map_entry_for_generated_line(entries[:], 2)
     testing.expect_value(t, found, true)
     testing.expect_value(t, entry.source_span.start, 30)
+
+    column_entry, column_found := odinl.source_map_entry_for_generated_location(entries[:], 2, 9)
+    testing.expect_value(t, column_found, true)
+    testing.expect_value(t, column_entry.source_span.start, 40)
+
+    fallback_entry, fallback_found := odinl.source_map_entry_for_generated_location(entries[:], 2, 2)
+    testing.expect_value(t, fallback_found, true)
+    testing.expect_value(t, fallback_entry.source_span.start, 30)
 
     _, missing := odinl.source_map_entry_for_generated_line(entries[:], 4)
     testing.expect_value(t, missing, false)

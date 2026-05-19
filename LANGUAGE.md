@@ -1925,11 +1925,12 @@ compiler should preserve enough information to:
 
 The CLI can emit a line-oriented source map with `--map`: generated start/end
 lines paired with the original OdinL byte span. Declaration spans are the
-fallback, and the emitter also records narrower spans for body forms and binding
-assignments where the generated line has a clear OdinL origin. Diagnostic
-remapping prefers the narrowest generated range, so ordinary Odin type errors in
-let bindings and eval bodies can point at the smaller source form without
-requiring a wholesale expression IR first.
+fallback, and the emitter also records narrower spans for body forms, binding
+assignments, and common statement subforms such as conditions, loop collections,
+return values, and assignment values. Diagnostic remapping prefers the narrowest
+generated range and, when Odin reports a generated column, the matching generated
+column range. This lets ordinary Odin type errors point at smaller source forms
+without requiring a wholesale expression IR first.
 
 Implementation status: the compiler now names these stages explicitly. The
 reader produces `CST_Form` / `CST_Top_Form`, parsing produces `AST_Program` and

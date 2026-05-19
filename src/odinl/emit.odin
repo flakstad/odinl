@@ -562,6 +562,10 @@ emit_raw_newline :: proc(e: ^Emitter) {
 }
 
 record_source_map :: proc(e: ^Emitter, start_line, end_line: int, span: Span) {
+    record_source_map_columns(e, start_line, end_line, 0, 0, span)
+}
+
+record_source_map_columns :: proc(e: ^Emitter, start_line, end_line, start_column, end_column: int, span: Span) {
     if e.source_map == nil {
         return
     }
@@ -569,10 +573,23 @@ record_source_map :: proc(e: ^Emitter, start_line, end_line: int, span: Span) {
         return
     }
     append(e.source_map, Source_Map_Entry{
-        generated_start_line = start_line,
-        generated_end_line   = end_line,
-        source_span          = span,
+        generated_start_line   = start_line,
+        generated_end_line     = end_line,
+        generated_start_column = start_column,
+        generated_end_column   = end_column,
+        source_span            = span,
     })
+}
+
+indent_column :: proc(e: ^Emitter) -> int {
+    return e.indent*4 + 1
+}
+
+single_line_span_end_column :: proc(start_column: int, text: string) -> int {
+    if len(text) == 0 {
+        return start_column
+    }
+    return start_column + len(text) - 1
 }
 
 contains_newline :: proc(text: string) -> bool {
@@ -634,14 +651,26 @@ emit_prefixed_expr :: proc(e: ^Emitter, prefix, expr: string) {
 
 emit_prefixed_expr_mapped :: proc(e: ^Emitter, prefix, expr: string, span: Span) {
     start_line := e.line
+    start_column := 0
+    end_column := 0
+    if !contains_newline(expr) {
+        start_column = indent_column(e) + len(prefix)
+        end_column = single_line_span_end_column(start_column, expr)
+    }
     emit_prefixed_expr(e, prefix, expr)
-    record_source_map(e, start_line, e.line - 1, span)
+    record_source_map_columns(e, start_line, e.line - 1, start_column, end_column, span)
 }
 
 emit_line_mapped :: proc(e: ^Emitter, text: string, span: Span) {
     start_line := e.line
     emit_line(e, text)
     record_source_map(e, start_line, e.line - 1, span)
+}
+
+record_current_line_fragment_map :: proc(e: ^Emitter, prefix_len: int, text: string, span: Span) {
+    start_column := indent_column(e) + prefix_len
+    end_column := single_line_span_end_column(start_column, text)
+    record_source_map_columns(e, e.line, e.line, start_column, end_column, span)
 }
 
 surround_with_braces :: proc(prefix, inner: string) -> string {
@@ -3244,6 +3273,7 @@ emit_if_like :: proc(e: ^Emitter, head: string, form: CST_Form, last_in_proc: bo
     emit_indent(e)
     strings.write_string(&e.builder, "if ")
     strings.write_string(&e.builder, test)
+    record_current_line_fragment_map(e, len("if "), test, form.items[1].span)
     strings.write_string(&e.builder, " {")
     emit_raw_newline(e)
     e.indent += 1
@@ -3304,8 +3334,10 @@ emit_cond_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns:
             emit_indent(e)
             if i == 1 {
                 strings.write_string(&e.builder, "if ")
+                record_current_line_fragment_map(e, len("if "), test, test_form.span)
             } else {
                 strings.write_string(&e.builder, "else if ")
+                record_current_line_fragment_map(e, len("else if "), test, test_form.span)
             }
             strings.write_string(&e.builder, test)
             strings.write_string(&e.builder, " {")
@@ -3344,7 +3376,7 @@ emit_with_allocator_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool
     old_allocator := fmt.tprintf("odinl_old_allocator_%d", e.temp_counter)
     emit_line(e, "{")
     e.indent += 1
-    emit_prefixed_expr(e, fmt.tprintf("%s := ", allocator_name), allocator_expr)
+    emit_prefixed_expr_mapped(e, fmt.tprintf("%s := ", allocator_name), allocator_expr, binding.items[1].span)
     emit_line(e, fmt.tprintf("%s := context.allocator", old_allocator))
     emit_line(e, fmt.tprintf("context.allocator = %s", allocator_name))
     emit_line(e, fmt.tprintf("defer context.allocator = %s", old_allocator))
@@ -3482,7 +3514,7 @@ emit_with_delete_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, r
         if !ok_value {
             return err_value, false
         }
-        emit_prefixed_expr(e, fmt.tprintf("%s := ", binding_name), value)
+        emit_prefixed_expr_mapped(e, fmt.tprintf("%s := ", binding_name), value, value_form.span)
         emit_line(e, fmt.tprintf("defer delete(%s)", binding_name))
         i += 2
     }
@@ -3585,12 +3617,18 @@ emit_switch_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, return
         strings.write_string(&e.builder, binding_name)
         strings.write_string(&e.builder, " in ")
         strings.write_string(&e.builder, subject)
+        record_current_line_fragment_map(e, len("switch ") + len(binding_name) + len(" in "), subject, form.items[1].items[1].span)
     } else {
         subject, err_subject, ok_subject := emit_expr(e, form.items[1])
         if !ok_subject {
             return err_subject, false
         }
         strings.write_string(&e.builder, subject)
+        prefix_len := len("switch ")
+        if !type_switch && (force_partial || switch_has_else_clause(form)) {
+            prefix_len = len("#partial switch ")
+        }
+        record_current_line_fragment_map(e, prefix_len, subject, form.items[1].span)
     }
     strings.write_string(&e.builder, " {")
     emit_raw_newline(e)
@@ -3619,7 +3657,7 @@ emit_switch_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, return
         if !ok_label {
             return err_label, false
         } else {
-            emit_line(e, label)
+            emit_line_mapped(e, label, clause.span)
         }
 
         e.indent += 1
@@ -3643,9 +3681,9 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             return err_expr, false
         }
         if last_in_proc && returns.kind != .None {
-            emit_prefixed_expr(e, "return ", expr)
+            emit_prefixed_expr_mapped(e, "return ", expr, form.span)
         } else {
-            emit_prefixed_expr(e, "", expr)
+            emit_prefixed_expr_mapped(e, "", expr, form.span)
         }
         return {}, true
     }
@@ -3660,9 +3698,9 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             return err_expr, false
         }
         if last_in_proc && returns.kind != .None {
-            emit_prefixed_expr(e, "return ", expr)
+            emit_prefixed_expr_mapped(e, "return ", expr, form.span)
         } else {
-            emit_prefixed_expr(e, "", expr)
+            emit_prefixed_expr_mapped(e, "", expr, form.span)
         }
         return {}, true
     }
@@ -3776,6 +3814,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         emit_indent(e)
         strings.write_string(&e.builder, "if ")
         strings.write_string(&e.builder, test)
+        record_current_line_fragment_map(e, len("if "), test, form.items[1].span)
         strings.write_string(&e.builder, " {")
         emit_raw_newline(e)
         e.indent += 1
@@ -3820,7 +3859,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             if !ok_value {
                 return err_value, false
             }
-            emit_prefixed_expr(e, "return ", value)
+            emit_prefixed_expr_mapped(e, "return ", value, form.items[1].span)
             return {}, true
         }
         line_builder := strings.builder_make()
@@ -3840,7 +3879,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             }
             strings.write_string(&line_builder, value)
         }
-        emit_line(e, strings.clone(strings.to_string(line_builder)))
+        emit_line_mapped(e, strings.clone(strings.to_string(line_builder)), form.items[1].span)
         return {}, true
     case "break":
         if len(form.items) != 1 {
@@ -3868,7 +3907,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
                     if !ok_expr {
                         return err_expr, false
                     }
-                    emit_line(e, fmt.tprintf("defer %s", expr))
+                    emit_prefixed_expr_mapped(e, "defer ", expr, deferred.span)
                     return {}, true
                 }
             } else {
@@ -3876,7 +3915,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
                 if !ok_expr {
                     return err_expr, false
                 }
-                emit_line(e, fmt.tprintf("defer %s", expr))
+                emit_prefixed_expr_mapped(e, "defer ", expr, deferred.span)
                 return {}, true
             }
         }
@@ -3909,7 +3948,13 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         if !ok_rhs {
             return err_rhs, false
         }
-        emit_line(e, fmt.tprintf("%s = %s", lhs, rhs))
+        emit_indent(e)
+        strings.write_string(&e.builder, lhs)
+        record_current_line_fragment_map(e, 0, lhs, form.items[1].span)
+        strings.write_string(&e.builder, " = ")
+        strings.write_string(&e.builder, rhs)
+        record_current_line_fragment_map(e, len(lhs) + len(" = "), rhs, form.items[2].span)
+        emit_raw_newline(e)
         return {}, true
     case "each":
         body_start := 3
@@ -3953,6 +3998,12 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         }
         strings.write_string(&e.builder, " in ")
         strings.write_string(&e.builder, coll)
+        prefix_len := len("for ") + len(name)
+        if has_value {
+            prefix_len += len(", ") + len(value)
+        }
+        prefix_len += len(" in ")
+        record_current_line_fragment_map(e, prefix_len, coll, coll_form.span)
         strings.write_string(&e.builder, " {")
         emit_raw_newline(e)
         e.indent += 1
@@ -3978,6 +4029,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         emit_indent(e)
         strings.write_string(&e.builder, "for ")
         strings.write_string(&e.builder, cond)
+        record_current_line_fragment_map(e, len("for "), cond, form.items[1].span)
         strings.write_string(&e.builder, " {")
         emit_raw_newline(e)
         e.indent += 1
@@ -4010,9 +4062,9 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             return err_expr, false
         }
         if last_in_proc && returns.kind != .None {
-            emit_prefixed_expr(e, "return ", expr)
+            emit_prefixed_expr_mapped(e, "return ", expr, form.span)
         } else {
-            emit_prefixed_expr(e, "", expr)
+            emit_prefixed_expr_mapped(e, "", expr, form.span)
         }
         return {}, true
     }

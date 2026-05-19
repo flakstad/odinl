@@ -69,6 +69,49 @@ if ! grep -q "$tmp_dir/bad.odinl:5:16 Error: Cannot convert" "$tmp_dir/bad-check
     cat "$tmp_dir/bad-check.err" >&2
     exit 1
 fi
+cat > "$tmp_dir/bad-statements.odinl" <<'EOF'
+(package main)
+
+(proc main []
+  (return))
+
+(proc if-test [] -> int
+  (if "bad"
+    1
+    0))
+
+(proc when-test []
+  (when "bad"
+    (return)))
+
+(proc set-test []
+  (let [x 1]
+    (set! x "bad")))
+
+(proc each-test []
+  (each [x 123]
+    (return)))
+
+(proc return-test [] -> int
+  (return "bad"))
+EOF
+if ./odinl check "$tmp_dir/bad-statements.odinl" >"$tmp_dir/bad-statements.out" 2>"$tmp_dir/bad-statements.err"; then
+    printf 'failed: bad statement check unexpectedly succeeded\n' >&2
+    exit 1
+fi
+for expected in \
+    "$tmp_dir/bad-statements.odinl:7:7 Error: Non-boolean condition" \
+    "$tmp_dir/bad-statements.odinl:12:9 Error: Non-boolean condition" \
+    "$tmp_dir/bad-statements.odinl:17:13 Error: Cannot convert" \
+    "$tmp_dir/bad-statements.odinl:20:12 Error: Cannot iterate" \
+    "$tmp_dir/bad-statements.odinl:24:11 Error: Cannot convert"
+do
+    if ! grep -q "$expected" "$tmp_dir/bad-statements.err"; then
+        printf 'failed: bad statement diagnostic did not map to expected source location: %s\n' "$expected" >&2
+        cat "$tmp_dir/bad-statements.err" >&2
+        exit 1
+    fi
+done
 
 printf 'tooling: build command\n'
 ./odinl build examples/hello.odinl --generated "$tmp_dir/build.odin"

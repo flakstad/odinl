@@ -169,32 +169,44 @@ cache_command :: proc() {
     }
 }
 
-parse_generated_location :: proc(line, generated_path: string) -> (line_no, close_index: int, ok: bool) {
+parse_generated_location :: proc(line, generated_path: string) -> (line_no, column_no, close_index: int, ok: bool) {
     open_index := strings.index(line, "(")
     if open_index < 0 {
-        return 0, 0, false
+        return 0, 0, 0, false
     }
 
     file_text := line[:open_index]
     _, generated_file := os.split_path(generated_path)
     _, diagnostic_file := os.split_path(file_text)
     if file_text != generated_path && diagnostic_file != generated_file {
-        return 0, 0, false
+        return 0, 0, 0, false
     }
 
     location := line[open_index+1:]
     colon_index := strings.index(location, ":")
     close_offset := strings.index(location, ")")
     if colon_index < 0 || close_offset < 0 || colon_index > close_offset {
-        return 0, 0, false
+        return 0, 0, 0, false
     }
 
     parsed_line, ok_line := strconv.parse_int(location[:colon_index])
     if !ok_line {
-        return 0, 0, false
+        return 0, 0, 0, false
     }
 
-    return parsed_line, open_index + 1 + close_offset, true
+    parsed_column := 0
+    if colon_index+1 < close_offset {
+        column_text := location[colon_index+1:close_offset]
+        if second_colon := strings.index(column_text, ":"); second_colon >= 0 {
+            column_text = column_text[:second_colon]
+        }
+        parsed, ok_column := strconv.parse_int(column_text)
+        if ok_column {
+            parsed_column = parsed
+        }
+    }
+
+    return parsed_line, parsed_column, open_index + 1 + close_offset, true
 }
 
 remap_odin_output_locations :: proc(output, generated_path, source_path, source, eval_source: string, source_map: []odinl.Source_Map_Entry) -> string {
@@ -214,9 +226,9 @@ remap_odin_output_locations :: proc(output, generated_path, source_path, source,
             next_start = newline + 1
         }
 
-        generated_line, close_index, ok_location := parse_generated_location(line, generated_path)
+        generated_line, generated_column, close_index, ok_location := parse_generated_location(line, generated_path)
         if ok_location {
-            if entry, found := odinl.source_map_entry_for_generated_line(source_map, generated_line); found {
+            if entry, found := odinl.source_map_entry_for_generated_location(source_map, generated_line, generated_column); found {
                 if entry.source_span.source == .Eval {
                     source_line, source_column, _, _ := odinl.source_position(eval_source, entry.source_span.start)
                     fmt.sbprintf(&builder, "%s:<eval>:%d:%d", source_path, source_line, source_column)
