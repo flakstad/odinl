@@ -65,7 +65,7 @@
 (defvar odinl-mode-syntax-table
   (let ((table (copy-syntax-table clojure-mode-syntax-table)))
     ;; Keep Clojure/Lisp comments, and also recognize Odin comments.
-    (modify-syntax-entry ?\; "<" table)
+    (modify-syntax-entry ?\; "< b" table)
     (modify-syntax-entry ?/ ". 124b" table)
     (modify-syntax-entry ?* ". 23" table)
     (modify-syntax-entry ?\n "> b" table)
