@@ -317,6 +317,17 @@ assert_eq "17" "$(./odinl eval examples/core-time-slice.odinl '(min-max-score)')
 assert_eq "2" "$(./odinl eval examples/core-time-slice.odinl '(search-score)')" "search-score"
 assert_eq "49" "$(./odinl eval examples/core-concurrency.odinl '(future-like-square)')" "future-like-square"
 assert_eq "2" "$(./odinl eval examples/core-concurrency.odinl '(mutex-protected-count)')" "mutex-protected-count"
+assert_eq "30" "$(./odinl eval examples/core-container-queue.odinl '(fifo-total)')" "fifo-total"
+assert_eq "60" "$(./odinl eval examples/core-container-queue.odinl '(deque-score)')" "deque-score"
+assert_eq "5" "$(./odinl eval examples/core-container-queue.odinl '(safe-pop-score)')" "safe-pop-score"
+assert_eq "5" "$(./odinl eval examples/core-paths.odinl '(slash-route-name-len)')" "slash-route-name-len"
+assert_eq "16" "$(./odinl eval examples/core-paths.odinl '(slash-clean-score)')" "slash-clean-score"
+assert_eq "15" "$(./odinl eval examples/core-paths.odinl '(filepath-relative-len)')" "filepath-relative-len"
+assert_eq "3" "$(./odinl eval examples/core-paths.odinl '(filepath-extension-len)')" "filepath-extension-len"
+assert_eq "65" "$(./odinl eval examples/core-encoding-formats.odinl '(csv-age-total)')" "csv-age-total"
+assert_eq "3" "$(./odinl eval examples/core-encoding-formats.odinl '(csv-record-count)')" "csv-record-count"
+assert_eq "8080" "$(./odinl eval examples/core-encoding-formats.odinl '(ini-port)')" "ini-port"
+assert_eq "2" "$(./odinl eval examples/core-encoding-formats.odinl '(ini-pair-count)')" "ini-pair-count"
 parallel_eval_output=$(
     printf '%s\n' \
         '(duration-ms)' \

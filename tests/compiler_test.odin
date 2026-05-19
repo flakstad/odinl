@@ -51,8 +51,11 @@ compile_all_examples :: proc(t: ^testing.T) {
     examples := [?]string{
         "examples/control-flow.odinl",
         "examples/core-concurrency.odinl",
+        "examples/core-container-queue.odinl",
+        "examples/core-encoding-formats.odinl",
         "examples/core-math-linalg.odinl",
         "examples/core-os-paths.odinl",
+        "examples/core-paths.odinl",
         "examples/core-text-encoding.odinl",
         "examples/core-time-slice.odinl",
         "examples/data-literals.odinl",

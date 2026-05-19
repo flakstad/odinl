@@ -30,7 +30,10 @@ thumb.
 ## Odin Core Interop
 
 - `core-concurrency.odinl`: `core:thread`, `core:sync`, and `sync/chan`.
+- `core-container-queue.odinl`: `core:container/queue` owned generic queue.
+- `core-encoding-formats.odinl`: `core:encoding/csv` and `core:encoding/ini`.
 - `core-os-paths.odinl`: `core:os` path, directory, file IO, owned bytes.
+- `core-paths.odinl`: `core:path/slashpath` and `core:path/filepath`.
 - `core-text-encoding.odinl`: `core:strings`, `strconv`, base64, hex, sha2.
 - `core-math-linalg.odinl`: `core:math`, `math/rand`, and `math/linalg`.
 - `core-time-slice.odinl`: `core:time` durations/buffers and `core:slice`.
