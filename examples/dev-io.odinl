@@ -27,11 +27,21 @@
       err
       nil)))
 
-(proc save-note [path: string, text: string] -> os.Error
+(proc write-text [path: string, text: string] -> os.Error
   (let [dir-err (ensure-dev-dir)]
     (if (!= dir-err nil)
       dir-err
       (spit path text))))
+
+(proc read-text [path: string] -> [text: string, err: os.Error]
+  (let [[data read-err] (slurp path)]
+    (if (!= read-err nil)
+      (return "" read-err)
+      (return (string data) nil))))
+
+(proc delete-read-text [text: string]
+  ;; read-text returns a string backed by slurp's owned byte buffer.
+  (delete (odin "transmute([]byte)text")))
 
 (proc write-as-json [path: string, value: $T] -> [marshal-err: json.Marshal_Error, write-err: os.Error]
   (let [dir-err (ensure-dev-dir)]
@@ -60,44 +70,6 @@
   (delete (:title note))
   (delete (:body note)))
 
-(proc print-loaded-note-json [path: string] -> bool
-  (let [[note read-err unmarshal-err] (read-json-as Note path)]
-    (if (or (!= read-err nil)
-            (!= unmarshal-err nil))
-      false
-      (do
-        (defer (delete-loaded-note note))
-        (fmt.println note)
-        true))))
-
-(proc loaded-note-title-length [path: string] -> int
-  (let [[note read-err unmarshal-err] (read-json-as Note path)]
-    (if (or (!= read-err nil)
-            (!= unmarshal-err nil))
-      0
-      (do
-        (defer (delete-loaded-note note))
-        (len (:title note))))))
-
-(proc note-byte-count [path: string] -> int
-  (let [[data err] (slurp path)]
-    (if (!= err nil)
-      0
-      (do
-        (defer (delete data))
-        (len data)))))
-
-(proc load-note [path: string] -> [data: []byte, err: os.Error]
-  ;; Ownership of data transfers to the caller.
-  (slurp path))
-
-(proc load-count-json [path: string] -> int
-  (let [[count read-err unmarshal-err] (read-json-as Count path)]
-    (if (or (!= read-err nil)
-            (!= unmarshal-err nil))
-      0
-      (:n count))))
-
 (proc main []
   (return))
 
@@ -108,8 +80,18 @@
   (ensure-dev-dir)
   ;; => nil
 
-  (save-note "tmp/odinl-note.txt" "hello")
+  ;; Text files use a small ordinary helper pair. read-text returns an owned
+  ;; string, so delete it when the caller is done.
+  (write-text "tmp/odinl-note.txt" "hello")
   ;; => nil
+
+  (let [[text err] (read-text "tmp/odinl-note.txt")]
+    (if (!= err nil)
+      ""
+      (do
+        (defer (delete-read-text text))
+        text)))
+  ;; => hello
 
   ;; JSON is useful for typed cached dev data, but it is not OdinL core syntax.
   ;; write-as-json and read-json-as are ordinary generic procs in this file:
@@ -132,28 +114,15 @@
         true)))
   ;; prints the parsed Note struct, then returns true
 
-  (print-loaded-note-json "tmp/odinl-note.json")
-  ;; => true
-
-  (loaded-note-title-length "tmp/odinl-note.json")
-  ;; => 5
-
   (let [[marshal-err write-err] (write-as-json "tmp/odinl-count.json" (Count {:n 42}))]
     (and (== marshal-err nil)
          (== write-err nil)))
   ;; => true
 
-  (load-count-json "tmp/odinl-count.json")
-  ;; => 42
-
-  (note-byte-count "tmp/odinl-note.txt")
-  ;; => 5
-
-  (let [[data err] (load-note "tmp/odinl-note.txt")]
-    (if (!= err nil)
+  (let [[count read-err unmarshal-err] (read-json-as Count "tmp/odinl-count.json")]
+    (if (or (!= read-err nil)
+            (!= unmarshal-err nil))
       0
-      (do
-        (defer (delete data))
-        (len data))))
-  ;; => 5
+      (:n count)))
+  ;; => 42
 )
