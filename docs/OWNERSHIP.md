@@ -125,6 +125,8 @@ These are scalar values, plain values, or borrowed views:
 (rest xs)
 (take n xs)
 (drop n xs)
+(butlast xs)
+(drop-last n xs)
 (take-while pred xs)
 (drop-while pred xs)
 (split-at n xs)

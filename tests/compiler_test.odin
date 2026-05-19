@@ -1616,8 +1616,13 @@ compile_sequence_trim_helpers_as_slice_views :: proc(t: ^testing.T) {
   (let [xs (new []int [1 2 3 4])
         prefix (take 2 xs)
         suffix (drop 1 xs)
+        without-last (butlast xs)
+        without-two (drop-last 2 xs)
         small-prefix (take-while keep? xs)
-        large-suffix (drop-while keep? xs)]
+        large-suffix (drop-while keep? xs)
+        threaded-count (->> xs
+                            (drop-last 1)
+                            (count))]
     (return)))`
 
     output, err, ok := odinl.compile_source(source)
@@ -1630,12 +1635,17 @@ compile_sequence_trim_helpers_as_slice_views :: proc(t: ^testing.T) {
 
     testing.expect_value(t, strings.contains(output, "prefix := odinl_take(2, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "suffix := odinl_drop(1, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "without_last := odinl_drop_last(1, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "without_two := odinl_drop_last(2, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "small_prefix := odinl_take_while(keep_p, (xs)[:])"), true)
     testing.expect_value(t, strings.contains(output, "large_suffix := odinl_drop_while(keep_p, (xs)[:])"), true)
+    testing.expect_value(t, strings.contains(output, "threaded_count := len((odinl_drop_last(1, (xs)[:]))[:])"), true)
     testing.expect_value(t, strings.contains(output, "odinl_take :: proc(n: int, xs: []$T) -> []T"), true)
     testing.expect_value(t, strings.contains(output, "return xs[:limit]"), true)
     testing.expect_value(t, strings.contains(output, "odinl_drop :: proc(n: int, xs: []$T) -> []T"), true)
     testing.expect_value(t, strings.contains(output, "return xs[start:]"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_drop_last :: proc(n: int, xs: []$T) -> []T"), true)
+    testing.expect_value(t, strings.contains(output, "return xs[:end]"), true)
     testing.expect_value(t, strings.contains(output, "odinl_take_while :: proc(pred: proc(x: $T) -> bool, xs: []T) -> []T"), true)
     testing.expect_value(t, strings.contains(output, "return xs[:i]"), true)
     testing.expect_value(t, strings.contains(output, "odinl_drop_while :: proc(pred: proc(x: $T) -> bool, xs: []T) -> []T"), true)

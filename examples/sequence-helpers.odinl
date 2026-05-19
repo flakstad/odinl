@@ -151,6 +151,12 @@
     (+ (+ (last head) (first tail))
        (+ (len smalls) (first bigs)))))
 
+(proc tail-trim-score [] -> int
+  (let [xs (new []int [1 2 3 4 5])
+        init (butlast xs)
+        without-two (drop-last 2 xs)]
+    (+ (last init) (len without-two))))
+
 (proc rest-second-empty-score [] -> int
   (let [xs (new []int [10 20 30])
         tail (rest xs)
@@ -358,6 +364,9 @@
 
   (trimmed-sum)
   ;; => 13
+
+  (tail-trim-score)
+  ;; => 7
 
   (rest-second-empty-score)
   ;; => 40

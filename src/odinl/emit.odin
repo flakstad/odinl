@@ -10,6 +10,7 @@ Emitter_Features :: struct {
     core_reduce:      bool,
     core_take:        bool,
     core_drop:        bool,
+    core_drop_last:   bool,
     core_take_while:  bool,
     core_drop_while:  bool,
     core_find:        bool,
@@ -130,6 +131,12 @@ mark_core_take :: proc(e: ^Emitter) {
 mark_core_drop :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_drop = true
+    }
+}
+
+mark_core_drop_last :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_drop_last = true
     }
 }
 
@@ -1100,6 +1107,24 @@ emit_thread_step :: proc(e: ^Emitter, current: string, step: CST_Form, thread_la
                 return emit_call_text("odinl_drop", []string{count, slice_all_expr_text(current)}), {}, true
             }
         }
+        if thread_last && head.text == "drop-last" {
+            if len(step.items) != 2 {
+                return "", Compile_Error{message = "drop-last thread step expects one count argument", span = step.span}, false
+            }
+            count, err_count, ok_count := emit_expr(e, step.items[1])
+            if !ok_count {
+                return "", err_count, false
+            }
+            mark_core_drop_last(e)
+            return emit_call_text("odinl_drop_last", []string{count, slice_all_expr_text(current)}), {}, true
+        }
+        if thread_last && head.text == "butlast" {
+            if len(step.items) != 1 {
+                return "", Compile_Error{message = "butlast thread step expects no arguments", span = step.span}, false
+            }
+            mark_core_drop_last(e)
+            return emit_call_text("odinl_drop_last", []string{"1", slice_all_expr_text(current)}), {}, true
+        }
         if thread_last && (head.text == "take-while" || head.text == "drop-while" || head.text == "find" || head.text == "some?" || head.text == "every?") {
             if len(step.items) != 2 {
                 return "", Compile_Error{message = fmt.tprintf("%s thread step expects one predicate argument", head.text), span = step.span}, false
@@ -1244,6 +1269,7 @@ thread_step_result_kind :: proc(step: CST_Form, thread_last: bool) -> Thread_Res
             return .Owned_Borrowing
         }
         if thread_last && (head.text == "take" || head.text == "drop" ||
+                           head.text == "drop-last" || head.text == "butlast" ||
                            head.text == "take-while" || head.text == "drop-while" ||
                            head.text == "slice" || head.text == "rest" ||
                            head.text == "split-at") {
@@ -2777,6 +2803,22 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         return emit_call_text("odinl_drop", []string{count, collection}), {}, true
     }
 
+    if head.text == "drop-last" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "drop-last expects count and collection", span = form.span}, false
+        }
+        count, err_count, ok_count := emit_expr(e, form.items[1])
+        if !ok_count {
+            return "", err_count, false
+        }
+        collection, err_collection, ok_collection := emit_expr(e, form.items[2])
+        if !ok_collection {
+            return "", err_collection, false
+        }
+        mark_core_drop_last(e)
+        return emit_call_text("odinl_drop_last", []string{count, slice_all_expr_text(collection)}), {}, true
+    }
+
     if head.text == "take-while" || head.text == "drop-while" || head.text == "find" || head.text == "some?" || head.text == "every?" {
         if len(form.items) != 3 {
             return "", Compile_Error{message = fmt.tprintf("%s expects predicate and collection", head.text), span = form.span}, false
@@ -2801,7 +2843,9 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         return emit_predicate_callback_call(e, "odinl_every_p", form.items[1], collection, mark_core_every, mark_core_every_field)
     }
 
-    if head.text == "first" || head.text == "second" || head.text == "last" || head.text == "rest" || head.text == "empty?" || head.text == "count" {
+    if head.text == "first" || head.text == "second" || head.text == "last" ||
+       head.text == "rest" || head.text == "butlast" ||
+       head.text == "empty?" || head.text == "count" {
         if len(form.items) != 2 {
             return "", Compile_Error{message = fmt.tprintf("%s expects collection", head.text), span = form.span}, false
         }
@@ -2824,6 +2868,10 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         }
         if head.text == "empty?" {
             return fmt.tprintf("len(%s) == 0", collection), {}, true
+        }
+        if head.text == "butlast" {
+            mark_core_drop_last(e)
+            return emit_call_text("odinl_drop_last", []string{"1", collection}), {}, true
         }
         return fmt.tprintf("(%s)[1:]", collection), {}, true
     }
@@ -5163,6 +5211,25 @@ emit_core_drop_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
+emit_core_drop_last_helper :: proc(e: ^Emitter) {
+    emit_line(e, "odinl_drop_last :: proc(n: int, xs: []$T) -> []T {")
+    e.indent += 1
+    emit_line(e, "end := len(xs) - n")
+    emit_line(e, "if end < 0 {")
+    e.indent += 1
+    emit_line(e, "end = 0")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "if end > len(xs) {")
+    e.indent += 1
+    emit_line(e, "end = len(xs)")
+    e.indent -= 1
+    emit_line(e, "}")
+    emit_line(e, "return xs[:end]")
+    e.indent -= 1
+    emit_line(e, "}")
+}
+
 emit_core_take_while_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_take_while :: proc(pred: proc(x: $T) -> bool, xs: []T) -> []T {")
     e.indent += 1
@@ -5336,6 +5403,7 @@ emit_core_every_field_helper :: proc(e: ^Emitter, field: string) {
 core_helpers_needed :: proc(features: Emitter_Features) -> bool {
     return features.core_map || features.core_filter || features.core_reduce ||
            features.core_take || features.core_drop ||
+           features.core_drop_last ||
            features.core_take_while || features.core_drop_while ||
            features.core_find || features.core_some || features.core_every ||
            features.core_remove || features.core_map_indexed || features.core_keep ||
@@ -5630,6 +5698,10 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_drop {
         emit_core_helper_separator(e, &emitted)
         emit_core_drop_helper(e)
+    }
+    if features.core_drop_last {
+        emit_core_helper_separator(e, &emitted)
+        emit_core_drop_last_helper(e)
     }
     if features.core_take_while {
         emit_core_helper_separator(e, &emitted)

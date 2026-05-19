@@ -938,6 +938,8 @@ The intended surface style can still be familiar:
 (iterate 4 step initial)
 (take 10 xs)
 (drop 2 xs)
+(butlast xs)
+(drop-last 2 xs)
 (first xs)
 (second xs)
 (last xs)
