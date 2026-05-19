@@ -56,6 +56,17 @@
   (append odinl-special-forms odinl-core-helpers)
   "Static OdinL completions.")
 
+(defconst odinl--builtin-doc-map
+  '(("when-let" . ("odinl macro" "[value bool expr]"
+                   "Bind a value and explicit boolean result from a multi-return expression. Run the body only when the boolean is true. Expands to a destructuring let plus when."))
+    ("if-let" . ("odinl macro" "[value bool expr] then else"
+                 "Bind a value and explicit boolean result from a multi-return expression. Evaluate the then branch when the boolean is true, otherwise the else branch. Expands to a destructuring let plus if."))
+    ("when-ok" . ("odinl macro" "[value err expr]"
+                  "Bind a value and Odin error result from a multi-return expression. Run the body only when the error equals Odin's zero value {}. Expands to a destructuring let plus when."))
+    ("if-ok" . ("odinl macro" "[value err expr] then else"
+                "Bind a value and Odin error result from a multi-return expression. Evaluate the then branch when the error equals Odin's zero value {}, otherwise the else branch. Expands to a destructuring let plus if.")))
+  "Static documentation for compiler-defined OdinL forms.")
+
 (defun odinl--inside-string-on-line-p (pos)
   "Return non-nil if POS is inside a simple string on its current line."
   (save-excursion
@@ -632,13 +643,25 @@
 (defun odinl--symbol-doc-candidates (identifier)
   "Return documentation candidates for IDENTIFIER."
   (let* ((symbols (append (ignore-errors (odinl--symbols))
-                          (ignore-errors (odinl--package-definitions identifier))))
+                          (ignore-errors (odinl--package-definitions identifier))
+                          (odinl--builtin-doc-candidates identifier)))
          (matches (seq-filter (lambda (symbol)
                                 (odinl--symbol-matches-identifier-p symbol identifier))
                               symbols)))
     (seq-filter (lambda (symbol)
                   (not (string-empty-p (or (plist-get symbol :doc) ""))))
                 matches)))
+
+(defun odinl--builtin-doc-candidates (identifier)
+  "Return static documentation candidates for OdinL built-in IDENTIFIER."
+  (when-let ((entry (cdr (assoc identifier odinl--builtin-doc-map))))
+    (pcase-let ((`(,kind ,detail ,doc) entry))
+      (list (list :kind kind
+                  :name identifier
+                  :line 1
+                  :column 1
+                  :detail detail
+                  :doc doc)))))
 
 (defun odinl--show-doc (symbol)
   "Show documentation for SYMBOL."

@@ -1286,6 +1286,34 @@ compile_if_ok_macro :: proc(t: ^testing.T) {
 }
 
 @(test)
+compile_when_ok_macro :: proc(t: ^testing.T) {
+    source := `(package main)
+(import os "core:os")
+
+(proc read-count [] -> [value: int, err: os.Error]
+  (return 42 nil))
+
+(proc main [] -> int
+  (let [total 0]
+    (when-ok [value err (read-count)]
+      (set! total value))
+    total))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "value, err := read_count()"), true)
+    testing.expect_value(t, strings.contains(output, "if (err) == ({})"), true)
+    testing.expect_value(t, strings.contains(output, "total = value"), true)
+    testing.expect_value(t, strings.contains(output, "return total"), true)
+}
+
+@(test)
 compile_file_dev_helpers :: proc(t: ^testing.T) {
     source := `(package main)
 (import os "core:os")
@@ -1844,6 +1872,33 @@ macroexpand_if_ok :: proc(t: ^testing.T) {
     expected := `(let [[data err] (read-text path)] (if (== err {}) (len data) 0))
 `
     testing.expect_value(t, output, expected)
+}
+
+@(test)
+macroexpand_rejects_binding_macro_shapes :: proc(t: ^testing.T) {
+    _, err_if_let, ok_if_let := odinl.macroexpand_source(`(if-let [value found (query)]
+  value)`)
+    testing.expect_value(t, ok_if_let, false)
+    defer delete(err_if_let.message)
+    testing.expect_value(t, err_if_let.message, "if-let expects [value bool expr], then, and else")
+
+    _, err_when_let, ok_when_let := odinl.macroexpand_source(`(when-let [value 1 (query)]
+  value)`)
+    testing.expect_value(t, ok_when_let, false)
+    defer delete(err_when_let.message)
+    testing.expect_value(t, err_when_let.message, "when-let expects [value bool expr] binding")
+
+    _, err_when_ok, ok_when_ok := odinl.macroexpand_source(`(when-ok [data (read-text path)]
+  data)`)
+    testing.expect_value(t, ok_when_ok, false)
+    defer delete(err_when_ok.message)
+    testing.expect_value(t, err_when_ok.message, "when-ok expects [value err expr] binding")
+
+    _, err_if_ok, ok_if_ok := odinl.macroexpand_source(`(if-ok [data err (read-text path)]
+  data)`)
+    testing.expect_value(t, ok_if_ok, false)
+    defer delete(err_if_ok.message)
+    testing.expect_value(t, err_if_ok.message, "if-ok expects [value err expr], then, and else")
 }
 
 @(test)

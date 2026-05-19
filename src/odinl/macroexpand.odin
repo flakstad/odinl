@@ -71,13 +71,13 @@ macro_error_success_condition :: proc(condition: CST_Form) -> CST_Form {
     return test
 }
 
-parse_binding_condition_macro :: proc(form: CST_Form, name: string) -> (bindings: CST_Form, condition: CST_Form, err: Compile_Error, ok: bool) {
+parse_binding_condition_macro :: proc(form: CST_Form, name, binding_label: string) -> (bindings: CST_Form, condition: CST_Form, err: Compile_Error, ok: bool) {
     if len(form.items) < 3 || form.items[1].kind != .Vector {
-        return bindings, condition, Compile_Error{message = fmt.tprintf("%s expects [value condition expr] binding and body", name), span = form.span}, false
+        return bindings, condition, Compile_Error{message = fmt.tprintf("%s expects %s binding and body", name, binding_label), span = form.span}, false
     }
     binding := form.items[1]
     if len(binding.items) != 3 || binding.items[0].kind != .Symbol || binding.items[1].kind != .Symbol {
-        return bindings, condition, Compile_Error{message = fmt.tprintf("%s expects [value condition expr] binding", name), span = binding.span}, false
+        return bindings, condition, Compile_Error{message = fmt.tprintf("%s expects %s binding", name, binding_label), span = binding.span}, false
     }
 
     destructure := CST_Form{kind = .Vector, span = binding.span}
@@ -92,7 +92,7 @@ parse_binding_condition_macro :: proc(form: CST_Form, name: string) -> (bindings
 }
 
 expand_when_let_form :: proc(form: CST_Form) -> (expanded: CST_Form, err: Compile_Error, ok: bool) {
-    bindings, condition, err_bind, ok_bind := parse_binding_condition_macro(form, "when-let")
+    bindings, condition, err_bind, ok_bind := parse_binding_condition_macro(form, "when-let", "[value bool expr]")
     if !ok_bind {
         return expanded, err_bind, false
     }
@@ -112,9 +112,9 @@ expand_when_let_form :: proc(form: CST_Form) -> (expanded: CST_Form, err: Compil
 
 expand_if_let_form :: proc(form: CST_Form) -> (expanded: CST_Form, err: Compile_Error, ok: bool) {
     if len(form.items) != 4 {
-        return expanded, Compile_Error{message = "if-let expects [value condition expr], then, and else", span = form.span}, false
+        return expanded, Compile_Error{message = "if-let expects [value bool expr], then, and else", span = form.span}, false
     }
-    bindings, condition, err_bind, ok_bind := parse_binding_condition_macro(form, "if-let")
+    bindings, condition, err_bind, ok_bind := parse_binding_condition_macro(form, "if-let", "[value bool expr]")
     if !ok_bind {
         return expanded, err_bind, false
     }
@@ -133,7 +133,7 @@ expand_if_let_form :: proc(form: CST_Form) -> (expanded: CST_Form, err: Compile_
 }
 
 expand_when_ok_form :: proc(form: CST_Form) -> (expanded: CST_Form, err: Compile_Error, ok: bool) {
-    bindings, condition, err_bind, ok_bind := parse_binding_condition_macro(form, "when-ok")
+    bindings, condition, err_bind, ok_bind := parse_binding_condition_macro(form, "when-ok", "[value err expr]")
     if !ok_bind {
         return expanded, err_bind, false
     }
@@ -156,7 +156,7 @@ expand_if_ok_form :: proc(form: CST_Form) -> (expanded: CST_Form, err: Compile_E
     if len(form.items) != 4 {
         return expanded, Compile_Error{message = "if-ok expects [value err expr], then, and else", span = form.span}, false
     }
-    bindings, condition, err_bind, ok_bind := parse_binding_condition_macro(form, "if-ok")
+    bindings, condition, err_bind, ok_bind := parse_binding_condition_macro(form, "if-ok", "[value err expr]")
     if !ok_bind {
         return expanded, err_bind, false
     }
