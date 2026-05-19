@@ -1171,7 +1171,7 @@ compile_file_dev_helpers :: proc(t: ^testing.T) {
 }
 
 @(test)
-compile_save_json_helper :: proc(t: ^testing.T) {
+compile_json_interop_is_explicit :: proc(t: ^testing.T) {
     source := `(package main)
 (import json "core:encoding/json")
 (import os "core:os")
@@ -1182,9 +1182,21 @@ compile_save_json_helper :: proc(t: ^testing.T) {
 })
 
 (proc save-user [path: string, user: User] -> bool
-  (let [[marshal-err write-err] (save-json path user)]
-    (and (== marshal-err nil)
-         (== write-err nil))))`
+  (let [[data marshal-err] (json.marshal user)]
+    (if (!= marshal-err nil)
+      false
+      (do
+        (defer (delete data))
+        (== (spit path data) nil)))))
+
+(proc load-user [path: string] -> [user: User, ok: bool]
+  (let [[data read-err] (slurp path)]
+    (if (!= read-err nil)
+      (return user false)
+      (do
+        (defer (delete data))
+        (let [unmarshal-err (json.unmarshal data (& user))]
+          (return user (== unmarshal-err nil)))))))`
 
     output, err, ok := odinl.compile_source(source)
     testing.expect_value(t, ok, true)
@@ -1196,43 +1208,13 @@ compile_save_json_helper :: proc(t: ^testing.T) {
 
     testing.expect_value(t, strings.contains(output, `import json "core:encoding/json"`), true)
     testing.expect_value(t, strings.contains(output, `import os "core:os"`), true)
-    testing.expect_value(t, strings.contains(output, "marshal_err, write_err := odinl_save_json(path, user)"), true)
-    testing.expect_value(t, strings.contains(output, "odinl_save_json :: proc(path: string, value: $T) -> (marshal_err: json.Marshal_Error, write_err: os.Error)"), true)
-    testing.expect_value(t, strings.contains(output, "data, marshal_err = json.marshal(value)"), true)
+    testing.expect_value(t, strings.contains(output, "data, marshal_err := json.marshal(user)"), true)
+    testing.expect_value(t, strings.contains(output, "return (os.write_entire_file(path, data)) == (nil)"), true)
+    testing.expect_value(t, strings.contains(output, "data, read_err := os.read_entire_file(path, context.allocator)"), true)
+    testing.expect_value(t, strings.contains(output, "unmarshal_err := json.unmarshal(data, &(user))"), true)
     testing.expect_value(t, strings.contains(output, "defer delete(data)"), true)
-    testing.expect_value(t, strings.contains(output, "write_err = os.write_entire_file(path, data)"), true)
-}
-
-@(test)
-compile_load_json_helper :: proc(t: ^testing.T) {
-    source := `(package main)
-(import json "core:encoding/json")
-(import os "core:os")
-
-(struct Count {
-  :n int
-})
-
-(proc load-count [path: string] -> [value: Count, ok: bool]
-  (let [[value read-err unmarshal-err] (load-json Count path)]
-    (return value (and (== read-err nil)
-                       (== unmarshal-err nil)))))`
-
-    output, err, ok := odinl.compile_source(source)
-    testing.expect_value(t, ok, true)
-    if !ok {
-        testing.expect_value(t, err.message, "")
-        return
-    }
-    defer delete(output)
-
-    testing.expect_value(t, strings.contains(output, `import json "core:encoding/json"`), true)
-    testing.expect_value(t, strings.contains(output, `import os "core:os"`), true)
-    testing.expect_value(t, strings.contains(output, "value, read_err, unmarshal_err := odinl_load_json(Count, path)"), true)
-    testing.expect_value(t, strings.contains(output, "odinl_load_json :: proc($T: typeid, path: string) -> (value: T, read_err: os.Error, unmarshal_err: json.Unmarshal_Error)"), true)
-    testing.expect_value(t, strings.contains(output, "data, read_err = os.read_entire_file(path, context.allocator)"), true)
-    testing.expect_value(t, strings.contains(output, "defer delete(data)"), true)
-    testing.expect_value(t, strings.contains(output, "unmarshal_err = json.unmarshal(data, &value)"), true)
+    testing.expect_value(t, strings.contains(output, "odinl_save_json"), false)
+    testing.expect_value(t, strings.contains(output, "odinl_load_json"), false)
 }
 
 @(test)

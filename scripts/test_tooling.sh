@@ -127,28 +127,39 @@ cat > "$tmp_dir/dev-io.odinl" <<'EOF'
 
 (proc save-note-json [path: string] -> bool
   (let [note (Note {:title "hello" :body "odinl"})
-        [marshal-err write-err] (save-json path note)]
-    (and (== marshal-err nil)
-         (== write-err nil))))
+        [data marshal-err] (json.marshal note)]
+    (if (!= marshal-err nil)
+      false
+      (do
+        (defer (delete data))
+        (== (spit path data) nil)))))
 
 (proc save-count-json [path: string, n: int] -> bool
-  (let [[marshal-err write-err] (save-json path (Count {:n n}))]
-    (and (== marshal-err nil)
-         (== write-err nil))))
+  (let [[data marshal-err] (json.marshal (Count {:n n}))]
+    (if (!= marshal-err nil)
+      false
+      (do
+        (defer (delete data))
+        (== (spit path data) nil)))))
 
 (proc load-count-json [path: string] -> int
-  (let [[count read-err unmarshal-err] (load-json Count path)]
-    (if (or (!= read-err nil)
-            (!= unmarshal-err nil))
+  (let [[data read-err] (slurp path)]
+    (if (!= read-err nil)
       0
-      (:n count))))
+      (do
+        (defer (delete data))
+        (let [count (Count {})
+              unmarshal-err (json.unmarshal data (& count))]
+          (if (!= unmarshal-err nil)
+            0
+            (:n count)))))))
 EOF
 file_eval_output=$(./odinl eval "$tmp_dir/dev-io.odinl" "(write-read-count \"$tmp_dir/odinl-cache.txt\")")
 assert_eq "5" "$file_eval_output" "file-backed eval output"
 json_eval_output=$(./odinl eval "$tmp_dir/dev-io.odinl" "(save-note-json \"$tmp_dir/odinl-note.json\")")
 assert_eq "true" "$json_eval_output" "json save eval output"
 if ! grep -q '"title":"hello"' "$tmp_dir/odinl-note.json"; then
-    printf 'failed: save-json did not write expected JSON\n' >&2
+    printf 'failed: explicit json.marshal did not write expected JSON\n' >&2
     cat "$tmp_dir/odinl-note.json" >&2
     exit 1
 fi

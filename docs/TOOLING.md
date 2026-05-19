@@ -210,25 +210,31 @@ Saving JSON can also stay boring:
 (import json "core:encoding/json")
 (import os "core:os")
 
-(let [[marshal-err write-err] (save-json "tmp/users.json" users)]
-  (and (== marshal-err nil)
-       (== write-err nil)))
+(let [[data marshal-err] (json.marshal user)]
+  (if (!= marshal-err nil)
+    false
+    (do
+      (defer (delete data))
+      (== (spit "tmp/users.json" data) nil))))
 
-(let [[users read-err unmarshal-err] (load-json []User "tmp/users.json")]
-  ...)
+(let [[data read-err] (slurp "tmp/users.json")]
+  (if (!= read-err nil)
+    false
+    (do
+      (defer (delete data))
+      (let [user (User {})
+            unmarshal-err (json.unmarshal data (& user))]
+        (== unmarshal-err nil)))))
 ```
 
-`save-json` lowers through a generated `odinl_save_json` helper that calls
-`json.marshal`, defers deletion of the temporary JSON bytes, and writes them
-with `os.write_entire_file`.
-
 For structured data, continue to require explicit format and type decisions
-rather than inventing a universal printer/reader. `load-json` requires the
-destination type at the call site and returns `(value, read_err,
-unmarshal_err)`. Odin's JSON unmarshal can allocate strings, slices, dynamic
-arrays, and maps inside the destination value according to that destination
-type, so callers still own any allocations inside a successfully decoded value.
-For allocation-heavy decoded values, keep cleanup explicit in the calling code.
+rather than inventing a universal printer/reader. JSON is ordinary host
+interop: source files import `core:encoding/json` and call `json.marshal` /
+`json.unmarshal` explicitly. Odin's JSON unmarshal can allocate strings,
+slices, dynamic arrays, and maps inside the destination value according to that
+destination type, so callers still own any allocations inside a successfully
+decoded value. For allocation-heavy decoded values, keep cleanup explicit in the
+calling code.
 
 These helpers should lean on Odin's existing core libraries:
 
@@ -289,8 +295,8 @@ writes the exact stdout from a successful eval run to the named cache file and
 still prints stdout normally.
 
 This is intentionally text-oriented. For structured values, prefer explicit
-`spit`, `slurp`, and `save-json` in OdinL source so ownership and format choices
-stay visible.
+`spit`, `slurp`, `json.marshal`, and `json.unmarshal` in OdinL source so
+ownership and format choices stay visible.
 
 The Emacs tooling exposes this through ordinary CLI calls:
 

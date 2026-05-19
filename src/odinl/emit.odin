@@ -58,8 +58,6 @@ Emitter_Features :: struct {
     core_repeatedly:  bool,
     core_iterate:     bool,
     core_cycle:       bool,
-    core_save_json:   bool,
-    core_load_json:   bool,
     core_tap:         bool,
     map_fields:       [dynamic]string,
     index_by_fields:  [dynamic]string,
@@ -420,18 +418,6 @@ mark_core_iterate :: proc(e: ^Emitter) {
 mark_core_cycle :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_cycle = true
-    }
-}
-
-mark_core_save_json :: proc(e: ^Emitter) {
-    if e.features != nil {
-        e.features.core_save_json = true
-    }
-}
-
-mark_core_load_json :: proc(e: ^Emitter) {
-    if e.features != nil {
-        e.features.core_load_json = true
     }
 }
 
@@ -1401,7 +1387,7 @@ owned_result_head :: proc(name: string) -> bool {
          "zipmap", "index-by", "group-by", "frequencies", "keys", "vals",
          "distinct", "distinct-by",
          "range", "repeat", "repeatedly", "iterate", "cycle", "take-nth",
-         "slurp", "load-json":
+         "slurp":
         return true
     }
     return false
@@ -2172,38 +2158,6 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
             return "", err_data, false
         }
         return emit_call_text("os.write_entire_file", []string{path, data}), {}, true
-    }
-
-    if head.text == "save-json" {
-        if len(form.items) != 3 {
-            return "", Compile_Error{message = "save-json expects path and value", span = form.span}, false
-        }
-        path, err_path, ok_path := emit_expr(e, form.items[1])
-        if !ok_path {
-            return "", err_path, false
-        }
-        value, err_value, ok_value := emit_expr(e, form.items[2])
-        if !ok_value {
-            return "", err_value, false
-        }
-        mark_core_save_json(e)
-        return emit_call_text("odinl_save_json", []string{path, value}), {}, true
-    }
-
-    if head.text == "load-json" {
-        if len(form.items) != 3 {
-            return "", Compile_Error{message = "load-json expects type and path", span = form.span}, false
-        }
-        type_text, err_type, ok_type := parse_type_text(form.items[1])
-        if !ok_type {
-            return "", err_type, false
-        }
-        path, err_path, ok_path := emit_expr(e, form.items[2])
-        if !ok_path {
-            return "", err_path, false
-        }
-        mark_core_load_json(e)
-        return emit_call_text("odinl_load_json", []string{type_text, path}), {}, true
     }
 
     if head.text == "tap>" {
@@ -5284,40 +5238,6 @@ emit_core_cycle_helper :: proc(e: ^Emitter) {
     emit_line(e, "}")
 }
 
-emit_core_save_json_helper :: proc(e: ^Emitter) {
-    emit_line(e, "odinl_save_json :: proc(path: string, value: $T) -> (marshal_err: json.Marshal_Error, write_err: os.Error) {")
-    e.indent += 1
-    emit_line(e, "data: []byte")
-    emit_line(e, "data, marshal_err = json.marshal(value)")
-    emit_line(e, "if marshal_err != nil {")
-    e.indent += 1
-    emit_line(e, "return")
-    e.indent -= 1
-    emit_line(e, "}")
-    emit_line(e, "defer delete(data)")
-    emit_line(e, "write_err = os.write_entire_file(path, data)")
-    emit_line(e, "return")
-    e.indent -= 1
-    emit_line(e, "}")
-}
-
-emit_core_load_json_helper :: proc(e: ^Emitter) {
-    emit_line(e, "odinl_load_json :: proc($T: typeid, path: string) -> (value: T, read_err: os.Error, unmarshal_err: json.Unmarshal_Error) {")
-    e.indent += 1
-    emit_line(e, "data: []byte")
-    emit_line(e, "data, read_err = os.read_entire_file(path, context.allocator)")
-    emit_line(e, "if read_err != nil {")
-    e.indent += 1
-    emit_line(e, "return")
-    e.indent -= 1
-    emit_line(e, "}")
-    emit_line(e, "defer delete(data)")
-    emit_line(e, "unmarshal_err = json.unmarshal(data, &value)")
-    emit_line(e, "return")
-    e.indent -= 1
-    emit_line(e, "}")
-}
-
 emit_core_tap_helper :: proc(e: ^Emitter) {
     emit_line(e, "odinl_tap :: proc(value: $T) -> T {")
     e.indent += 1
@@ -5624,7 +5544,7 @@ core_helpers_needed :: proc(features: Emitter_Features) -> bool {
            features.core_distinct || features.core_distinct_by ||
            features.core_range || features.core_repeat ||
            features.core_repeatedly || features.core_iterate ||
-           features.core_cycle || features.core_save_json || features.core_load_json ||
+           features.core_cycle ||
            features.core_tap ||
            len(features.map_fields) > 0 || len(features.index_by_fields) > 0 ||
            len(features.group_by_fields) > 0 ||
@@ -5870,14 +5790,6 @@ emit_core_helpers :: proc(e: ^Emitter, features: Emitter_Features) {
     if features.core_cycle {
         emit_core_helper_separator(e, &emitted)
         emit_core_cycle_helper(e)
-    }
-    if features.core_save_json {
-        emit_core_helper_separator(e, &emitted)
-        emit_core_save_json_helper(e)
-    }
-    if features.core_load_json {
-        emit_core_helper_separator(e, &emitted)
-        emit_core_load_json_helper(e)
     }
     if features.core_tap {
         emit_core_helper_separator(e, &emitted)
