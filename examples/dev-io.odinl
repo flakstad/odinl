@@ -57,13 +57,6 @@
         (let [decode-err (json.unmarshal data (& value))]
           (return value nil decode-err))))))
 
-(proc delete-loaded-note [note: Note]
-  ;; json.unmarshal allocates string fields with the current allocator. This
-  ;; helper is only for Note values loaded from JSON, not Note values built from
-  ;; string literals.
-  (delete (:title note))
-  (delete (:body note)))
-
 (proc main []
   (return))
 
@@ -90,8 +83,8 @@
   ;; JSON is useful for typed cached dev data, but it is not OdinL core syntax.
   ;; write-as-json and read-json-as are ordinary generic procs in this file:
   ;; they call json.marshal and json.unmarshal explicitly, then use spit/slurp
-  ;; for file IO. The loaded Note owns its decoded string fields, so the procs
-  ;; that use it delete those fields before returning.
+  ;; for file IO. json.unmarshal allocates Note's decoded string fields, so
+  ;; delete those fields directly in the same scope that reads them.
   (let [[marshal-err write-err] (write-as-json "tmp/odinl-note.json"
                                                (Note {:title "hello" :body "from OdinL"}))]
     (and (== marshal-err nil)
@@ -103,7 +96,8 @@
             (!= unmarshal-err nil))
       false
       (do
-        (defer (delete-loaded-note note))
+        (defer (delete (:title note)))
+        (defer (delete (:body note)))
         (fmt.println note)
         true)))
   ;; prints the parsed Note struct, then returns true
