@@ -33,15 +33,9 @@
       dir-err
       (spit path text))))
 
-(proc read-text [path: string] -> [text: string, err: os.Error]
-  (let [[data read-err] (slurp path)]
-    (if (!= read-err nil)
-      (return "" read-err)
-      (return (string data) nil))))
-
-(proc delete-read-text [text: string]
-  ;; read-text returns a string backed by slurp's owned byte buffer.
-  (delete (odin "transmute([]byte)text")))
+(proc read-text [path: string] -> [data: []byte, err: os.Error]
+  ;; Ownership of data transfers to the caller.
+  (slurp path))
 
 (proc write-as-json [path: string, value: $T] -> [marshal-err: json.Marshal_Error, write-err: os.Error]
   (let [dir-err (ensure-dev-dir)]
@@ -80,17 +74,17 @@
   (ensure-dev-dir)
   ;; => nil
 
-  ;; Text files use a small ordinary helper pair. read-text returns an owned
-  ;; string, so delete it when the caller is done.
+  ;; Text files use a small ordinary helper pair. read-text returns owned bytes,
+  ;; so delete the bytes directly in the same scope that reads them.
   (write-text "tmp/odinl-note.txt" "hello")
   ;; => nil
 
-  (let [[text err] (read-text "tmp/odinl-note.txt")]
+  (let [[data err] (read-text "tmp/odinl-note.txt")]
     (if (!= err nil)
       ""
       (do
-        (defer (delete-read-text text))
-        text)))
+        (defer (delete data))
+        (string data))))
   ;; => hello
 
   ;; JSON is useful for typed cached dev data, but it is not OdinL core syntax.
