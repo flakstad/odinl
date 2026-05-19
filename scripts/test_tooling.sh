@@ -348,6 +348,13 @@ if command -v emacs >/dev/null 2>&1; then
                    (let ((docs (odinl--symbol-doc-candidates \"fmt.println\")))
                      (unless docs
                        (error \"Expected fmt.println docs\")))
+                   (with-temp-buffer
+                     (insert \"/*\\n * Block docs.\\n * More docs.\\n */\\nthing :: proc() {}\\n\")
+                     (goto-char (point-min))
+                     (search-forward \"thing ::\")
+                     (let ((doc (odinl--preceding-odin-doc (line-beginning-position))))
+                       (unless (equal doc \"Block docs.\\nMore docs.\")
+                         (error \"Expected block docs, got: %S\" doc))))
                    (goto-char (point-min))
                    (search-forward \"add [\")
                    (backward-word)

@@ -121,7 +121,10 @@ symbols_source_indexes_top_level_forms :: proc(t: ^testing.T) {
     source := `(package main)
 (import strings "core:strings")
 
-// A user record.
+/*
+ * A user record.
+ * Owned by caller.
+ */
 (struct User {
   :name string
   :active bool
@@ -154,14 +157,14 @@ symbols_source_indexes_top_level_forms :: proc(t: ^testing.T) {
 
     testing.expect_value(t, strings.contains(output, "kind\tname\tline\tcolumn\tdetail\tdoc\n"), true)
     testing.expect_value(t, strings.contains(output, "import\tstrings\t2\t9\tcore:strings\t\n"), true)
-    testing.expect_value(t, strings.contains(output, "struct\tUser\t5\t9\t\tA user record.\n"), true)
-    testing.expect_value(t, strings.contains(output, "field\tUser.name\t6\t3\tUser\t\n"), true)
-    testing.expect_value(t, strings.contains(output, "enum\tStatus\t10\t7\t\t\n"), true)
-    testing.expect_value(t, strings.contains(output, "variant\tStatus.Active\t11\t3\tStatus\t\n"), true)
-    testing.expect_value(t, strings.contains(output, "union\tValue\t15\t8\t\t\n"), true)
-    testing.expect_value(t, strings.contains(output, "variant\tValue.i\t16\t3\tValue\t\n"), true)
-    testing.expect_value(t, strings.contains(output, "const\tmax-age\t20\t8\t\t\n"), true)
-    testing.expect_value(t, strings.contains(output, "proc\tactive?\t24\t7\t\tReturns true for active users.\\nUsed by sequence examples.\n"), true)
+    testing.expect_value(t, strings.contains(output, "struct\tUser\t8\t9\t\tA user record.\\nOwned by caller.\n"), true)
+    testing.expect_value(t, strings.contains(output, "field\tUser.name\t9\t3\tUser\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "enum\tStatus\t13\t7\t\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "variant\tStatus.Active\t14\t3\tStatus\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "union\tValue\t18\t8\t\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "variant\tValue.i\t19\t3\tValue\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "const\tmax-age\t23\t8\t\t\n"), true)
+    testing.expect_value(t, strings.contains(output, "proc\tactive?\t27\t7\t\tReturns true for active users.\\nUsed by sequence examples.\n"), true)
 }
 
 @(test)
@@ -405,6 +408,32 @@ reader_converts_semicolon_doc_comments :: proc(t: ^testing.T) {
     testing.expect_value(t, len(forms), 1)
     testing.expect_value(t, len(forms[0].doc_lines), 1)
     testing.expect_value(t, forms[0].doc_lines[0], "// Lisp doc.")
+}
+
+@(test)
+reader_converts_block_doc_comments :: proc(t: ^testing.T) {
+    old_allocator := context.allocator
+    temp_scope := runtime.default_temp_allocator_temp_begin()
+    defer runtime.default_temp_allocator_temp_end(temp_scope)
+    context.allocator = context.temp_allocator
+    defer context.allocator = old_allocator
+
+    source := `/*
+ * Block doc.
+ * Second line.
+ */
+(const answer 42)`
+
+    forms, err, ok := odinl.read_top_forms(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+
+    testing.expect_value(t, len(forms), 1)
+    testing.expect_value(t, len(forms[0].doc_lines), 1)
+    testing.expect_value(t, forms[0].doc_lines[0], "Block doc.\nSecond line.")
 }
 
 @(test)

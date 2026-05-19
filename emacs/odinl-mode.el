@@ -264,8 +264,35 @@
     (string-trim-left (substring line 2)))
    (t line)))
 
+(defun odinl--clean-block-doc-line (line)
+  "Return cleaned block-comment documentation LINE."
+  (setq line (string-trim line))
+  (when (string-prefix-p "*" line)
+    (setq line (string-trim-left (substring line 1))))
+  line)
+
+(defun odinl--clean-block-doc-comment (text)
+  "Return cleaned documentation text from a /* ... */ block."
+  (when (string-prefix-p "/*" text)
+    (setq text (substring text 2)))
+  (when (string-suffix-p "*/" text)
+    (setq text (substring text 0 (- (length text) 2))))
+  (let ((lines (mapcar #'odinl--clean-block-doc-line
+                       (split-string text "\n")))
+        result seen-content pending-blank)
+    (dolist (line lines)
+      (if (string-empty-p line)
+          (when seen-content
+            (setq pending-blank t))
+        (when pending-blank
+          (push "" result))
+        (push line result)
+        (setq seen-content t
+              pending-blank nil)))
+    (string-join (nreverse result) "\n")))
+
 (defun odinl--preceding-odin-doc (pos)
-  "Return contiguous line comments immediately preceding POS."
+  "Return contiguous comments immediately preceding POS."
   (save-excursion
     (goto-char pos)
     (beginning-of-line)
@@ -281,6 +308,16 @@
                ((string-match-p "\\`[ \t]*//" line)
                 (push (odinl--clean-doc-comment-line line) lines)
                 (beginning-of-line))
+               ((string-match-p "\\*/[ \t]*\\'" line)
+                (let ((block-end (line-end-position)))
+                  (if (search-backward "/*" nil t)
+                      (progn
+                        (push (odinl--clean-block-doc-comment
+                               (buffer-substring-no-properties (point) block-end))
+                              lines)
+                        (beginning-of-line))
+                    (goto-char line-end)
+                    (setq done t))))
                ((string-match-p "\\`[ \t]*\\'" line)
                 (goto-char line-end)
                 (setq done t))
