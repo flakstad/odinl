@@ -1220,6 +1220,72 @@ main :: proc() {
 }
 
 @(test)
+compile_if_let_macro :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc query [] -> [value: int, found: bool]
+  (return 42 true))
+
+(proc main [] -> int
+  (if-let [value found (query)]
+    value
+    0))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+query :: proc() -> (value: int, found: bool) {
+    return 42, true
+}
+
+main :: proc() -> int {
+    value, found := query()
+    if found {
+        return value
+    }
+    else {
+        return 0
+    }
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+compile_if_ok_macro :: proc(t: ^testing.T) {
+    source := `(package main)
+(import os "core:os")
+
+(proc read-count [] -> [value: int, err: os.Error]
+  (return 42 nil))
+
+(proc main [] -> int
+  (if-ok [value err (read-count)]
+    value
+    0))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "value, err := read_count()"), true)
+    testing.expect_value(t, strings.contains(output, "if (err) == ({})"), true)
+    testing.expect_value(t, strings.contains(output, "return value"), true)
+    testing.expect_value(t, strings.contains(output, "return 0"), true)
+}
+
+@(test)
 compile_file_dev_helpers :: proc(t: ^testing.T) {
     source := `(package main)
 (import os "core:os")
@@ -1726,6 +1792,56 @@ macroexpand_when_let :: proc(t: ^testing.T) {
     defer delete(output)
 
     expected := `(let [[value found] (query)] (when found (fmt.println value)))
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+macroexpand_if_let :: proc(t: ^testing.T) {
+    output, err, ok := odinl.macroexpand_source(`(if-let [value found (query)]
+  value
+  0)`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `(let [[value found] (query)] (if found value 0))
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+macroexpand_when_ok :: proc(t: ^testing.T) {
+    output, err, ok := odinl.macroexpand_source(`(when-ok [data err (read-text path)]
+  (use data))`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `(let [[data err] (read-text path)] (when (== err {}) (use data)))
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+macroexpand_if_ok :: proc(t: ^testing.T) {
+    output, err, ok := odinl.macroexpand_source(`(if-ok [data err (read-text path)]
+  (len data)
+  0)`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `(let [[data err] (read-text path)] (if (== err {}) (len data) 0))
 `
     testing.expect_value(t, output, expected)
 }

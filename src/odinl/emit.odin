@@ -3921,6 +3921,24 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             return err_expand, false
         }
         return emit_stmt(e, expanded, last_in_proc, returns)
+    case .If_Let:
+        expanded, err_expand, ok_expand := expand_if_let_form(form)
+        if !ok_expand {
+            return err_expand, false
+        }
+        return emit_stmt(e, expanded, last_in_proc, returns)
+    case .When_Ok:
+        expanded, err_expand, ok_expand := expand_when_ok_form(form)
+        if !ok_expand {
+            return err_expand, false
+        }
+        return emit_stmt(e, expanded, last_in_proc, returns)
+    case .If_Ok:
+        expanded, err_expand, ok_expand := expand_if_ok_form(form)
+        if !ok_expand {
+            return err_expand, false
+        }
+        return emit_stmt(e, expanded, last_in_proc, returns)
     case .None:
     }
 

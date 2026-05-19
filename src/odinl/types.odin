@@ -196,4 +196,7 @@ Builtin_Macro_Kind :: enum {
     With_Temp_Allocator,
     With_Delete,
     When_Let,
+    If_Let,
+    When_Ok,
+    If_Ok,
 }

@@ -50,6 +50,13 @@
         (set! score 10)))
     score))
 
+// if-let is the expression variant. Use it when the false branch should
+// produce a value instead of just doing nothing.
+(proc method-title [name: string] -> string
+  (if-let [method found (lookup-method name)]
+    (method-name method)
+    "UNKNOWN"))
+
 (proc main []
   (let [xs (new []int [1 2 3])]
     (fmt.println (classify (sum xs)))))
@@ -72,4 +79,10 @@
 
   (method-score "POST")
   ;; => 0
+
+  (method-title "DELETE")
+  ;; => OTHER
+
+  (method-title "PATCH")
+  ;; => UNKNOWN
 )

@@ -34,7 +34,8 @@
     "let" "do" "if" "when" "cond" "switch" "set!" "return" "defer"
     "for" "each" "comment" "new" "make" "get" "nil?" "in" "not-in"
     "break" "continue" "with-allocator" "with-temp-allocator"
-    "with-delete" "when-let" "slurp" "spit" "tap>"
+    "with-delete" "when-let" "if-let" "when-ok" "if-ok"
+    "slurp" "spit" "tap>"
     "->" "->>")
   "OdinL special forms and syntactic heads.")
 
@@ -470,10 +471,11 @@
     ("with-temp-allocator" . ("src/odinl/emit.odin" "emit_with_temp_allocator_stmt :: proc" "odinl form"))
     ("with-delete" . ("src/odinl/emit.odin" "emit_with_delete_stmt :: proc" "odinl form"))
     ("when-let" . ("src/odinl/macroexpand.odin" "expand_when_let_form :: proc" "odinl form"))
+    ("if-let" . ("src/odinl/macroexpand.odin" "expand_if_let_form :: proc" "odinl form"))
+    ("when-ok" . ("src/odinl/macroexpand.odin" "expand_when_ok_form :: proc" "odinl form"))
+    ("if-ok" . ("src/odinl/macroexpand.odin" "expand_if_ok_form :: proc" "odinl form"))
     ("slurp" . ("src/odinl/emit.odin" "if head.text == \"slurp\"" "odinl form"))
     ("spit" . ("src/odinl/emit.odin" "if head.text == \"spit\"" "odinl form"))
-    ("save-json" . ("src/odinl/emit.odin" "if head.text == \"save-json\"" "odinl form"))
-    ("load-json" . ("src/odinl/emit.odin" "if head.text == \"load-json\"" "odinl form"))
     ("tap>" . ("src/odinl/emit.odin" "if head.text == \"tap>\"" "odinl form"))
     ("->" . ("src/odinl/emit.odin" "emit_thread_expr :: proc" "odinl form"))
     ("->>" . ("src/odinl/emit.odin" "emit_thread_expr :: proc" "odinl form")))
