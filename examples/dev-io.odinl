@@ -4,6 +4,7 @@
 // reuse it in later evals" workflow. There is no hidden REPL state here:
 // values are saved to ordinary files, then later eval calls read those files.
 (package main)
+(import "core:fmt")
 (import json "core:encoding/json")
 (import os "core:os")
 
@@ -39,6 +40,35 @@
       (let [[marshal-err write-err] (save-json path note)]
         (and (== marshal-err nil)
              (== write-err nil))))))
+
+(proc load-note-json [path: string] -> [note: Note, read-err: os.Error, unmarshal-err: json.Unmarshal_Error]
+  (load-json Note path))
+
+(proc delete-loaded-note [note: Note]
+  ;; json.unmarshal allocates string fields with the current allocator. This
+  ;; helper is only for Note values loaded from JSON, not Note values built from
+  ;; string literals.
+  (delete (:title note))
+  (delete (:body note)))
+
+(proc print-loaded-note-json [path: string] -> bool
+  (let [[note read-err unmarshal-err] (load-note-json path)]
+    (if (or (!= read-err nil)
+            (!= unmarshal-err nil))
+      false
+      (do
+        (defer (delete-loaded-note note))
+        (fmt.println note)
+        true))))
+
+(proc loaded-note-title-length [path: string] -> int
+  (let [[note read-err unmarshal-err] (load-note-json path)]
+    (if (or (!= read-err nil)
+            (!= unmarshal-err nil))
+      0
+      (do
+        (defer (delete-loaded-note note))
+        (len (:title note))))))
 
 (proc note-byte-count [path: string] -> int
   (let [[data err] (slurp path)]
@@ -81,9 +111,17 @@
   ;; => nil
 
   ;; JSON is useful for typed cached dev data: save a real struct, then reload
-  ;; it in a later eval without recomputing the original value.
+  ;; it in a later eval without recomputing the original value. The loaded Note
+  ;; owns its decoded string fields, so the procs that use it delete those
+  ;; fields before returning.
   (save-note-json "tmp/odinl-note.json" (Note {:title "hello" :body "from OdinL"}))
   ;; => true
+
+  (print-loaded-note-json "tmp/odinl-note.json")
+  ;; prints the parsed Note struct, then returns true
+
+  (loaded-note-title-length "tmp/odinl-note.json")
+  ;; => 5
 
   (save-count-json "tmp/odinl-count.json" 42)
   ;; => true
