@@ -1182,6 +1182,44 @@ main :: proc() {
 }
 
 @(test)
+compile_when_ok_macro :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc query [] -> [value: int, ok: bool]
+  (return 42 true))
+
+(proc main []
+  (when-ok [value ok (query)]
+    (when (> value 40)
+      (return))))`
+
+    output, err, ok := odinl.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+query :: proc() -> (value: int, ok: bool) {
+    return 42, true
+}
+
+main :: proc() {
+    value, ok := query()
+    if ok {
+        if (value) > (40) {
+            return
+        }
+    }
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 compile_file_dev_helpers :: proc(t: ^testing.T) {
     source := `(package main)
 (import os "core:os")
@@ -1672,6 +1710,22 @@ macroexpand_recurses_through_ordinary_forms :: proc(t: ^testing.T) {
   (let [xs (new [dynamic]int [1 2])]
     (defer (delete xs))
     (count xs))))
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+macroexpand_when_ok :: proc(t: ^testing.T) {
+    output, err, ok := odinl.macroexpand_source(`(when-ok [value ok (query)]
+  (fmt.println value))`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `(let [[value ok] (query)] (when ok (fmt.println value)))
 `
     testing.expect_value(t, output, expected)
 }

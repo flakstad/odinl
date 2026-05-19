@@ -18,6 +18,8 @@ builtin_macro_kind :: proc(head: string) -> Builtin_Macro_Kind {
         return .With_Temp_Allocator
     case "with-delete":
         return .With_Delete
+    case "when-ok":
+        return .When_Ok
     }
     return .None
 }
@@ -45,6 +47,41 @@ macro_emit_line :: proc(e: ^Macro_Expander, text: string, span: Span) {
     strings.write_byte(&e.builder, '\n')
     macro_record_source_map(e, e.line, e.line, span)
     e.line += 1
+}
+
+macro_symbol :: proc(text: string, span: Span) -> CST_Form {
+    return CST_Form{kind = .Symbol, text = text, span = span}
+}
+
+expand_when_ok_form :: proc(form: CST_Form) -> (expanded: CST_Form, err: Compile_Error, ok: bool) {
+    if len(form.items) < 3 || form.items[1].kind != .Vector {
+        return expanded, Compile_Error{message = "when-ok expects [value ok expr] binding and body", span = form.span}, false
+    }
+    binding := form.items[1]
+    if len(binding.items) != 3 || binding.items[0].kind != .Symbol || binding.items[1].kind != .Symbol {
+        return expanded, Compile_Error{message = "when-ok expects [value ok expr] binding", span = binding.span}, false
+    }
+
+    destructure := CST_Form{kind = .Vector, span = binding.span}
+    append(&destructure.items, binding.items[0])
+    append(&destructure.items, binding.items[1])
+
+    bindings := CST_Form{kind = .Vector, span = binding.span}
+    append(&bindings.items, destructure)
+    append(&bindings.items, binding.items[2])
+
+    when_form := CST_Form{kind = .List, span = form.span}
+    append(&when_form.items, macro_symbol("when", form.items[0].span))
+    append(&when_form.items, binding.items[1])
+    for item in form.items[2:] {
+        append(&when_form.items, item)
+    }
+
+    expanded = CST_Form{kind = .List, span = form.span}
+    append(&expanded.items, macro_symbol("let", form.items[0].span))
+    append(&expanded.items, bindings)
+    append(&expanded.items, when_form)
+    return expanded, {}, true
 }
 
 macro_emit_expanded_form :: proc(e: ^Macro_Expander, indent: string, form: CST_Form, suffix: string = "") -> (Compile_Error, bool) {
@@ -357,6 +394,14 @@ macroexpand_with_delete :: proc(form: CST_Form) -> (result: Emit_Result, err: Co
     return result, {}, true
 }
 
+macroexpand_when_ok :: proc(form: CST_Form) -> (result: Emit_Result, err: Compile_Error, ok: bool) {
+    expanded, err_expand, ok_expand := expand_when_ok_form(form)
+    if !ok_expand {
+        return result, err_expand, false
+    }
+    return macroexpand_form(expanded)
+}
+
 macroexpand_form :: proc(form: CST_Form) -> (result: Emit_Result, err: Compile_Error, ok: bool) {
     switch builtin_macro_form_kind(form) {
     case .With_Allocator:
@@ -365,6 +410,8 @@ macroexpand_form :: proc(form: CST_Form) -> (result: Emit_Result, err: Compile_E
         return macroexpand_with_temp_allocator(form)
     case .With_Delete:
         return macroexpand_with_delete(form)
+    case .When_Ok:
+        return macroexpand_when_ok(form)
     case .None:
     }
 

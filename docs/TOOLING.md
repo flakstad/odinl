@@ -118,7 +118,9 @@ macroexpand output is still a preview format, not the final source formatter.
 
 Good first macro candidates are resource-scope and repetition helpers that
 clearly expand to existing forms, such as allocator setup/teardown,
-`with-*`-style cleanup, and repetitive check/error propagation.
+`with-*`-style cleanup, and repetitive check/error propagation. `when-ok` is
+the first explicit multi-return convenience macro: it expands `[value ok expr]`
+to a destructuring `let` plus `when ok`.
 
 ## Data-Oriented Iteration
 

@@ -683,7 +683,24 @@ Examples:
 ```
 
 This keeps the core language explicit while leaving room for later macro-based
-binding abstractions such as `when-bind`.
+binding abstractions.
+
+`when-ok` is the first such compiler-defined binding macro. It is deliberately
+Odin-shaped: it is for multi-return procs that return a value and an explicit
+boolean success flag. It does not add Clojure truthiness.
+
+```clojure
+(when-ok [value ok (query)]
+  (use value))
+```
+
+It expands to:
+
+```clojure
+(let [[value ok] (query)]
+  (when ok
+    (use value)))
+```
 
 Struct field destructuring lowers to obvious Odin assignments:
 
