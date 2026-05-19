@@ -55,8 +55,65 @@
   (append odinl-special-forms odinl-core-helpers)
   "Static OdinL completions.")
 
+(defun odinl--inside-string-on-line-p (pos)
+  "Return non-nil if POS is inside a simple string on its current line."
+  (save-excursion
+    (goto-char pos)
+    (let ((line-start (line-beginning-position))
+          (in-string nil)
+          (escaped nil))
+      (goto-char line-start)
+      (while (< (point) pos)
+        (let ((ch (char-after)))
+          (cond
+           (escaped
+            (setq escaped nil))
+           ((= ch ?\\)
+            (setq escaped t))
+           ((= ch ?\")
+            (setq in-string (not in-string)))))
+        (forward-char 1))
+      in-string)))
+
+(defun odinl--match-line-comment (limit)
+  "Search for an Odin `//' comment before LIMIT."
+  (let (match)
+    (while (and (not match) (search-forward "//" limit t))
+      (let ((beg (match-beginning 0)))
+        (unless (odinl--inside-string-on-line-p beg)
+          (let ((end (min (line-beginning-position 2) limit)))
+            (set-match-data (list beg end))
+            (put-text-property beg end 'face 'font-lock-comment-face)
+            (put-text-property beg end 'font-lock-face 'font-lock-comment-face)
+            (goto-char end)
+            (setq match t)))))
+    (unless match
+      (goto-char limit))
+    match))
+
+(defun odinl--match-block-comment (limit)
+  "Search for an Odin `/* */' comment before LIMIT."
+  (let (match)
+    (while (and (not match) (search-forward "/*" limit t))
+      (let ((beg (match-beginning 0)))
+        (unless (odinl--inside-string-on-line-p beg)
+          (let ((end (if (search-forward "*/" limit t)
+                         (point)
+                       limit)))
+            (set-match-data (list beg end))
+            (add-text-properties beg end '(font-lock-multiline t))
+            (put-text-property beg end 'face 'font-lock-comment-face)
+            (put-text-property beg end 'font-lock-face 'font-lock-comment-face)
+            (goto-char end)
+            (setq match t)))))
+    (unless match
+      (goto-char limit))
+    match))
+
 (defconst odinl-font-lock-keywords
-  `((,(regexp-opt odinl-special-forms 'symbols) . font-lock-keyword-face)
+  `((odinl--match-line-comment (0 font-lock-comment-face override))
+    (odinl--match-block-comment (0 font-lock-comment-face override))
+    (,(regexp-opt odinl-special-forms 'symbols) . font-lock-keyword-face)
     ("\\_<#[[:alnum:]_][[:alnum:]_-]*\\_>" . font-lock-preprocessor-face)
     ("\\_<\\.[[:alnum:]_][[:alnum:]_?!-]*\\_>" . font-lock-constant-face)
     (":[[:alnum:]_][[:alnum:]_?!-]*" . font-lock-builtin-face))
@@ -640,6 +697,9 @@
   (setq-local clojure-align-forms-automatically nil)
   (setq-local lisp-body-indent odinl-indent-offset)
   (setq-local indent-tabs-mode nil)
+  (setq-local comment-start ";;")
+  (setq-local comment-start-skip
+              "\\(\\(^\\|[^\\\\\n]\\)\\(\\\\\\\\\\)*\\)\\(;+\\|//+\\|/\\*+\\|#|\\) *")
   (add-hook 'xref-backend-functions #'odinl--xref-backend nil t)
   (add-hook 'completion-at-point-functions #'odinl-completion-at-point nil t)
   (font-lock-add-keywords nil odinl-font-lock-keywords)
