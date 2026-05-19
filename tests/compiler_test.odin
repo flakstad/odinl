@@ -539,14 +539,25 @@ main :: proc() {
 }
 `
     testing.expect_value(t, result.output, expected)
-    testing.expect_value(t, len(result.source_map), 3)
-    testing.expect_value(t, result.source_map[0].generated_start_line, 1)
-    testing.expect_value(t, result.source_map[0].generated_end_line, 1)
-    testing.expect_value(t, result.source_map[1].generated_start_line, 3)
-    testing.expect_value(t, result.source_map[1].generated_end_line, 3)
-    testing.expect_value(t, result.source_map[2].generated_start_line, 5)
-    testing.expect_value(t, result.source_map[2].generated_end_line, 7)
-    testing.expect_value(t, result.source_map[1].source_span.start > result.source_map[0].source_span.start, true)
+    testing.expect_value(t, len(result.source_map) >= 4, true)
+    package_entry, found_package := odinl.source_map_entry_for_generated_line(result.source_map[:], 1)
+    testing.expect_value(t, found_package, true)
+    testing.expect_value(t, package_entry.source_span.start, 0)
+
+    const_entry, found_const := odinl.source_map_entry_for_generated_line(result.source_map[:], 3)
+    testing.expect_value(t, found_const, true)
+    testing.expect_value(t, const_entry.source_span.start > package_entry.source_span.start, true)
+
+    proc_entry, found_proc := odinl.source_map_entry_for_generated_line(result.source_map[:], 5)
+    testing.expect_value(t, found_proc, true)
+    proc_line, _, _, _ := odinl.source_position(source, proc_entry.source_span.start)
+    testing.expect_value(t, proc_line, 5)
+
+    return_entry, found_return := odinl.source_map_entry_for_generated_line(result.source_map[:], 6)
+    testing.expect_value(t, found_return, true)
+    return_line, return_column, _, _ := odinl.source_position(source, return_entry.source_span.start)
+    testing.expect_value(t, return_line, 6)
+    testing.expect_value(t, return_column, 3)
 }
 
 @(test)
@@ -568,13 +579,26 @@ compile_source_map_accounts_for_feature_line_and_multiline_raw :: proc(t: ^testi
     defer delete(result.output)
     defer delete(result.source_map)
 
-    testing.expect_value(t, len(result.source_map), 3)
-    testing.expect_value(t, result.source_map[0].generated_start_line, 2)
-    testing.expect_value(t, result.source_map[0].generated_end_line, 2)
-    testing.expect_value(t, result.source_map[1].generated_start_line, 4)
-    testing.expect_value(t, result.source_map[1].generated_end_line, 5)
-    testing.expect_value(t, result.source_map[2].generated_start_line, 7)
-    testing.expect_value(t, result.source_map[2].generated_end_line, 10)
+    testing.expect_value(t, len(result.source_map) >= 5, true)
+    package_entry, found_package := odinl.source_map_entry_for_generated_line(result.source_map[:], 2)
+    testing.expect_value(t, found_package, true)
+    testing.expect_value(t, package_entry.source_span.start, 0)
+
+    raw_entry, found_raw := odinl.source_map_entry_for_generated_line(result.source_map[:], 4)
+    testing.expect_value(t, found_raw, true)
+    raw_line, _, _, _ := odinl.source_position(source, raw_entry.source_span.start)
+    testing.expect_value(t, raw_line, 3)
+
+    proc_entry, found_proc := odinl.source_map_entry_for_generated_line(result.source_map[:], 7)
+    testing.expect_value(t, found_proc, true)
+    proc_line, _, _, _ := odinl.source_position(source, proc_entry.source_span.start)
+    testing.expect_value(t, proc_line, 5)
+
+    binding_entry, found_binding := odinl.source_map_entry_for_generated_line(result.source_map[:], 8)
+    testing.expect_value(t, found_binding, true)
+    binding_line, binding_column, _, _ := odinl.source_position(source, binding_entry.source_span.start)
+    testing.expect_value(t, binding_line, 6)
+    testing.expect_value(t, binding_column > 0, true)
 }
 
 @(test)
@@ -585,6 +609,11 @@ format_declaration_source_map :: proc(t: ^testing.T) {
             generated_end_line = 3,
             source_span = odinl.Span{start = 10, end = 20},
         },
+        {
+            generated_start_line = 2,
+            generated_end_line = 2,
+            source_span = odinl.Span{start = 30, end = 35},
+        },
     }
 
     formatted := odinl.format_source_map(entries[:])
@@ -592,12 +621,13 @@ format_declaration_source_map :: proc(t: ^testing.T) {
 
     expected := `generated_start generated_end source_start source_end
 1 3 10 20
+2 2 30 35
 `
     testing.expect_value(t, formatted, expected)
 
     entry, found := odinl.source_map_entry_for_generated_line(entries[:], 2)
     testing.expect_value(t, found, true)
-    testing.expect_value(t, entry.source_span.start, 10)
+    testing.expect_value(t, entry.source_span.start, 30)
 
     _, missing := odinl.source_map_entry_for_generated_line(entries[:], 4)
     testing.expect_value(t, missing, false)

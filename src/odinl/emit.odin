@@ -82,6 +82,7 @@ Emitter :: struct {
     indent:                    int,
     unions:                    [dynamic]Union_Decl,
     features:                  ^Emitter_Features,
+    source_map:                ^[dynamic]Source_Map_Entry,
     line:                      int,
     temp_counter:              int,
     attach_next_decl:          bool,
@@ -560,6 +561,20 @@ emit_raw_newline :: proc(e: ^Emitter) {
     e.line += 1
 }
 
+record_source_map :: proc(e: ^Emitter, start_line, end_line: int, span: Span) {
+    if e.source_map == nil {
+        return
+    }
+    if end_line < start_line {
+        return
+    }
+    append(e.source_map, Source_Map_Entry{
+        generated_start_line = start_line,
+        generated_end_line   = end_line,
+        source_span          = span,
+    })
+}
+
 contains_newline :: proc(text: string) -> bool {
     for ch in text {
         if ch == '\n' {
@@ -615,6 +630,18 @@ emit_prefixed_expr :: proc(e: ^Emitter, prefix, expr: string) {
     strings.write_string(&e.builder, expr[start:])
     strings.write_byte(&e.builder, '\n')
     e.line += 1
+}
+
+emit_prefixed_expr_mapped :: proc(e: ^Emitter, prefix, expr: string, span: Span) {
+    start_line := e.line
+    emit_prefixed_expr(e, prefix, expr)
+    record_source_map(e, start_line, e.line - 1, span)
+}
+
+emit_line_mapped :: proc(e: ^Emitter, text: string, span: Span) {
+    start_line := e.line
+    emit_line(e, text)
+    record_source_map(e, start_line, e.line - 1, span)
 }
 
 surround_with_braces :: proc(prefix, inner: string) -> string {
@@ -1512,11 +1539,11 @@ emit_binding_assignment :: proc(e: ^Emitter, binding: Binding, value: string) {
             strings.write_string(&line_builder, name)
         }
         fmt.sbprintf(&line_builder, " := %s", value)
-        emit_prefixed_expr(e, "", strings.clone(strings.to_string(line_builder)))
+        emit_prefixed_expr_mapped(e, "", strings.clone(strings.to_string(line_builder)), binding.value.span)
     } else if binding.is_field_destructure {
         e.temp_counter += 1
         target := fmt.tprintf("odinl_destructure_%d", e.temp_counter)
-        emit_prefixed_expr(e, fmt.tprintf("%s := ", target), value)
+        emit_prefixed_expr_mapped(e, fmt.tprintf("%s := ", target), value, binding.value.span)
         for field in binding.fields {
             if field.name == "_" {
                 continue
@@ -1524,9 +1551,9 @@ emit_binding_assignment :: proc(e: ^Emitter, binding: Binding, value: string) {
             emit_prefixed_expr(e, fmt.tprintf("%s := ", field.name), fmt.tprintf("%s.%s", target, field.field))
         }
     } else if binding.is_typed {
-        emit_prefixed_expr(e, fmt.tprintf("%s: %s = ", binding.name, binding.ty), value)
+        emit_prefixed_expr_mapped(e, fmt.tprintf("%s: %s = ", binding.name, binding.ty), value, binding.value.span)
     } else {
-        emit_prefixed_expr(e, fmt.tprintf("%s := ", binding.name), value)
+        emit_prefixed_expr_mapped(e, fmt.tprintf("%s := ", binding.name), value, binding.value.span)
     }
 }
 
@@ -3189,10 +3216,12 @@ parse_let_bindings :: proc(form: CST_Form) -> (bindings: [dynamic]Binding, err: 
 emit_body_forms :: proc(e: ^Emitter, body: []CST_Form, returns: Return_Spec) -> (Compile_Error, bool) {
     for form, idx in body {
         last := idx == len(body)-1
+        start_line := e.line
         err_stmt, ok_stmt := emit_stmt(e, form, last, returns)
         if !ok_stmt {
             return err_stmt, false
         }
+        record_source_map(e, start_line, e.line - 1, form.span)
     }
     return {}, true
 }
@@ -3996,9 +4025,9 @@ emit_eval_print_expr :: proc(e: ^Emitter, form: CST_Form) -> (Compile_Error, boo
             return err_value, false
         }
         temp := eval_temp_name(e)
-        emit_prefixed_expr(e, fmt.tprintf("%s := ", temp), value)
+        emit_prefixed_expr_mapped(e, fmt.tprintf("%s := ", temp), value, form.span)
         emit_line(e, fmt.tprintf("defer delete(%s)", temp))
-        emit_line(e, fmt.tprintf("fmt.println(%s)", temp))
+        emit_line_mapped(e, fmt.tprintf("fmt.println(%s)", temp), form.span)
         return {}, true
     }
 
@@ -4006,7 +4035,7 @@ emit_eval_print_expr :: proc(e: ^Emitter, form: CST_Form) -> (Compile_Error, boo
     if !ok_value {
         return err_value, false
     }
-    emit_line(e, fmt.tprintf("fmt.println(%s)", value))
+    emit_line_mapped(e, fmt.tprintf("fmt.println(%s)", value), form.span)
     return {}, true
 }
 
@@ -5868,6 +5897,7 @@ emit_decls_with_source_map :: proc(decls: []IR_Decl) -> (Emit_Result, Compile_Er
     e := Emitter{
         builder  = strings.builder_make(),
         features = &features,
+        source_map = &result.source_map,
         line     = 1,
     }
     defer strings.builder_destroy(&e.builder)
@@ -5924,6 +5954,7 @@ emit_eval_decls_with_source_map :: proc(decls: []IR_Decl, eval_form: CST_Form, n
     e := Emitter{
         builder  = strings.builder_make(),
         features = &features,
+        source_map = &result.source_map,
         line     = 1,
     }
     defer strings.builder_destroy(&e.builder)

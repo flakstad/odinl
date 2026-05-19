@@ -64,7 +64,7 @@ if ./odinl check "$tmp_dir/bad.odinl" >"$tmp_dir/bad-check.out" 2>"$tmp_dir/bad-
     printf 'failed: bad check unexpectedly succeeded\n' >&2
     exit 1
 fi
-if ! grep -q "$tmp_dir/bad.odinl:4:1 Error: Cannot convert" "$tmp_dir/bad-check.err"; then
+if ! grep -q "$tmp_dir/bad.odinl:5:16 Error: Cannot convert" "$tmp_dir/bad-check.err"; then
     printf 'failed: bad check diagnostic did not map back to .odinl\n' >&2
     cat "$tmp_dir/bad-check.err" >&2
     exit 1
@@ -297,6 +297,15 @@ fi
 if ! grep -q 'examples/higher-order.odinl:<eval>:1:1 Error: Cannot convert' "$tmp_dir/bad-eval-check.err"; then
     printf 'failed: bad eval check diagnostic did not point at <eval>\n' >&2
     cat "$tmp_dir/bad-eval-check.err" >&2
+    exit 1
+fi
+if ./odinl eval examples/higher-order.odinl '(let [x: int "bad"] x)' --check >"$tmp_dir/bad-eval-let-check.out" 2>"$tmp_dir/bad-eval-let-check.err"; then
+    printf 'failed: bad eval let check unexpectedly succeeded\n' >&2
+    exit 1
+fi
+if ! grep -q 'examples/higher-order.odinl:<eval>:1:14 Error: Cannot convert' "$tmp_dir/bad-eval-let-check.err"; then
+    printf 'failed: bad eval let check diagnostic did not point at binding value\n' >&2
+    cat "$tmp_dir/bad-eval-let-check.err" >&2
     exit 1
 fi
 

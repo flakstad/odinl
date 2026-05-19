@@ -1923,11 +1923,13 @@ compiler should preserve enough information to:
 - support good diagnostics
 - support future macro/source inspection tools
 
-The CLI can emit a declaration-level source map with `--map`. The current map is
-line-oriented and intentionally simple: generated start/end lines paired with
-the original OdinL byte span. Finer-grained expression mapping can be layered on
-later where editor tooling or diagnostics need it; it should not force a
-wholesale expression IR first.
+The CLI can emit a line-oriented source map with `--map`: generated start/end
+lines paired with the original OdinL byte span. Declaration spans are the
+fallback, and the emitter also records narrower spans for body forms and binding
+assignments where the generated line has a clear OdinL origin. Diagnostic
+remapping prefers the narrowest generated range, so ordinary Odin type errors in
+let bindings and eval bodies can point at the smaller source form without
+requiring a wholesale expression IR first.
 
 Implementation status: the compiler now names these stages explicitly. The
 reader produces `CST_Form` / `CST_Top_Form`, parsing produces `AST_Program` and

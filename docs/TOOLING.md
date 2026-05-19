@@ -73,7 +73,9 @@ tooling entry points:
 - inspect the generated scratch Odin for a selected form with `odinl expand`
 - optionally write generated Odin for editor inspection with `--generated`
 
-The current `--map` output is declaration-level only. Eval forms do carry an
+The current `--map` output is line-oriented. Declarations are still the fallback
+mapping, but emitted body forms and binding assignments carry narrower source
+spans where the generated line has a clear OdinL origin. Eval forms carry an
 origin marker, so compiler errors in selected eval text can be reported against
 `file:<eval>:line:column` instead of the surrounding file.
 
