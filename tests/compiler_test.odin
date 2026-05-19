@@ -65,6 +65,7 @@ compile_all_examples :: proc(t: ^testing.T) {
         "examples/sequences.odinl",
         "examples/tap.odinl",
         "examples/unions.odinl",
+        "examples/vendor-raylib.odinl",
         "examples/vendor-stb-easy-font.odinl",
     }
 
