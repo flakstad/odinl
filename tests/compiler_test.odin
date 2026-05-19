@@ -1657,6 +1657,26 @@ macroexpand_expands_nested_builtin_macro_body :: proc(t: ^testing.T) {
 }
 
 @(test)
+macroexpand_recurses_through_ordinary_forms :: proc(t: ^testing.T) {
+    output, err, ok := odinl.macroexpand_source(`(let [n 1]
+  (with-delete [xs (new [dynamic]int [1 2])]
+    (count xs)))`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `(let [n 1] (do
+  (let [xs (new [dynamic]int [1 2])]
+    (defer (delete xs))
+    (count xs))))
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 macroexpand_source_map_marks_generated_lines :: proc(t: ^testing.T) {
     source := `(with-delete [xs (map inc users) ys (filter even? xs)]
   (count ys))`

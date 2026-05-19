@@ -138,11 +138,93 @@ write_macro_form :: proc(builder: ^strings.Builder, form: CST_Form) {
     }
 }
 
+write_macro_expanded_output :: proc(builder: ^strings.Builder, output: string) {
+    text_end := len(output)
+    if text_end > 0 && output[text_end-1] == '\n' {
+        text_end -= 1
+    }
+    strings.write_string(builder, output[:text_end])
+}
+
+write_macro_form_expanded :: proc(builder: ^strings.Builder, form: CST_Form) -> (Compile_Error, bool) {
+    if builtin_macro_form_kind(form) != .None {
+        expanded, err_expand, ok_expand := macroexpand_form(form)
+        if !ok_expand {
+            return err_expand, false
+        }
+        defer delete(expanded.output)
+        defer delete(expanded.source_map)
+        write_macro_expanded_output(builder, expanded.output)
+        return {}, true
+    }
+
+    #partial switch form.kind {
+    case .List:
+        strings.write_byte(builder, '(')
+        for item, idx in form.items {
+            if idx > 0 {
+                strings.write_byte(builder, ' ')
+            }
+            err_item, ok_item := write_macro_form_expanded(builder, item)
+            if !ok_item {
+                return err_item, false
+            }
+        }
+        strings.write_byte(builder, ')')
+    case .Vector:
+        strings.write_byte(builder, '[')
+        for item, idx in form.items {
+            if idx > 0 {
+                strings.write_byte(builder, ' ')
+            }
+            err_item, ok_item := write_macro_form_expanded(builder, item)
+            if !ok_item {
+                return err_item, false
+            }
+        }
+        strings.write_byte(builder, ']')
+    case .Brace:
+        strings.write_byte(builder, '{')
+        for item, idx in form.items {
+            if idx > 0 {
+                strings.write_byte(builder, ' ')
+            }
+            err_item, ok_item := write_macro_form_expanded(builder, item)
+            if !ok_item {
+                return err_item, false
+            }
+        }
+        strings.write_byte(builder, '}')
+    case .Symbol, .Keyword, .String, .Number, .Bool, .Nil:
+        strings.write_string(builder, form.text)
+    }
+    return {}, true
+}
+
 macro_form_text :: proc(form: CST_Form) -> string {
     builder := strings.builder_make()
     defer strings.builder_destroy(&builder)
     write_macro_form(&builder, form)
     return strings.clone(strings.to_string(builder))
+}
+
+macro_output_line_count :: proc(output: string) -> int {
+    if len(output) == 0 {
+        return 1
+    }
+    lines := 1
+    for ch in output {
+        if ch == '\n' {
+            lines += 1
+        }
+    }
+    if output[len(output)-1] == '\n' {
+        lines -= 1
+    }
+    if lines < 1 {
+        return 1
+    }
+    return lines
 }
 
 macroexpand_with_allocator :: proc(form: CST_Form) -> (result: Emit_Result, err: Compile_Error, ok: bool) {
@@ -288,12 +370,15 @@ macroexpand_form :: proc(form: CST_Form) -> (result: Emit_Result, err: Compile_E
 
     builder := strings.builder_make()
     defer strings.builder_destroy(&builder)
-    write_macro_form(&builder, form)
+    err_write, ok_write := write_macro_form_expanded(&builder, form)
+    if !ok_write {
+        return result, err_write, false
+    }
     strings.write_byte(&builder, '\n')
     result.output = strings.clone(strings.to_string(builder))
     append(&result.source_map, Source_Map_Entry{
         generated_start_line = 1,
-        generated_end_line = 1,
+        generated_end_line = macro_output_line_count(result.output),
         source_span = form.span,
     })
     return result, {}, true

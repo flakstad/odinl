@@ -1677,8 +1677,9 @@ because that path currently carries the ownership escape checks for temp
 allocator scopes and `with-delete` bindings. This is a deliberate intermediate
 state: macro classification is explicit, but arbitrary user-defined macros and a
 full expansion pass are still future work. `odinl macroexpand` does expand
-nested compiler-defined macro forms inside `with-*` bodies, which keeps stacked
-resource-scope previews honest.
+nested compiler-defined macro forms inside ordinary wrapper forms and `with-*`
+bodies, which keeps stacked resource-scope previews honest. The resulting text
+is an inspection view, not a source formatter.
 
 ### `with-*` forms
 

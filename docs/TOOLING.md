@@ -112,8 +112,9 @@ point. For now, normal compilation still lowers these forms directly where that
 keeps ownership checks precise; a later expansion phase can move more of that
 lowering into frontend form rewriting once diagnostics and ownership rules stay
 equally clear. `odinl macroexpand` expands nested compiler-defined macro forms
-inside `with-*` bodies so resource-scope previews show the shape of stacked
-cleanup/resource helpers.
+inside ordinary wrapper forms and `with-*` bodies, so resource-scope previews
+show the shape of stacked cleanup/resource helpers. Formatting of recursive
+macroexpand output is still a preview format, not the final source formatter.
 
 Good first macro candidates are resource-scope and repetition helpers that
 clearly expand to existing forms, such as allocator setup/teardown,
