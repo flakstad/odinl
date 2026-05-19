@@ -81,6 +81,10 @@ remapping also uses generated columns when Odin reports them. Eval forms carry
 an origin marker, so compiler errors in selected eval text can be reported
 against `file:<eval>:line:column` instead of the surrounding file.
 
+The Emacs result buffer should treat remapped OdinL diagnostics as
+`compilation-mode` output. That keeps errors clickable and lets ordinary Emacs
+commands such as `next-error` / `M-g n` navigate back into `.odinl` source.
+
 ## Near-Term Language Tooling
 
 After the core compiler is solid, the next language-level tooling target is the
