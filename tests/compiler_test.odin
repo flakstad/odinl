@@ -3547,6 +3547,48 @@ score :: proc() -> int {
 }
 
 @(test)
+compile_update_expr_struct_field :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(struct Point {
+  :x int
+  :y int
+})
+
+(proc score [] -> int
+  (let [point (Point {:x 4 :y 5})
+        newer (update point :y + 4)]
+    (+ (:y point) (:y newer))))`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+Point :: struct {
+    x: int,
+    y: int,
+}
+
+score :: proc() -> int {
+    point := Point{x = 4, y = 5}
+    newer := proc(value: Point) -> Point {
+        kvist_eval_1 := value
+        (kvist_eval_1).y = ((kvist_eval_1).y) + (4)
+        return kvist_eval_1
+    }(point)
+    return (point.y) + (newer.y)
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 compile_nil_predicate :: proc(t: ^testing.T) {
     source := `(package main)
 

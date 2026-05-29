@@ -1036,6 +1036,24 @@ That means `(update! point :y delta)` still means replacement, while
 `(update! point :y + delta)` means "read current field value, apply `+`, write
 result back".
 
+### `update`
+
+`update` returns a modified copy instead of mutating in place.
+
+```clojure
+(update point :y 9)
+(update point :y + 4)
+```
+
+For now this is intentionally narrower than `update!`:
+
+- supported: struct field updates
+- not yet supported: arrays, slices, or maps
+
+That limitation is deliberate. Struct copy semantics are clear; dynamic arrays
+and maps need an explicit cloning story before non-mutating `update` can claim
+to return an independent copy.
+
 ### `get`
 
 `get` is for indexed or keyed lookup, not struct field access.
