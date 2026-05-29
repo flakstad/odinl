@@ -76,11 +76,12 @@ The focused mutation benchmark now covers:
 - `update!` on dynamic arrays
 - `update!` on maps
 
-Current runs are noisy at this scale, but after the lowering fix the important
-result is structural rather than a single exact number:
+Current focused mutation run:
 
-- `array-update!` and direct Odin are now in the same low-millisecond range
-- `map-update!` and direct Odin are now in the same tens-of-milliseconds range
+- `struct-update`: Kvist `0.080 ms`, direct Odin `0.080 ms`
+- `pointer-update`: Kvist `0.076 ms`, direct Odin `0.075 ms`
+- `array-update!`: Kvist `0.313 ms`, direct Odin `0.314 ms`
+- `map-update!`: Kvist `12.174 ms`, direct Odin `8.140 ms`
 
 Two fixes mattered here:
 
@@ -98,17 +99,18 @@ Two fixes mattered here:
    instead of conflating it with avoidable growth churn from a zero-capacity
    buffer.
 
-The struct-local cases currently show `0.000 ms` on both sides. That does not
-mean there is literally no cost. It means this workload is below the current
-timer resolution after Odin optimization. So those cases need either:
-
-- a less optimizable benchmark shape, or
-- finer-grained timing output
+The old local-only struct microbenchmark was useless because Odin optimized it
+below timer resolution. The benchmark now uses array-backed struct workloads so
+copy-update versus pointer mutation is measurable.
 
 The useful conclusion for now is:
 
-- array and map `update!` now lower competitively
-- local struct update versus pointer update still needs a sharper benchmark
+- struct copy-update and pointer mutation are effectively at parity in this
+  workload
+- array `update!` is also at parity after the lowering fix
+- the remaining `map/update!` gap should be treated as suspicious but not yet
+  as proven codegen trouble, because the generated hot loop now matches the
+  direct Odin shape
 
 ## Good Next Benchmarks
 
@@ -117,10 +119,10 @@ not only older sequence helpers.
 
 Recommended next cases:
 
-1. less-optimizable struct update versus pointer update
-2. `for`/`each` loops over arrays, maps, and sets
-3. package-heavy real-world workloads using explicit `kvist:*` imports
-4. ownership-helper patterns such as `with-delete` around collection builders
+1. `for`/`each` loops over arrays, maps, and sets
+2. package-heavy real-world workloads using explicit `kvist:*` imports
+3. ownership-helper patterns such as `with-delete` around collection builders
+4. more map-heavy workloads to see whether the remaining delta is stable
 
 These would tell us whether the newer language surface is still lowering as
 cleanly as the older helper benchmarks.
