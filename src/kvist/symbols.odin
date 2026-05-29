@@ -76,6 +76,31 @@ symbols_write_record_doc :: proc(builder: ^strings.Builder, kind, name: string, 
     strings.write_byte(builder, '\n')
 }
 
+symbols_doc_lines_from_string :: proc(text: string) -> (lines: [dynamic]string) {
+    start := 0
+    for i := 0; i <= len(text); i += 1 {
+        if i == len(text) || text[i] == '\n' {
+            line := text[start:i]
+            append(&lines, fmt.tprintf("// %s", line))
+            start = i + 1
+        }
+    }
+    if len(lines) == 0 {
+        append(&lines, "// ")
+    }
+    return lines
+}
+
+symbols_append_doc_lines :: proc(base, extra: []string) -> (lines: [dynamic]string) {
+    for line in base {
+        append(&lines, line)
+    }
+    for line in extra {
+        append(&lines, line)
+    }
+    return lines
+}
+
 symbols_write_fields :: proc(builder: ^strings.Builder, source, parent: string, fields: CST_Form) {
     if fields.kind != .Brace {
         return
@@ -187,6 +212,18 @@ symbols_source :: proc(source: string) -> (output: string, err: Compile_Error, o
                 name := form.items[1].text
                 symbols_write_record_doc(&builder, "struct", name, source, form.items[1].span, "", top.doc_lines[:])
                 symbols_write_fields(&builder, source, name, form.items[2])
+            }
+        case "defstruct":
+            if (len(form.items) == 3 || len(form.items) == 4) && form.items[1].kind == .Symbol {
+                name := form.items[1].text
+                doc_lines := top.doc_lines
+                field_index := 2
+                if len(form.items) == 4 && form.items[2].kind == .String {
+                    doc_lines = symbols_append_doc_lines(doc_lines[:], symbols_doc_lines_from_string(unquote_string(form.items[2].text))[:])
+                    field_index = 3
+                }
+                symbols_write_record_doc(&builder, "struct", name, source, form.items[1].span, "", doc_lines[:])
+                symbols_write_fields(&builder, source, name, form.items[field_index])
             }
         case "enum":
             if len(form.items) == 3 && form.items[1].kind == .Symbol {

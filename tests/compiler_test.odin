@@ -47,6 +47,51 @@ main :: proc() {
 }
 
 @(test)
+compile_defstruct_program :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defstruct Profile
+  "Profile data."
+  {:name :string
+   :age :int
+   :active? :bool
+   :tags [:set :string]
+   :scores [:arr :int]
+   :home :Point})
+
+(defstruct Point
+  {:x :float
+   :y :float})`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+// Profile data.
+Profile :: struct {
+    name: string,
+    age: int,
+    active_p: bool,
+    tags: map[string]bool,
+    scores: [dynamic]int,
+    home: Point,
+}
+
+Point :: struct {
+    x: f64,
+    y: f64,
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 compile_all_examples :: proc(t: ^testing.T) {
     examples := [?]string{
         "examples/control-flow.kvist",
@@ -61,6 +106,7 @@ compile_all_examples :: proc(t: ^testing.T) {
         "examples/data-literals.kvist",
         "examples/declarations.kvist",
         "examples/dev-io.kvist",
+        "examples/defstructs.kvist",
         "examples/error-handling.kvist",
         "examples/hello.kvist",
         "examples/higher-order.kvist",
@@ -175,6 +221,27 @@ symbols_source_indexes_top_level_forms :: proc(t: ^testing.T) {
 }
 
 @(test)
+symbols_source_indexes_defstruct_docstring :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defstruct Person
+  "Primary profile."
+  {:name :string
+   :age :int})`
+
+    output, err, ok := kvist.symbols_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "struct\tPerson\t3\t12\t\tPrimary profile.\n"), true)
+    testing.expect_value(t, strings.contains(output, "field\tPerson.name\t5\t4\tPerson\t\n"), true)
+}
+
+@(test)
 compile_eval_source_can_emit_statement_runner :: proc(t: ^testing.T) {
     source := `(package main)
 (import "core:fmt")
@@ -282,6 +349,69 @@ main :: proc() {
 }
 `
     testing.expect_value(t, output, expected)
+}
+
+@(test)
+compile_eval_source_can_load_defstruct_declaration_form :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defstruct Greeting
+  "Greeting text."
+  {:message :string})`
+
+    output, err, ok := kvist.compile_eval_source(source, `(defstruct Greeting
+  "Greeting text."
+  {:message :string})`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `package main
+
+// Greeting text.
+Greeting :: struct {
+    message: string,
+}
+
+main :: proc() {
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+compile_defstruct_rejects_duplicate_fields :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defstruct Broken
+  {:name :string
+   :name :int})`
+
+    _, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, false)
+    if ok {
+        return
+    }
+    testing.expect_value(t, strings.contains(err.message, "duplicate defstruct field :name"), true)
+}
+
+@(test)
+compile_defstruct_rejects_bad_metadata :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defstruct Broken
+  {:tags [:set]
+   :scores [:fixed-arr :int]})`
+
+    _, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, false)
+    if ok {
+        return
+    }
+    testing.expect_value(t, strings.contains(err.message, "expects one element type") || strings.contains(err.message, "expects a numeric length"), true)
 }
 
 @(test)

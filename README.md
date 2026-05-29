@@ -576,6 +576,7 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - `(const name expr)` -> `name :: expr`
 - `(const name type expr)` -> `name: type : expr`
 - `(struct Name {:field Type ...})`
+- `(defstruct Name "Doc..." {:field :metadata ...})`
 - `(enum Name [A B C])` and `(enum Name {:A 1 :B 2})`
 - `(union Name {:variant Type ...})`
 - `(proc name [arg: type, ...] -> return-type body...)`

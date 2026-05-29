@@ -387,6 +387,7 @@ The planned v0.1 top-level forms are:
 - `import`
 - `const`
 - `struct`
+- `defstruct`
 - `enum`
 - `union`
 - `proc`
@@ -414,6 +415,32 @@ Structs use brace syntax with keyword field names.
 
 Important: although brace syntax resembles a map, struct field order is
 preserved exactly as written because Odin struct layout depends on field order.
+
+### `defstruct`
+
+`defstruct` is the richer source-language struct form. It exists to carry more
+language help at compile time while still lowering to an ordinary Odin struct.
+
+Current first-pass shape:
+
+```clojure
+(defstruct Request
+  "Incoming HTTP request."
+  {:method :Method
+   :path :string
+   :query :string
+   :params [:arr :string]})
+```
+
+The current implementation:
+
+- accepts an optional inline docstring immediately after the name;
+- accepts Malli-like field metadata forms;
+- lowers to an ordinary Odin struct declaration;
+- validates declaration shape at compile time.
+
+`struct` remains the direct Odin-shaped declaration form. `defstruct` is the
+preferred path when the richer Cluck-derived surface is useful.
 
 ### `enum`
 
@@ -1466,12 +1493,15 @@ and should lower transparently to ordinary Odin spellings.
 ## Documentation Comments
 
 Odin's documentation tooling works from ordinary preceding comments, not from a
-special runtime docstring construct. Kvist should align with that model.
+special runtime docstring construct. Kvist should align with that model in the
+generated Odin.
 
 That means the v0.1 documentation story should be simple:
 
 - write ordinary comments directly above declarations
 - lower them to ordinary Odin comments
+- allow `defstruct` inline docstrings for short type prose and lower them to
+  ordinary Odin comments
 - let Odin's existing documentation tooling consume the generated result
 
 For now, this is the preferred style:
@@ -1493,6 +1523,17 @@ Likewise for types:
 ```
 
 This is intentionally boring and matches Odin's own documentation conventions
+
+`defstruct` may also carry a short inline docstring:
+
+```clojure
+(defstruct Request
+  "Incoming HTTP request."
+  {:method :Method
+   :path :string})
+```
+
+The generated Odin still receives ordinary preceding `//` comments.
 well.
 
 ### Deferred docs ideas

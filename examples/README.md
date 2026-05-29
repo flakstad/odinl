@@ -8,6 +8,7 @@ block so `C-c C-e` and `C-c C-c` are practical.
 
 - `hello.kvist`: package, import, struct literal, and a tiny `main`.
 - `declarations.kvist`: doc comments, import aliases, constants, enums, structs.
+- `defstructs.kvist`: `defstruct` docstrings, Malli-like metadata, nested structs.
 - `control-flow.kvist`: `cond`, `switch`, loops, `when-let`, and `if-let`.
 - `data-literals.kvist`: arrays, maps, `make`, `new`, allocator macros.
 - `pointers-and-raw.kvist`: pointers and explicit raw Odin escape hatches.
