@@ -932,6 +932,27 @@ Http_Status :: enum {
 }
 
 @(test)
+compile_defconst_and_defvar_forms :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defconst answer 42)
+(defvar live-port int 8080)
+(defvar retries 3)`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "answer :: 42"), true)
+    testing.expect_value(t, strings.contains(output, "live_port: int = 8080"), true)
+    testing.expect_value(t, strings.contains(output, "retries := 3"), true)
+}
+
+@(test)
 compile_switch_with_implicit_branch_returns :: proc(t: ^testing.T) {
     source := `(package main)
 

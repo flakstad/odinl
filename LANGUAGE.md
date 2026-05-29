@@ -385,7 +385,8 @@ The planned v0.1 top-level forms are:
 
 - `package`
 - `import`
-- `const`
+- `defconst`
+- `defvar`
 - `struct`
 - `defstruct`
 - `enum`
@@ -393,11 +394,18 @@ The planned v0.1 top-level forms are:
 - `proc`
 - `odin`
 
-### `const`
+### `defconst`
 
 ```clojure
-(const answer 42)
-(const max-size int 1024)
+(defconst answer 42)
+(defconst max-size int 1024)
+```
+
+### `defvar`
+
+```clojure
+(defvar live-port 8080)
+(defvar retries int 3)
 ```
 
 ### `struct`
@@ -560,7 +568,8 @@ The parser should recognize these as special forms rather than ordinary calls:
 
 - `package`
 - `import`
-- `const`
+- `defconst`
+- `defvar`
 - `struct`
 - `enum`
 - `union`
@@ -1420,7 +1429,7 @@ surface syntax.
 
 ### Expected core support
 
-- `package`, `import`, `const`, `struct`, `enum`, `union`, `proc`
+- `package`, `import`, `defconst`, `defvar`, `struct`, `enum`, `union`, `proc`
 - local bindings with `let`
 - `do`, `if`, `when`, `cond`
 - `set!`, `return`, `defer`
@@ -2183,7 +2192,7 @@ The first implementation milestone should remain modest:
 
 That locked subset should start with:
 
-- `package`, `import`, `const`, `struct`, `enum`, `union`, `proc`
+- `package`, `import`, `defconst`, `defvar`, `struct`, `enum`, `union`, `proc`
 - `let`, `do`, `if`, `when`, `cond`, `switch`
 - `set!`, `return`, `defer`, `each`
 - field access, `get`, threading

@@ -573,8 +573,10 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 ## Target Forms
 
 - `(package name)`, `(import "path")`, `(import alias "path")`
-- `(const name expr)` -> `name :: expr`
-- `(const name type expr)` -> `name: type : expr`
+- `(defconst name expr)` -> `name :: expr`
+- `(defconst name type expr)` -> `name: type : expr`
+- `(defvar name expr)` -> `name := expr`
+- `(defvar name type expr)` -> `name: type = expr`
 - `(struct Name {:field Type ...})`
 - `(defstruct Name "Doc..." {:field :metadata ...})`
 - `(enum Name [A B C])` and `(enum Name {:A 1 :B 2})`

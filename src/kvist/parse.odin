@@ -597,12 +597,12 @@ parse_decl :: proc(top_form: CST_Top_Form) -> (decl: AST_Decl, err: Compile_Erro
             }, {}, true
         }
         return decl, Compile_Error{message = "import expects a string path or alias plus string path", span = form.span}, false
-    case "const":
+    case "const", "defconst":
         if len(form.items) < 3 {
-            return decl, Compile_Error{message = "const expects a name, optional type, and value", span = form.span}, false
+            return decl, Compile_Error{message = "defconst expects a name, optional type, and value", span = form.span}, false
         }
         if form.items[1].kind != .Symbol {
-            return decl, Compile_Error{message = "const expects a symbol name", span = form.items[1].span}, false
+            return decl, Compile_Error{message = "defconst expects a symbol name", span = form.items[1].span}, false
         }
         doc_lines := top_form.doc_lines
         value_index := 2
@@ -621,10 +621,10 @@ parse_decl :: proc(top_form: CST_Top_Form) -> (decl: AST_Decl, err: Compile_Erro
                 return decl, err_type, false
             }
             if next_i >= len(form.items) {
-                return decl, Compile_Error{message = "typed const missing value", span = form.span}, false
+                return decl, Compile_Error{message = "typed defconst missing value", span = form.span}, false
             }
             if next_i+1 != len(form.items) {
-                return decl, Compile_Error{message = "const expects exactly one value", span = form.items[next_i+1].span}, false
+                return decl, Compile_Error{message = "defconst expects exactly one value", span = form.items[next_i+1].span}, false
             }
             const_decl.has_ty = true
             const_decl.ty = type_text
@@ -635,6 +635,43 @@ parse_decl :: proc(top_form: CST_Top_Form) -> (decl: AST_Decl, err: Compile_Erro
             span = form.span,
             doc_lines = doc_lines,
             const_decl = const_decl,
+        }, {}, true
+    case "defvar":
+        if len(form.items) < 3 {
+            return decl, Compile_Error{message = "defvar expects a name, optional type, and value", span = form.span}, false
+        }
+        if form.items[1].kind != .Symbol {
+            return decl, Compile_Error{message = "defvar expects a symbol name", span = form.items[1].span}, false
+        }
+        doc_lines := top_form.doc_lines
+        value_index := 2
+        if len(form.items) > 3 && form.items[2].kind == .String {
+            doc_lines = append_doc_lines(doc_lines[:], doc_lines_from_string(unquote_string(form.items[2].text))[:])
+            value_index = 3
+        }
+        var_decl := Var_Decl{name = map_name(form.items[1].text)}
+        if len(form.items) == value_index+1 {
+            var_decl.value = form.items[value_index]
+        } else {
+            type_text, next_i, err_type, ok_type := parse_type_text_from_forms(form.items[:], value_index)
+            if !ok_type {
+                return decl, err_type, false
+            }
+            if next_i >= len(form.items) {
+                return decl, Compile_Error{message = "typed defvar missing value", span = form.span}, false
+            }
+            if next_i+1 != len(form.items) {
+                return decl, Compile_Error{message = "defvar expects exactly one value", span = form.items[next_i+1].span}, false
+            }
+            var_decl.has_ty = true
+            var_decl.ty = type_text
+            var_decl.value = form.items[next_i]
+        }
+        return AST_Decl{
+            kind = .Var,
+            span = form.span,
+            doc_lines = doc_lines,
+            var_decl = var_decl,
         }, {}, true
     case "struct":
         if len(form.items) != 3 || form.items[1].kind != .Symbol {

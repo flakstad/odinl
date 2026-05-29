@@ -4914,6 +4914,16 @@ emit_decl :: proc(e: ^Emitter, decl: IR_Decl) -> (Compile_Error, bool) {
         } else {
             emit_line(e, fmt.tprintf("%s :: %s", decl.const_decl.name, value))
         }
+    case .Var:
+        value, err_value, ok_value := emit_expr(e, decl.var_decl.value)
+        if !ok_value {
+            return err_value, false
+        }
+        if decl.var_decl.has_ty {
+            emit_line(e, fmt.tprintf("%s: %s = %s", decl.var_decl.name, decl.var_decl.ty, value))
+        } else {
+            emit_line(e, fmt.tprintf("%s := %s", decl.var_decl.name, value))
+        }
     case .Struct:
         emit_indent(e)
         strings.write_string(&e.builder, decl.struct_decl.name)
@@ -6715,6 +6725,8 @@ decl_uses_core_slice_sort :: proc(decl: IR_Decl) -> bool {
     #partial switch decl.kind {
     case .Const:
         return form_uses_core_slice_sort(decl.const_decl.value)
+    case .Var:
+        return form_uses_core_slice_sort(decl.var_decl.value)
     case .Enum:
         for variant in decl.enum_decl.variants {
             if variant.has_value && form_uses_core_slice_sort(variant.value) {
@@ -6791,6 +6803,10 @@ decls_need_core_strings_import :: proc(decls: []IR_Decl) -> bool {
             if form_uses_core_strings(decl.const_decl.value) {
                 return true
             }
+        case .Var:
+            if form_uses_core_strings(decl.var_decl.value) {
+                return true
+            }
         case .Enum:
             for variant in decl.enum_decl.variants {
                 if variant.has_value && form_uses_core_strings(variant.value) {
@@ -6821,6 +6837,10 @@ decls_need_core_fmt_import :: proc(decls: []IR_Decl) -> bool {
         #partial switch decl.kind {
         case .Const:
             if form_uses_core_fmt(decl.const_decl.value) {
+                return true
+            }
+        case .Var:
+            if form_uses_core_fmt(decl.var_decl.value) {
                 return true
             }
         case .Enum:
@@ -7135,6 +7155,8 @@ decl_name :: proc(decl: IR_Decl) -> string {
     #partial switch decl.kind {
     case .Const:
         return decl.const_decl.name
+    case .Var:
+        return decl.var_decl.name
     case .Struct:
         return decl.struct_decl.name
     case .Enum:
