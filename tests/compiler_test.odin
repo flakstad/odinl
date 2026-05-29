@@ -1000,6 +1000,33 @@ compile_malli_types_and_empty_collection_constructors :: proc(t: ^testing.T) {
 }
 
 @(test)
+compile_defenum_and_defunion_aliases :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defenum Method
+  "HTTP method."
+  [Get Post])
+
+(defunion Value
+  "Tagged value."
+  {:i :int
+   :s :string})`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "// HTTP method."), true)
+    testing.expect_value(t, strings.contains(output, "Method :: enum {"), true)
+    testing.expect_value(t, strings.contains(output, "// Tagged value."), true)
+    testing.expect_value(t, strings.contains(output, "Value :: union {"), true)
+}
+
+@(test)
 compile_switch_with_implicit_branch_returns :: proc(t: ^testing.T) {
     source := `(package main)
 

@@ -473,6 +473,14 @@ For explicit values, keyed brace syntax is allowed:
 })
 ```
 
+`defenum` is the docstring-friendly alias:
+
+```clojure
+(defenum Method
+  "HTTP method."
+  [Get Post Delete])
+```
+
 ### `union`
 
 `union` denotes a tagged union in the Odin sense, not a C raw union.
@@ -483,6 +491,16 @@ For explicit values, keyed brace syntax is allowed:
   :s string
   :ok bool
 })
+```
+
+`defunion` is the docstring-friendly alias:
+
+```clojure
+(defunion Value
+  "Tagged value."
+  {:i :int
+   :s :string
+   :ok :bool})
 ```
 
 Use `union` when exactly one variant is valid at a time and the choice may

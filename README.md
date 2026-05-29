@@ -582,7 +582,9 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - `(struct Name {:field Type ...})`
 - `(defstruct Name "Doc..." {:field :metadata ...})`
 - `(enum Name [A B C])` and `(enum Name {:A 1 :B 2})`
+- `(defenum Name "Doc..." [A B C])` and `(defenum Name "Doc..." {:A 1 :B 2})`
 - `(union Name {:variant Type ...})`
+- `(defunion Name "Doc..." {:variant Type ...})`
 - `(proc name [arg: type, ...] -> return-type body...)`
   - params and returns accept either Odin-style type spelling or Malli-like metadata such as `:int`, `[:arr :string]`, and `[:set :keyword]`
 - top-level and statement `(odin "...")` raw escape hatches

@@ -739,35 +739,53 @@ parse_decl :: proc(top_form: CST_Top_Form) -> (decl: AST_Decl, err: Compile_Erro
                 fields = fields,
             },
         }, {}, true
-    case "enum":
-        if len(form.items) != 3 || form.items[1].kind != .Symbol {
-            return decl, Compile_Error{message = "enum expects a name and variant vector or brace form", span = form.span}, false
+    case "enum", "defenum":
+        if len(form.items) < 3 || form.items[1].kind != .Symbol {
+            return decl, Compile_Error{message = "defenum expects a name and variant vector or brace form", span = form.span}, false
         }
-        variants, err_variants, ok_variants := parse_enum_variants(form.items[2])
+        doc_lines := top_form.doc_lines
+        variant_index := 2
+        if len(form.items) > 3 && form.items[2].kind == .String {
+            doc_lines = append_doc_lines(doc_lines[:], doc_lines_from_string(unquote_string(form.items[2].text))[:])
+            variant_index = 3
+        }
+        if len(form.items) != variant_index+1 {
+            return decl, Compile_Error{message = "defenum expects a name and variant vector or brace form", span = form.span}, false
+        }
+        variants, err_variants, ok_variants := parse_enum_variants(form.items[variant_index])
         if !ok_variants {
             return decl, err_variants, false
         }
         return AST_Decl{
             kind = .Enum,
             span = form.span,
-            doc_lines = top_form.doc_lines,
+            doc_lines = doc_lines,
             enum_decl = Enum_Decl{
                 name = map_name(form.items[1].text),
                 variants = variants,
             },
         }, {}, true
-    case "union":
-        if len(form.items) != 3 || form.items[1].kind != .Symbol {
-            return decl, Compile_Error{message = "union expects a name and variant brace form", span = form.span}, false
+    case "union", "defunion":
+        if len(form.items) < 3 || form.items[1].kind != .Symbol {
+            return decl, Compile_Error{message = "defunion expects a name and variant brace form", span = form.span}, false
         }
-        variants, err_variants, ok_variants := parse_union_variants(form.items[2])
+        doc_lines := top_form.doc_lines
+        variant_index := 2
+        if len(form.items) > 3 && form.items[2].kind == .String {
+            doc_lines = append_doc_lines(doc_lines[:], doc_lines_from_string(unquote_string(form.items[2].text))[:])
+            variant_index = 3
+        }
+        if len(form.items) != variant_index+1 {
+            return decl, Compile_Error{message = "defunion expects a name and variant brace form", span = form.span}, false
+        }
+        variants, err_variants, ok_variants := parse_union_variants(form.items[variant_index])
         if !ok_variants {
             return decl, err_variants, false
         }
         return AST_Decl{
             kind = .Union,
             span = form.span,
-            doc_lines = top_form.doc_lines,
+            doc_lines = doc_lines,
             union_decl = Union_Decl{
                 name     = map_name(form.items[1].text),
                 variants = variants,
