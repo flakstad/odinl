@@ -3,7 +3,9 @@
 An experiment in writing Odin with a small Clojure/Lisp-shaped syntax: Odin in
 parens, not Clojure on Odin.
 
-The current language draft is [LANGUAGE.md](LANGUAGE.md).
+The current language draft is [LANGUAGE.md](LANGUAGE.md). Deferred ideas that
+should not drive the core implementation yet live in
+[docs/FUTURE-IDEAS.md](docs/FUTURE-IDEAS.md).
 
 This is intentionally a source-to-source translator, not a new runtime or a
 new semantic layer. The goal is:
