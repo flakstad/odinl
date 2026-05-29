@@ -145,6 +145,7 @@ compile_all_examples :: proc(t: ^testing.T) {
         testing.expect_value(t, len(result.source_map) > 0, true)
         delete(result.output)
         delete(result.source_map)
+        kvist.compile_warning_slice_delete(result.warnings)
     }
 }
 
@@ -621,6 +622,7 @@ compile_eval_source_map_marks_eval_runner :: proc(t: ^testing.T) {
     }
     defer delete(result.output)
     defer delete(result.source_map)
+    defer kvist.compile_warning_slice_delete(result.warnings)
 
     found_eval_entry := false
     for entry in result.source_map {
@@ -779,6 +781,7 @@ compile_source_with_declaration_source_map :: proc(t: ^testing.T) {
     }
     defer delete(result.output)
     defer delete(result.source_map)
+    defer kvist.compile_warning_slice_delete(result.warnings)
 
     expected := `package main
 
@@ -828,6 +831,7 @@ compile_source_map_accounts_for_feature_line_and_multiline_raw :: proc(t: ^testi
     }
     defer delete(result.output)
     defer delete(result.source_map)
+    defer kvist.compile_warning_slice_delete(result.warnings)
 
     testing.expect_value(t, len(result.source_map) >= 5, true)
     package_entry, found_package := kvist.source_map_entry_for_generated_line(result.source_map[:], 2)
@@ -2286,6 +2290,7 @@ macroexpand_source_map_marks_generated_lines :: proc(t: ^testing.T) {
     }
     defer delete(result.output)
     defer delete(result.source_map)
+    defer kvist.compile_warning_slice_delete(result.warnings)
 
     testing.expect_value(t, len(result.source_map), 6)
 
@@ -3948,4 +3953,78 @@ main :: proc() {
 }
 `
     testing.expect_value(t, output, expected)
+}
+
+@(test)
+compile_warns_for_leaked_owned_let_local :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defn demo []
+  (let [xs (arr/empty int)]
+    (println 1)))`
+
+    result, err, ok := kvist.compile_source_with_map(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(result.output)
+    defer delete(result.source_map)
+    defer kvist.compile_warning_slice_delete(result.warnings)
+
+    testing.expect_value(t, len(result.warnings), 1)
+    if len(result.warnings) == 1 {
+        testing.expect_value(t, result.warnings[0].message, "owned local xs is never deleted or returned")
+    }
+}
+
+@(test)
+compile_warns_for_overwritten_owned_local :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defn demo []
+  (let [xs (arr/empty int)]
+    (set! xs (arr/empty int))
+    (defer (delete xs))
+    (println 1)))`
+
+    result, err, ok := kvist.compile_source_with_map(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(result.output)
+    defer delete(result.source_map)
+    defer kvist.compile_warning_slice_delete(result.warnings)
+
+    testing.expect_value(t, len(result.warnings), 1)
+    if len(result.warnings) == 1 {
+        testing.expect_value(t, result.warnings[0].message, "owned local xs is overwritten before cleanup")
+    }
+}
+
+@(test)
+compile_warns_for_discarded_owned_constructor_result :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defn demo []
+  (arr/empty int)
+  (println 1))`
+
+    result, err, ok := kvist.compile_source_with_map(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(result.output)
+    defer delete(result.source_map)
+    defer kvist.compile_warning_slice_delete(result.warnings)
+
+    testing.expect_value(t, len(result.warnings), 1)
+    if len(result.warnings) == 1 {
+        testing.expect_value(t, result.warnings[0].message, "owned value is discarded; bind it, delete it, or return it")
+    }
 }

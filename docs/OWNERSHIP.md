@@ -133,6 +133,13 @@ Near-term diagnostics should stay conservative:
   deleted, returned, or transferred;
 - warn when a local known-owned binding is overwritten before cleanup.
 
+Current compiler warnings implement the first conservative slice of this:
+
+- discarded owned constructor/allocation results such as `arr/empty`, `arr/dynamic`,
+  `map/empty`, `map/of`, `set/empty`, and `set/of`;
+- owned `let` locals that are never deleted or returned;
+- owned locals overwritten with `set!` before cleanup.
+
 These warnings should avoid cases where ownership is ambiguous, especially:
 
 - values stored inside structs or other aggregates;
