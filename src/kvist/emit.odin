@@ -2132,14 +2132,24 @@ emit_proc_literal_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_
         return_form := form.items[body_index+1]
         #partial switch return_form.kind {
         case .Vector:
-            named, err_named, ok_named := parse_named_returns(return_form)
-            if !ok_named {
-                return "", err_named, false
+            if vector_is_named_returns(return_form) {
+                named, err_named, ok_named := parse_named_returns(return_form)
+                if !ok_named {
+                    return "", err_named, false
+                }
+                returns.kind = .Named
+                returns.named = named
+                body_index += 2
+            } else {
+                return_text, next_index, err_return, ok_return := parse_type_text_from_forms(form.items[:], body_index+1)
+                if !ok_return {
+                    return "", err_return, false
+                }
+                returns.kind = .Single
+                returns.single_ty = return_text
+                body_index = next_index
             }
-            returns.kind = .Named
-            returns.named = named
-            body_index += 2
-        case .Symbol, .List:
+        case .Symbol, .List, .Keyword:
             return_text, next_index, err_return, ok_return := parse_type_text_from_forms(form.items[:], body_index+1)
             if !ok_return {
                 return "", err_return, false

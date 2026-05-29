@@ -42,14 +42,14 @@ inventing a new language on top of Odin.
 
 ## Example
 
-```odin
+```clojure
 (package main)
 (import "core:fmt")
 
-(proc add [a: int, b: int] -> int
+(defn add [a: :int, b: :int] -> :int
   (+ a b))
 
-(proc main []
+(defn main []
   (fmt.println (add 20 22)))
 ```
 
@@ -585,7 +585,9 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - `(defenum Name "Doc..." [A B C])` and `(defenum Name "Doc..." {:A 1 :B 2})`
 - `(union Name {:variant Type ...})`
 - `(defunion Name "Doc..." {:variant Type ...})`
-- `(proc name [arg: type, ...] -> return-type body...)`
+- `(defn name [arg: type, ...] -> return-type body...)`
+  - `defn` is the preferred source-level declaration form
+  - `proc` remains available for direct Odin-shaped code and proc types
   - params and returns accept either Odin-style type spelling or Malli-like metadata such as `:int`, `[:arr :string]`, and `[:set :keyword]`
 - top-level and statement `(odin "...")` raw escape hatches
 - `(let [binding value ...] body...)` scoped expression/block, including

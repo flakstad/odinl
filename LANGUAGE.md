@@ -517,37 +517,41 @@ The v0.1 union story should stay deliberately narrow:
 - rich inspection/destructuring support: later
 - full ergonomic use should wait for a future `match` design
 
-### `proc`
+### `defn` and `proc`
+
+`defn` is the preferred source-level function declaration form. `proc`
+remains available as the direct Odin-shaped spelling and is still the type
+spelling for procedure values.
 
 Functions use a typed signature vector:
 
 ```clojure
-(proc add [a: int, b: int] -> int
+(defn add [a: :int, b: :int] -> :int
   (+ a b))
 
-(proc query-get [url: URL, key: string] -> [val: string, ok: bool]
+(defn query-get [url: :URL, key: :string] -> [val: :string, ok: :bool]
   ...)
 ```
 
 Malli-like source types also work in params and returns:
 
 ```clojure
-(proc score [xs: [:arr :int], tags: [:set :string]] -> :int
+(defn score [xs: [:arr :int], tags: [:set :string]] -> :int
   ...)
 ```
 
 Commas are optional and exist for readability:
 
 ```clojure
-(proc add [a: int
-           b: int] -> int
+(defn add [a: :int
+           b: :int] -> :int
   (+ a b))
 ```
 
 An empty return annotation means the function is `void`:
 
 ```clojure
-(proc main []
+(defn main []
   (fmt.println "hello"))
 ```
 
