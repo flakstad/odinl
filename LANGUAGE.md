@@ -511,6 +511,13 @@ Functions use a typed signature vector:
   ...)
 ```
 
+Malli-like source types also work in params and returns:
+
+```clojure
+(proc score [xs: [:arr :int], tags: [:set :string]] -> :int
+  ...)
+```
+
 Commas are optional and exist for readability:
 
 ```clojure
@@ -524,6 +531,28 @@ An empty return annotation means the function is `void`:
 ```clojure
 (proc main []
   (fmt.println "hello"))
+```
+
+### Source Packages
+
+Kvist can inline relative `.kvist` packages from source:
+
+```clojure
+(import "support/math")
+(math/sum-range 0 5)
+```
+
+Host imports still use Odin package paths such as `"core:fmt"`.
+
+### Empty Collection Constructors
+
+When there is no literal element to infer from, use the package constructors:
+
+```clojure
+(arr/empty :int)
+(arr/empty :int 16)
+(map/empty :string :int)
+(set/empty :string 8)
 ```
 
 ### `odin`

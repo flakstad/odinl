@@ -573,6 +573,8 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 ## Target Forms
 
 - `(package name)`, `(import "path")`, `(import alias "path")`
+  - host imports keep Odin package paths like `"core:fmt"`
+  - source-package imports can load `.kvist` packages by relative path, e.g. `(import "support/math")`
 - `(defconst name expr)` -> `name :: expr`
 - `(defconst name type expr)` -> `name: type : expr`
 - `(defvar name expr)` -> `name := expr`
@@ -582,6 +584,7 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - `(enum Name [A B C])` and `(enum Name {:A 1 :B 2})`
 - `(union Name {:variant Type ...})`
 - `(proc name [arg: type, ...] -> return-type body...)`
+  - params and returns accept either Odin-style type spelling or Malli-like metadata such as `:int`, `[:arr :string]`, and `[:set :keyword]`
 - top-level and statement `(odin "...")` raw escape hatches
 - `(let [binding value ...] body...)` scoped expression/block, including
   multi-return and struct-field destructuring
@@ -599,6 +602,7 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - `(do body...)`
 - `(new Type literal)` typed composite literals
 - `(make Type args...)` runtime/allocator-backed construction
+- `(arr/empty elem-type [capacity])`, `(map/empty key-type value-type [capacity])`, `(set/empty elem-type [capacity])`
 - `(map f xs)`, `(filter pred xs)`, `(reduce f init xs)`, `(take n xs)`,
   `(drop n xs)`, `(take-while pred xs)`, `(drop-while pred xs)`,
   `(find pred xs)`, `(some? pred xs)`, `(every? pred xs)`, `(first xs)`,

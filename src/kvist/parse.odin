@@ -124,6 +124,8 @@ parse_defstruct_type_meta :: proc(form: CST_Form) -> (text: string, err: Compile
 
 parse_type_text :: proc(form: CST_Form) -> (text: string, err: Compile_Error, ok: bool) {
     #partial switch form.kind {
+    case .Keyword, .Vector:
+        return parse_defstruct_type_meta(form)
     case .Symbol:
         return map_name(form.text), {}, true
     case .List:
@@ -233,6 +235,14 @@ parse_type_text :: proc(form: CST_Form) -> (text: string, err: Compile_Error, ok
     }
 }
 
+vector_is_named_returns :: proc(form: CST_Form) -> bool {
+    if form.kind != .Vector || len(form.items) == 0 {
+        return false
+    }
+    item := form.items[0]
+    return item.kind == .Symbol && len(item.text) > 0 && item.text[len(item.text)-1] == ':'
+}
+
 parse_proc_type_text_from_parts :: proc(forms: []CST_Form, start: int) -> (text: string, next: int, err: Compile_Error, ok: bool) {
     if start+1 >= len(forms) || forms[start+1].kind != .Vector {
         return "", start, Compile_Error{message = "proc type expects a parameter vector", span = forms[start].span}, false
@@ -260,7 +270,7 @@ parse_proc_type_text_from_parts :: proc(forms: []CST_Form, start: int) -> (text:
             return "", start, Compile_Error{message = "missing proc type return spec", span = forms[next].span}, false
         }
 
-        if forms[next+1].kind == .Vector {
+        if vector_is_named_returns(forms[next+1]) {
             named, err_named, ok_named := parse_named_returns(forms[next+1])
             if !ok_named {
                 return "", start, err_named, false
@@ -501,7 +511,7 @@ parse_proc_decl :: proc(form: CST_Form) -> (decl: Proc_Decl, err: Compile_Error,
         }
         return_form := form.items[body_index+1]
         #partial switch return_form.kind {
-        case .Symbol, .List:
+        case .Symbol, .List, .Keyword:
             return_text, next_index, err_return, ok_return := parse_type_text_from_forms(form.items[:], body_index+1)
             if !ok_return {
                 return decl, err_return, false
@@ -510,13 +520,23 @@ parse_proc_decl :: proc(form: CST_Form) -> (decl: Proc_Decl, err: Compile_Error,
             returns.single_ty = return_text
             body_index = next_index
         case .Vector:
-            named, err_named, ok_named := parse_named_returns(return_form)
-            if !ok_named {
-                return decl, err_named, false
+            if vector_is_named_returns(return_form) {
+                named, err_named, ok_named := parse_named_returns(return_form)
+                if !ok_named {
+                    return decl, err_named, false
+                }
+                returns.kind = .Named
+                returns.named = named
+                body_index += 2
+            } else {
+                return_text, next_index, err_return, ok_return := parse_type_text_from_forms(form.items[:], body_index+1)
+                if !ok_return {
+                    return decl, err_return, false
+                }
+                returns.kind = .Single
+                returns.single_ty = return_text
+                body_index = next_index
             }
-            returns.kind = .Named
-            returns.named = named
-            body_index += 2
         case:
             return decl, Compile_Error{message = "unsupported return spec", span = return_form.span}, false
         }

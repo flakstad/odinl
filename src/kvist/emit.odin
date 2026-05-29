@@ -1822,6 +1822,68 @@ with_temp_allocator_escape_error :: proc(body: []CST_Form, last_in_proc: bool, r
     return {}, false
 }
 
+loop_collection_needs_temp_binding :: proc(form: CST_Form) -> bool {
+    return form_is_owned_result(form) || form_is_owned_allocation_result(form)
+}
+
+emit_for_in_loop_body :: proc(e: ^Emitter, coll_form: CST_Form, coll_text, first_name, second_name: string, body: []CST_Form) -> (Compile_Error, bool) {
+    emit_indent(e)
+    strings.write_string(&e.builder, "for ")
+    strings.write_string(&e.builder, first_name)
+    prefix_len := len("for ") + len(first_name)
+    if second_name != "" {
+        strings.write_string(&e.builder, ", ")
+        strings.write_string(&e.builder, second_name)
+        prefix_len += len(", ") + len(second_name)
+    }
+    strings.write_string(&e.builder, " in ")
+    prefix_len += len(" in ")
+    strings.write_string(&e.builder, coll_text)
+    record_current_line_fragment_map(e, prefix_len, coll_text, coll_form.span)
+    strings.write_string(&e.builder, " {")
+    emit_raw_newline(e)
+    e.indent += 1
+    err_body, ok_body := emit_body_forms(e, body, Return_Spec{kind = .None})
+    if !ok_body {
+        return err_body, false
+    }
+    e.indent -= 1
+    emit_line(e, "}")
+    return {}, true
+}
+
+emit_for_in_loop :: proc(e: ^Emitter, coll_form: CST_Form, first_name, second_name: string, body: []CST_Form) -> (Compile_Error, bool) {
+    if !loop_collection_needs_temp_binding(coll_form) {
+        err_owned, bad_owned := owned_result_usage_error(coll_form, false)
+        if bad_owned {
+            return err_owned, false
+        }
+        coll, err_coll, ok_coll := emit_expr(e, coll_form)
+        if !ok_coll {
+            return err_coll, false
+        }
+        return emit_for_in_loop_body(e, coll_form, coll, first_name, second_name, body)
+    }
+
+    coll, err_coll, ok_coll := emit_expr(e, coll_form)
+    if !ok_coll {
+        return err_coll, false
+    }
+    e.temp_counter += 1
+    temp := fmt.tprintf("kvist_loop_%d", e.temp_counter)
+    emit_line(e, "{")
+    e.indent += 1
+    emit_prefixed_expr_mapped(e, fmt.tprintf("%s := ", temp), coll, coll_form.span)
+    emit_line(e, fmt.tprintf("defer delete(%s)", temp))
+    err_loop, ok_loop := emit_for_in_loop_body(e, coll_form, temp, first_name, second_name, body)
+    if !ok_loop {
+        return err_loop, false
+    }
+    e.indent -= 1
+    emit_line(e, "}")
+    return {}, true
+}
+
 emit_map_callback_call :: proc(e: ^Emitter, callback: CST_Form, collection: string) -> (string, Compile_Error, bool) {
     if field, ok_field := field_from_keyword(callback); ok_field {
         mark_core_map_field(e, field)
@@ -2529,6 +2591,64 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
             return "", err_target, false
         }
         return fmt.tprintf("len(%s)", target), {}, true
+    }
+
+    if head.text == "arr/empty" {
+        if len(form.items) != 2 && len(form.items) != 3 {
+            return "", Compile_Error{message = "arr/empty expects element type and optional capacity", span = form.span}, false
+        }
+        elem_text, err_elem, ok_elem := parse_type_text(form.items[1])
+        if !ok_elem {
+            return "", err_elem, false
+        }
+        if len(form.items) == 2 {
+            return fmt.tprintf("make([dynamic]%s)", elem_text), {}, true
+        }
+        capacity, err_capacity, ok_capacity := emit_expr(e, form.items[2])
+        if !ok_capacity {
+            return "", err_capacity, false
+        }
+        return fmt.tprintf("make([dynamic]%s, 0, %s)", elem_text, capacity), {}, true
+    }
+
+    if head.text == "map/empty" {
+        if len(form.items) != 3 && len(form.items) != 4 {
+            return "", Compile_Error{message = "map/empty expects key type, value type, and optional capacity", span = form.span}, false
+        }
+        key_text, err_key, ok_key := parse_type_text(form.items[1])
+        if !ok_key {
+            return "", err_key, false
+        }
+        value_text, err_value, ok_value := parse_type_text(form.items[2])
+        if !ok_value {
+            return "", err_value, false
+        }
+        if len(form.items) == 3 {
+            return fmt.tprintf("make(map[%s]%s)", key_text, value_text), {}, true
+        }
+        capacity, err_capacity, ok_capacity := emit_expr(e, form.items[3])
+        if !ok_capacity {
+            return "", err_capacity, false
+        }
+        return fmt.tprintf("make(map[%s]%s, %s)", key_text, value_text, capacity), {}, true
+    }
+
+    if head.text == "set/empty" {
+        if len(form.items) != 2 && len(form.items) != 3 {
+            return "", Compile_Error{message = "set/empty expects element type and optional capacity", span = form.span}, false
+        }
+        elem_text, err_elem, ok_elem := parse_type_text(form.items[1])
+        if !ok_elem {
+            return "", err_elem, false
+        }
+        if len(form.items) == 2 {
+            return fmt.tprintf("make(map[%s]bool)", elem_text), {}, true
+        }
+        capacity, err_capacity, ok_capacity := emit_expr(e, form.items[2])
+        if !ok_capacity {
+            return "", err_capacity, false
+        }
+        return fmt.tprintf("make(map[%s]bool, %s)", elem_text, capacity), {}, true
     }
 
     if head.text == "arr/get" || head.text == "str/get" || head.text == "map/get" {
@@ -4556,43 +4676,15 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         }
         name := map_name(name_form.text)
         value := map_name(value_form.text)
-        err_owned, bad_owned := owned_result_usage_error(coll_form, false)
-        if bad_owned {
-            return err_owned, false
-        }
-        coll, err_coll, ok_coll := emit_expr(e, coll_form)
-        if !ok_coll {
-            return err_coll, false
-        }
-        emit_indent(e)
-        strings.write_string(&e.builder, "for ")
-        strings.write_string(&e.builder, name)
-        if has_value {
-            strings.write_string(&e.builder, ", ")
-            strings.write_string(&e.builder, value)
-        }
-        strings.write_string(&e.builder, " in ")
-        strings.write_string(&e.builder, coll)
-        prefix_len := len("for ") + len(name)
-        if has_value {
-            prefix_len += len(", ") + len(value)
-        }
-        prefix_len += len(" in ")
-        record_current_line_fragment_map(e, prefix_len, coll, coll_form.span)
-        strings.write_string(&e.builder, " {")
-        emit_raw_newline(e)
-        e.indent += 1
         body: [dynamic]CST_Form
         for item in form.items[body_start:] {
             append(&body, item)
         }
-        err_body, ok_body := emit_body_forms(e, body[:], Return_Spec{kind = .None})
-        if !ok_body {
-            return err_body, false
+        second_name := ""
+        if has_value {
+            second_name = value
         }
-        e.indent -= 1
-        emit_line(e, "}")
-        return {}, true
+        return emit_for_in_loop(e, coll_form, name, second_name, body[:])
     case "for":
         if len(form.items) >= 3 && form.items[1].kind == .Vector {
             binding := form.items[1]
@@ -4600,70 +4692,21 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             if len(binding.items) == 2 && binding.items[0].kind == .Symbol {
                 value_name := map_name(binding.items[0].text)
                 coll_form := binding.items[1]
-                err_owned, bad_owned := owned_result_usage_error(coll_form, false)
-                if bad_owned {
-                    return err_owned, false
-                }
-                coll, err_coll, ok_coll := emit_expr(e, coll_form)
-                if !ok_coll {
-                    return err_coll, false
-                }
-                emit_indent(e)
-                strings.write_string(&e.builder, "for ")
-                strings.write_string(&e.builder, value_name)
-                strings.write_string(&e.builder, " in ")
-                strings.write_string(&e.builder, coll)
-                record_current_line_fragment_map(e, len("for ") + len(value_name) + len(" in "), coll, coll_form.span)
-                strings.write_string(&e.builder, " {")
-                emit_raw_newline(e)
-                e.indent += 1
                 body: [dynamic]CST_Form
                 for item in form.items[body_start:] {
                     append(&body, item)
                 }
-                err_body, ok_body := emit_body_forms(e, body[:], Return_Spec{kind = .None})
-                if !ok_body {
-                    return err_body, false
-                }
-                e.indent -= 1
-                emit_line(e, "}")
-                return {}, true
+                return emit_for_in_loop(e, coll_form, value_name, "", body[:])
             }
             if len(binding.items) == 3 && binding.items[0].kind == .Symbol && binding.items[1].kind == .Symbol {
                 value_name := map_name(binding.items[0].text)
                 index_name := map_name(binding.items[1].text)
                 coll_form := binding.items[2]
-                err_owned, bad_owned := owned_result_usage_error(coll_form, false)
-                if bad_owned {
-                    return err_owned, false
-                }
-                coll, err_coll, ok_coll := emit_expr(e, coll_form)
-                if !ok_coll {
-                    return err_coll, false
-                }
-                emit_indent(e)
-                strings.write_string(&e.builder, "for ")
-                strings.write_string(&e.builder, index_name)
-                strings.write_string(&e.builder, ", ")
-                strings.write_string(&e.builder, value_name)
-                strings.write_string(&e.builder, " in ")
-                strings.write_string(&e.builder, coll)
-                prefix_len := len("for ") + len(index_name) + len(", ") + len(value_name) + len(" in ")
-                record_current_line_fragment_map(e, prefix_len, coll, coll_form.span)
-                strings.write_string(&e.builder, " {")
-                emit_raw_newline(e)
-                e.indent += 1
                 body: [dynamic]CST_Form
                 for item in form.items[body_start:] {
                     append(&body, item)
                 }
-                err_body, ok_body := emit_body_forms(e, body[:], Return_Spec{kind = .None})
-                if !ok_body {
-                    return err_body, false
-                }
-                e.indent -= 1
-                emit_line(e, "}")
-                return {}, true
+                return emit_for_in_loop(e, coll_form, index_name, value_name, body[:])
             }
             return Compile_Error{message = "for expects [value collection], [value index collection], or condition and body", span = form.span}, false
         }
