@@ -1,5 +1,5 @@
-// Demonstrates the current anonymous-procedure boundary: proc literals work,
-// but they do not capture surrounding locals.
+// Demonstrates the current anonymous-function boundary: fn literals work, but
+// they do not capture surrounding locals.
 (package main)
 (import "core:fmt")
 
@@ -21,7 +21,7 @@
   (println (proc-literal-demo) (explicit-context-demo)))
 
 (comment
-  ;; This works because the proc literal is non-capturing.
+  ;; This works because the fn literal is non-capturing.
   (proc-literal-demo)
   ;; => true
 

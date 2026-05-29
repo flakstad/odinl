@@ -3385,7 +3385,7 @@ emit_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, bool) 
     case .Symbol:
         return map_name(form.text), {}, true
     case .Keyword:
-        return map_name(form.text[1:]), {}, true
+        return fmt.tprintf("%q", form.text), {}, true
     case .List:
         if len(form.items) == 0 {
             return "", Compile_Error{message = "empty list expression", span = form.span}, false
@@ -4400,8 +4400,81 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         emit_line(e, "}")
         return {}, true
     case "for":
+        if len(form.items) >= 3 && form.items[1].kind == .Vector {
+            binding := form.items[1]
+            body_start := 2
+            if len(binding.items) == 2 && binding.items[0].kind == .Symbol {
+                value_name := map_name(binding.items[0].text)
+                coll_form := binding.items[1]
+                err_owned, bad_owned := owned_result_usage_error(coll_form, false)
+                if bad_owned {
+                    return err_owned, false
+                }
+                coll, err_coll, ok_coll := emit_expr(e, coll_form)
+                if !ok_coll {
+                    return err_coll, false
+                }
+                emit_indent(e)
+                strings.write_string(&e.builder, "for ")
+                strings.write_string(&e.builder, value_name)
+                strings.write_string(&e.builder, " in ")
+                strings.write_string(&e.builder, coll)
+                record_current_line_fragment_map(e, len("for ") + len(value_name) + len(" in "), coll, coll_form.span)
+                strings.write_string(&e.builder, " {")
+                emit_raw_newline(e)
+                e.indent += 1
+                body: [dynamic]CST_Form
+                for item in form.items[body_start:] {
+                    append(&body, item)
+                }
+                err_body, ok_body := emit_body_forms(e, body[:], Return_Spec{kind = .None})
+                if !ok_body {
+                    return err_body, false
+                }
+                e.indent -= 1
+                emit_line(e, "}")
+                return {}, true
+            }
+            if len(binding.items) == 3 && binding.items[0].kind == .Symbol && binding.items[1].kind == .Symbol {
+                value_name := map_name(binding.items[0].text)
+                index_name := map_name(binding.items[1].text)
+                coll_form := binding.items[2]
+                err_owned, bad_owned := owned_result_usage_error(coll_form, false)
+                if bad_owned {
+                    return err_owned, false
+                }
+                coll, err_coll, ok_coll := emit_expr(e, coll_form)
+                if !ok_coll {
+                    return err_coll, false
+                }
+                emit_indent(e)
+                strings.write_string(&e.builder, "for ")
+                strings.write_string(&e.builder, index_name)
+                strings.write_string(&e.builder, ", ")
+                strings.write_string(&e.builder, value_name)
+                strings.write_string(&e.builder, " in ")
+                strings.write_string(&e.builder, coll)
+                prefix_len := len("for ") + len(index_name) + len(", ") + len(value_name) + len(" in ")
+                record_current_line_fragment_map(e, prefix_len, coll, coll_form.span)
+                strings.write_string(&e.builder, " {")
+                emit_raw_newline(e)
+                e.indent += 1
+                body: [dynamic]CST_Form
+                for item in form.items[body_start:] {
+                    append(&body, item)
+                }
+                err_body, ok_body := emit_body_forms(e, body[:], Return_Spec{kind = .None})
+                if !ok_body {
+                    return err_body, false
+                }
+                e.indent -= 1
+                emit_line(e, "}")
+                return {}, true
+            }
+            return Compile_Error{message = "for expects [value collection], [value index collection], or condition and body", span = form.span}, false
+        }
         if len(form.items) < 3 {
-            return Compile_Error{message = "for expects condition and body", span = form.span}, false
+            return Compile_Error{message = "for expects [value collection], [value index collection], or condition and body", span = form.span}, false
         }
         cond, err_cond, ok_cond := emit_expr(e, form.items[1])
         if !ok_cond {
