@@ -55,6 +55,15 @@ normalize_surface_type_symbol :: proc(text: string) -> string {
             return fmt.tprintf("map[%s]%s", normalize_surface_type_symbol(key_text), normalize_surface_type_symbol(value_text))
         }
     }
+    if strings.has_prefix(text, "set[") {
+        closing := strings.index(text, "]")
+        if closing > 4 {
+            elem_text := text[4:closing]
+            if closing == len(text)-1 {
+                return fmt.tprintf("map[%s]bool", normalize_surface_type_symbol(elem_text))
+            }
+        }
+    }
     if len(text) > 2 && text[0] == '[' {
         closing := strings.index(text, "]")
         if closing > 1 {

@@ -2638,7 +2638,7 @@ surface_type_text :: proc(ty: string) -> string {
         key_end := strings.index(ty, "]")
         if key_end > 4 {
             key := ty[4:key_end]
-            return fmt.tprintf("[set %s]", surface_type_text(key))
+            return fmt.tprintf("set[%s]", surface_type_text(key))
         }
     }
 

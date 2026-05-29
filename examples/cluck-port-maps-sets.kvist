@@ -28,6 +28,6 @@
 
 (comment
   ;; Map iteration ports cleanly. The remaining set gap is representation,
-  ;; not basic source operations: [set T] still lowers to map[T]bool.
+  ;; not basic source operations: set[T] still lowers to map[T]bool.
   (maps_and_sets_demo)
 )

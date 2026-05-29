@@ -9,7 +9,7 @@
   "Example struct for metadata introspection."
   {:name string
    :age int
-   :tags [set string]
+   :tags set[string]
    :home Point})
 
 (defn struct-introspection-demo [] -> bool

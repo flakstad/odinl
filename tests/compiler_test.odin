@@ -56,7 +56,7 @@ compile_defstruct_program :: proc(t: ^testing.T) {
   {:name string
    :age int
    :active? bool
-   :tags [set string]
+   :tags set[string]
    :scores [dynamic]int
    :home Point})
 
@@ -981,7 +981,7 @@ compile_defconst_and_defvar_forms :: proc(t: ^testing.T) {
 compile_malli_types_and_empty_collection_constructors :: proc(t: ^testing.T) {
     source := `(package main)
 
-(defn score [xs: [dynamic]int, tags: [set string]] -> int
+(defn score [xs: [dynamic]int, tags: set[string]] -> int
   (let [out (arr/empty int 4)
         lookup (map/empty string int)
         seen (set/empty string 8)]
@@ -1057,7 +1057,7 @@ compile_struct_types_reports_source_surface :: proc(t: ^testing.T) {
   {:name string
    :active? bool
    :favorite-key keyword
-   :tags [set string]
+   :tags set[string]
    :scores [dynamic]int
    :window []float})
 
@@ -1072,7 +1072,7 @@ compile_struct_types_reports_source_surface :: proc(t: ^testing.T) {
     }
     defer delete(output)
 
-    testing.expect_value(t, strings.contains(output, "\":tags\" = \"[set string]\""), true)
+    testing.expect_value(t, strings.contains(output, "\":tags\" = \"set[string]\""), true)
     testing.expect_value(t, strings.contains(output, "\":scores\" = \"[dynamic]int\""), true)
     testing.expect_value(t, strings.contains(output, "\":window\" = \"[]float\""), true)
     testing.expect_value(t, strings.contains(output, "\":active?\" = \"bool\""), true)

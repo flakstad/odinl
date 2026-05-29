@@ -442,7 +442,7 @@ The current implementation:
 
 - accepts an optional inline docstring immediately after the name;
 - accepts ordinary field type forms such as `string`, `Method`, `[dynamic]string`,
-  `[]int`, and `[set keyword]`;
+  `[]int`, and `set[keyword]`;
 - lowers to an ordinary Odin struct declaration;
 - validates declaration shape at compile time.
 
@@ -536,7 +536,7 @@ Functions use a typed signature vector:
 Composite source types still use data-shaped vectors:
 
 ```clojure
-(defn score [xs: [dynamic]int, tags: [set string]] -> int
+(defn score [xs: [dynamic]int, tags: set[string]] -> int
   ...)
 ```
 

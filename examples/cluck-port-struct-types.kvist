@@ -12,7 +12,7 @@
    :active? bool
    :favorite-key keyword
    :scores [dynamic]int
-   :tags [set string]
+   :tags set[string]
    :window []float
    :home Point})
 
@@ -44,5 +44,5 @@
 (comment
   ;; Two visible Kvist/Odin differences remain here:
   ;; - keyword currently lowers to string values.
-  ;; - [set T] still lowers to map[T]bool.
+  ;; - set[T] still lowers to map[T]bool.
   (struct-types-demo))
