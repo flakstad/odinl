@@ -1084,6 +1084,33 @@ clearer:
 (& (:amount order))
 ```
 
+### Pointer and value guidance
+
+Kvist keeps Odin's value model. There is no hidden borrow checker or pointer
+ownership layer. The current guidance is:
+
+- pass small values by value
+- pass large or shared mutable values by pointer
+- use slices for shared contiguous data
+- use `addr` and `deref` only when identity or mutation through a reference is
+  actually needed
+
+Preferred user-facing pointer style:
+
+```clojure
+^Order
+(addr order)
+(deref order)
+```
+
+The older compatibility spellings still work:
+
+- `(ptr T)`
+- `(^ value)`
+- `(& place)`
+
+But they are not the preferred style for ordinary Kvist code.
+
 ### Threading
 
 Field-heavy code should compose naturally with `->`:
@@ -1537,8 +1564,8 @@ not part of the original expected-core list:
 
 - `(in? collection key)`, composed with `(not ...)` for absence checks
 - `(break)` and `(continue)`
-- `(deref x)` / `(^ x)` for pointer dereference
-- `(addr x)` / `(& x)` for address-of
+- `(deref x)` / `(^ x)` for pointer dereference, with `(deref x)` preferred
+- `(addr x)` / `(& x)` for address-of, with `(addr x)` preferred
 - directive expression wrappers such as `(#force_inline query-iter (& q))`
 
 These are intentionally small Odin conveniences, not new semantic layers.

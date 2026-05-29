@@ -33,7 +33,7 @@
         (let [[value ok] (chan.recv result-ch)]
           (if ok value 0))))))
 
-(defn increment-once [counter: (ptr Counter)]
+(defn increment-once [counter: ^Counter]
   ;; sync.guard lowers to the ordinary Odin guard pattern. The lock is held
   ;; only for this scope and released automatically by Odin's deferred_in
   ;; attribute on sync.guard.

@@ -22,6 +22,8 @@
     updated))
 
 (defn settle-order! [order: ^Order]
+  ;; Use a pointer parameter when the caller expects in-place mutation of the
+  ;; shared order value rather than a returned copy.
   (when (and (== (:status (deref order)) 2)
              (> (:amount (deref order)) 100))
     (set! (:amount (deref order)) (- (:amount (deref order)) (:discount (deref order))))
