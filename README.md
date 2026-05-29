@@ -604,7 +604,9 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - `(do body...)`
 - `(new Type literal)` typed composite literals
 - `(make Type args...)` runtime/allocator-backed construction
-- `(arr/empty elem-type [capacity])`, `(map/empty key-type value-type [capacity])`, `(set/empty elem-type [capacity])`
+- `(arr/empty elem-type [capacity])`, `(arr/dynamic elem-type [items...])`, `(arr/fixed elem-type [items...])`
+- `(map/empty key-type value-type [capacity])`, `(map/of key-type value-type {:k v ...})`
+- `(set/empty elem-type [capacity])`, `(set/of elem-type [a b c])`
 - `(map f xs)`, `(filter pred xs)`, `(reduce f init xs)`, `(take n xs)`,
   `(drop n xs)`, `(take-while pred xs)`, `(drop-while pred xs)`,
   `(find pred xs)`, `(some? pred xs)`, `(every? pred xs)`, `(first xs)`,

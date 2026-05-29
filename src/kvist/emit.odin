@@ -2611,6 +2611,30 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         return fmt.tprintf("make([dynamic]%s, 0, %s)", elem_text, capacity), {}, true
     }
 
+    if head.text == "arr/dynamic" {
+        if len(form.items) != 3 || form.items[2].kind != .Vector {
+            return "", Compile_Error{message = "arr/dynamic expects element type and vector literal", span = form.span}, false
+        }
+        elem_text, err_elem, ok_elem := parse_type_text(form.items[1])
+        if !ok_elem {
+            return "", err_elem, false
+        }
+        mark_dynamic_literals(e)
+        return emit_vector_literal(e, fmt.tprintf("[dynamic]%s", elem_text), form.items[2])
+    }
+
+    if head.text == "arr/fixed" {
+        if len(form.items) != 3 || form.items[2].kind != .Vector {
+            return "", Compile_Error{message = "arr/fixed expects element type and vector literal", span = form.span}, false
+        }
+        elem_text, err_elem, ok_elem := parse_type_text(form.items[1])
+        if !ok_elem {
+            return "", err_elem, false
+        }
+        length := len(form.items[2].items)
+        return emit_vector_literal(e, fmt.tprintf("[%d]%s", length, elem_text), form.items[2])
+    }
+
     if head.text == "map/empty" {
         if len(form.items) != 3 && len(form.items) != 4 {
             return "", Compile_Error{message = "map/empty expects key type, value type, and optional capacity", span = form.span}, false
@@ -2633,6 +2657,21 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         return fmt.tprintf("make(map[%s]%s, %s)", key_text, value_text, capacity), {}, true
     }
 
+    if head.text == "map/of" {
+        if len(form.items) != 4 || form.items[3].kind != .Brace {
+            return "", Compile_Error{message = "map/of expects key type, value type, and brace literal", span = form.span}, false
+        }
+        key_text, err_key, ok_key := parse_type_text(form.items[1])
+        if !ok_key {
+            return "", err_key, false
+        }
+        value_text, err_value, ok_value := parse_type_text(form.items[2])
+        if !ok_value {
+            return "", err_value, false
+        }
+        return emit_brace_literal(e, fmt.tprintf("map[%s]%s", key_text, value_text), form.items[3])
+    }
+
     if head.text == "set/empty" {
         if len(form.items) != 2 && len(form.items) != 3 {
             return "", Compile_Error{message = "set/empty expects element type and optional capacity", span = form.span}, false
@@ -2649,6 +2688,34 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
             return "", err_capacity, false
         }
         return fmt.tprintf("make(map[%s]bool, %s)", elem_text, capacity), {}, true
+    }
+
+    if head.text == "set/of" {
+        if len(form.items) != 3 || form.items[2].kind != .Vector {
+            return "", Compile_Error{message = "set/of expects element type and vector literal", span = form.span}, false
+        }
+        elem_text, err_elem, ok_elem := parse_type_text(form.items[1])
+        if !ok_elem {
+            return "", err_elem, false
+        }
+        builder := strings.builder_make()
+        defer strings.builder_destroy(&builder)
+        strings.write_string(&builder, "map[")
+        strings.write_string(&builder, elem_text)
+        strings.write_string(&builder, "]bool{")
+        values, err_values, ok_values := emit_vector_item_texts(e, form.items[2])
+        if !ok_values {
+            return "", err_values, false
+        }
+        for value, idx in values {
+            if idx > 0 {
+                strings.write_string(&builder, ", ")
+            }
+            strings.write_string(&builder, value)
+            strings.write_string(&builder, " = true")
+        }
+        strings.write_byte(&builder, '}')
+        return strings.clone(strings.to_string(builder)), {}, true
     }
 
     if head.text == "arr/get" || head.text == "str/get" || head.text == "map/get" {

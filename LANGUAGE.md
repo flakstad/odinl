@@ -569,8 +569,12 @@ When there is no literal element to infer from, use the package constructors:
 ```clojure
 (arr/empty :int)
 (arr/empty :int 16)
+(arr/dynamic :int [1 2 3])
+(arr/fixed :int [4 5 6])
 (map/empty :string :int)
+(map/of :string :int {"one" 1 "two" 2})
 (set/empty :string 8)
+(set/of :string ["math" "lisp"])
 ```
 
 ### `odin`
