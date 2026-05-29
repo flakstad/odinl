@@ -6,22 +6,22 @@
   :path string
 })
 
-(defn apply-pred [pred: (proc [x: :int] -> :bool), x: :int] -> :bool
+(defn apply-pred [pred: (proc [x: int] -> bool), x: int] -> bool
   (pred x))
 
-(defn greater-than? [threshold: :int, x: :int] -> :bool
+(defn greater-than? [threshold: int, x: int] -> bool
   (> x threshold))
 
-(defn path-len [req: :Request] -> :int
+(defn path-len [req: Request] -> int
   (-> req :path len))
 
-(defn maybe-path-len [req: (ptr :Request)] -> :int
+(defn maybe-path-len [req: (ptr Request)] -> int
   (if (nil? req)
     0
     (path-len (deref req))))
 
 (defn main []
-  (let [pred: (proc [x: :int] -> :bool) (fn [x: :int] -> :bool
+  (let [pred: (proc [x: int] -> bool) (fn [x: int] -> bool
                                            (greater-than? 10 x))
         req (Request {:path "/users"})]
     (fmt.println (apply-pred pred 12))))

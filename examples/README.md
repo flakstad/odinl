@@ -37,9 +37,10 @@ block so `C-c C-e` and `C-c C-c` are practical.
 - `orders-report.kvist`: a more realistic eager data pipeline.
 
 Owned dynamic arrays, maps, allocated slices, `make`, and sequence helpers that
-return new collections need local `defer delete` unless ownership is returned
-to the caller. See [`docs/OWNERSHIP.md`](../docs/OWNERSHIP.md) for the rule of
-thumb.
+return new collections need local cleanup unless ownership is returned to the
+caller. Prefer `with-delete` for ordinary local scopes and plain `defer
+delete(...)` when you need finer control. See
+[`docs/OWNERSHIP.md`](../docs/OWNERSHIP.md) for the rule of thumb.
 
 ## Odin Core Interop
 

@@ -434,10 +434,10 @@ Current first-pass shape:
 ```clojure
 (defstruct Request
   "Incoming HTTP request."
-  {:method :Method
-   :path :string
-   :query :string
-   :params [:arr :string]})
+  {:method Method
+   :path string
+   :query string
+   :params [arr string]})
 ```
 
 The current implementation:
@@ -498,9 +498,9 @@ For explicit values, keyed brace syntax is allowed:
 ```clojure
 (defunion Value
   "Tagged value."
-  {:i :int
-   :s :string
-   :ok :bool})
+  {:i int
+   :s string
+   :ok bool})
 ```
 
 Use `union` when exactly one variant is valid at a time and the choice may
@@ -526,25 +526,25 @@ spelling for procedure values.
 Functions use a typed signature vector:
 
 ```clojure
-(defn add [a: :int, b: :int] -> :int
+(defn add [a: int, b: int] -> int
   (+ a b))
 
-(defn query-get [url: :URL, key: :string] -> [val: :string, ok: :bool]
+(defn query-get [url: URL, key: string] -> [val: string, ok: bool]
   ...)
 ```
 
-Malli-like source types also work in params and returns:
+Composite source types still use data-shaped vectors:
 
 ```clojure
-(defn score [xs: [:arr :int], tags: [:set :string]] -> :int
+(defn score [xs: [arr int], tags: [set string]] -> int
   ...)
 ```
 
 Commas are optional and exist for readability:
 
 ```clojure
-(defn add [a: :int
-           b: :int] -> :int
+(defn add [a: int
+           b: int] -> int
   (+ a b))
 ```
 
@@ -571,14 +571,14 @@ Host imports still use Odin package paths such as `"core:fmt"`.
 When there is no literal element to infer from, use the package constructors:
 
 ```clojure
-(arr/empty :int)
-(arr/empty :int 16)
-(arr/dynamic :int [1 2 3])
-(arr/fixed :int [4 5 6])
-(map/empty :string :int)
-(map/of :string :int {"one" 1 "two" 2})
-(set/empty :string 8)
-(set/of :string ["math" "lisp"])
+(arr/empty int)
+(arr/empty int 16)
+(arr/dynamic int [1 2 3])
+(arr/fixed int [4 5 6])
+(map/empty string int)
+(map/of string int {"one" 1 "two" 2})
+(set/empty string 8)
+(set/of string ["math" "lisp"])
 ```
 
 ### `odin`
@@ -1450,7 +1450,7 @@ proc [url: URL, key: string] -> [val: string, ok: bool]
 That means higher-order procedures can look like:
 
 ```clojure
-(proc find-index [xs: []int, pred: proc [x: int] -> bool] -> int
+(proc find-index [xs: []int, pred: (proc [x: int] -> bool)] -> int
   ...)
 ```
 
@@ -1618,8 +1618,8 @@ This is intentionally boring and matches Odin's own documentation conventions
 ```clojure
 (defstruct Request
   "Incoming HTTP request."
-  {:method :Method
-   :path :string})
+  {:method Method
+   :path string})
 ```
 
 The generated Odin still receives ordinary preceding `//` comments.
