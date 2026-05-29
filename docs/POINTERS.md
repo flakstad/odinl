@@ -21,6 +21,16 @@ total^
 Use `x^` for the simple symbol case. Keep `(deref ...)` for more complex
 expressions such as `(deref (get ptrs i))`.
 
+Preferred writable places:
+
+```clojure
+(set! total^ (+ total^ 1))
+(set! (:amount order^) 42)
+(set! (get xs i) 9)
+```
+
+That keeps `set!` uniform: write to the place you spelled in source.
+
 Prefer this over the older compatibility spellings:
 
 - `(ptr T)`
