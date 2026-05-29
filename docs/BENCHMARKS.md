@@ -112,6 +112,26 @@ The useful conclusion for now is:
   as proven codegen trouble, because the generated hot loop now matches the
   direct Odin shape
 
+## Focused Map Update Benchmark
+
+The stripped-down map-only benchmark removes the broader mutation benchmark's
+other costs and answers the remaining question directly.
+
+Current focused map-only run:
+
+- Kvist `map-update!`: `62.642 ms`
+- direct Odin: `66.551 ms`
+
+The generated hot loop is now:
+
+```odin
+counts[j % KEY_MOD] += 1
+```
+
+So the earlier map gap was not a persistent lowering problem. After the
+compound-assignment fix, the focused map workload is at parity and slightly
+favors the Kvist-generated version in this run.
+
 ## Good Next Benchmarks
 
 The next benchmark additions should target language features we recently added,
@@ -122,7 +142,8 @@ Recommended next cases:
 1. `for`/`each` loops over arrays, maps, and sets
 2. package-heavy real-world workloads using explicit `kvist:*` imports
 3. ownership-helper patterns such as `with-delete` around collection builders
-4. more map-heavy workloads to see whether the remaining delta is stable
+4. more map-heavy workloads with realistic surrounding code, not just the
+   isolated hot loop
 
 These would tell us whether the newer language surface is still lowering as
 cleanly as the older helper benchmarks.
