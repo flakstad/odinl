@@ -3058,7 +3058,7 @@ allow_returning_owned_sequence_result :: proc(t: ^testing.T) {
 }
 
 @(test)
-reject_discarded_owned_sequence_result :: proc(t: ^testing.T) {
+warn_discarded_owned_sequence_result :: proc(t: ^testing.T) {
     source := `(package main)
 
 (proc inc [x: int] -> int
@@ -3069,10 +3069,19 @@ reject_discarded_owned_sequence_result :: proc(t: ^testing.T) {
     (map inc xs)
     (return)))`
 
-    _, err, ok := kvist.compile_source(source)
-    testing.expect_value(t, ok, false)
-    defer delete(err.message)
-    testing.expect_value(t, err.message, "owned result must be bound or returned; nested owned results would leak")
+    result, err, ok := kvist.compile_source_with_map(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(result.output)
+    defer delete(result.source_map)
+    defer kvist.compile_warning_slice_delete(result.warnings)
+    testing.expect_value(t, len(result.warnings), 1)
+    if len(result.warnings) == 1 {
+        testing.expect_value(t, result.warnings[0].message, "owned value is discarded; bind it, delete it, or return it")
+    }
 }
 
 @(test)
@@ -3092,7 +3101,7 @@ reject_nested_owned_sequence_result :: proc(t: ^testing.T) {
 }
 
 @(test)
-reject_discarded_slurp_result :: proc(t: ^testing.T) {
+warn_discarded_slurp_result :: proc(t: ^testing.T) {
     source := `(package main)
 (import os "core:os")
 
@@ -3100,10 +3109,19 @@ reject_discarded_slurp_result :: proc(t: ^testing.T) {
   (slurp "cache.json")
   (return))`
 
-    _, err, ok := kvist.compile_source(source)
-    testing.expect_value(t, ok, false)
-    defer delete(err.message)
-    testing.expect_value(t, err.message, "owned result must be bound or returned; nested owned results would leak")
+    result, err, ok := kvist.compile_source_with_map(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(result.output)
+    defer delete(result.source_map)
+    defer kvist.compile_warning_slice_delete(result.warnings)
+    testing.expect_value(t, len(result.warnings), 1)
+    if len(result.warnings) == 1 {
+        testing.expect_value(t, result.warnings[0].message, "owned value is discarded; bind it, delete it, or return it")
+    }
 }
 
 @(test)
@@ -4006,11 +4024,11 @@ compile_warns_for_overwritten_owned_local :: proc(t: ^testing.T) {
 }
 
 @(test)
-compile_warns_for_discarded_owned_constructor_result :: proc(t: ^testing.T) {
+compile_warns_for_discarded_owned_result :: proc(t: ^testing.T) {
     source := `(package main)
 
 (defn demo []
-  (arr/empty int)
+  (range 3)
   (println 1))`
 
     result, err, ok := kvist.compile_source_with_map(source)
