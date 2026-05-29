@@ -92,6 +92,11 @@ Run the executable examples through Kvist and then `odin check` with:
 ./scripts/check_examples.sh
 ```
 
+Ownership stays explicit. Known owned-producing helpers are documented in
+[docs/OWNERSHIP.md](docs/OWNERSHIP.md), and the compiler is expected to grow
+conservative warnings for obvious local leaks rather than relying on hidden
+automatic cleanup.
+
 Run CLI and Emacs-tooling integration checks with:
 
 ```sh
