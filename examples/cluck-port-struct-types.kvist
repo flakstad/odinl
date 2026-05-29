@@ -1,6 +1,5 @@
 // Close port of the Cluck reset struct-types demo.
 (package main)
-(import "core:fmt")
 (defstruct Point
   "A small geometric point."
   {:x :float

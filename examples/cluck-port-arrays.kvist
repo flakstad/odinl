@@ -1,7 +1,5 @@
 // Port of the Cluck reset arrays demo, using Kvist/Odin array ownership rules.
 (package main)
-(import "core:fmt")
-
 
 (defn arrays-demo [] -> int
   (let [xs (new [dynamic]int [1 2 3])

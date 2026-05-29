@@ -1,6 +1,5 @@
 // Close port of the Cluck reset loop demos.
 (package main)
-(import "core:fmt")
 (defn loop-index-demo [] -> [dynamic]int
   (let [xs (new [dynamic]int [10 20 30])
         out (make [dynamic]int)]

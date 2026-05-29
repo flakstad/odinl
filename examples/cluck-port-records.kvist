@@ -1,6 +1,5 @@
 // Close port of the Cluck reset records demo.
 (package main)
-(import "core:fmt")
 (defstruct Person
   "A small fixed-shape person struct."
   {:name :string

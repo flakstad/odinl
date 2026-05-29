@@ -1,8 +1,6 @@
 // Port of the Cluck reset map/set demo. Sets are currently expressed as
 // map[T]bool rather than a dedicated set surface.
 (package main)
-(import "core:fmt")
-
 (defn maps_and_sets_demo [] -> int
   (let [m (new map[string]string {"name" "Ada" "lang" "Kvist"})
         tags (new map[string]bool {"native" true "lisp" true})

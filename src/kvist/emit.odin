@@ -67,6 +67,7 @@ Emitter_Features :: struct {
     core_cycle:       bool,
     core_tap:         bool,
     core_strings:     bool,
+    core_fmt:         bool,
     map_fields:       [dynamic]string,
     index_by_fields:  [dynamic]string,
     group_by_fields:  [dynamic]string,
@@ -457,6 +458,12 @@ mark_core_tap :: proc(e: ^Emitter) {
 mark_core_strings :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_strings = true
+    }
+}
+
+mark_core_fmt :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_fmt = true
     }
 }
 
@@ -4513,6 +4520,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         if len(form.items) != 2 {
             return Compile_Error{message = "doc expects a quoted declaration name", span = form.span}, false
         }
+        mark_core_fmt(e)
         name, ok_name := quoted_symbol_name(form.items[1])
         if !ok_name {
             return Compile_Error{message = "doc currently expects a quoted declaration name", span = form.items[1].span}, false
@@ -6754,6 +6762,20 @@ form_uses_core_strings :: proc(form: CST_Form) -> bool {
     return false
 }
 
+form_uses_core_fmt :: proc(form: CST_Form) -> bool {
+    if form.kind == .List && len(form.items) > 0 && form.items[0].kind == .Symbol {
+        if form.items[0].text == "println" || form.items[0].text == "doc" {
+            return true
+        }
+    }
+    for item in form.items {
+        if form_uses_core_fmt(item) {
+            return true
+        }
+    }
+    return false
+}
+
 decls_need_core_strings_import :: proc(decls: []IR_Decl) -> bool {
     for decl in decls {
         if decl.kind == .Import {
@@ -6786,6 +6808,38 @@ decls_need_core_strings_import :: proc(decls: []IR_Decl) -> bool {
     return false
 }
 
+decls_need_core_fmt_import :: proc(decls: []IR_Decl) -> bool {
+    for decl in decls {
+        if decl.kind == .Import {
+            if (!decl.import_decl.has_alias && decl.import_decl.path == "\"core:fmt\"") ||
+               (decl.import_decl.has_alias && decl.import_decl.alias == "fmt" && decl.import_decl.path == "\"core:fmt\"") {
+                return false
+            }
+        }
+    }
+    for decl in decls {
+        #partial switch decl.kind {
+        case .Const:
+            if form_uses_core_fmt(decl.const_decl.value) {
+                return true
+            }
+        case .Enum:
+            for variant in decl.enum_decl.variants {
+                if variant.has_value && form_uses_core_fmt(variant.value) {
+                    return true
+                }
+            }
+        case .Proc:
+            for form in decl.proc_decl.body {
+                if form_uses_core_fmt(form) {
+                    return true
+                }
+            }
+        }
+    }
+    return false
+}
+
 emit_core_slice_sort_import :: proc(e: ^Emitter, emitted: ^bool, needed: bool) {
     if !needed || emitted^ {
         return
@@ -6801,6 +6855,16 @@ emit_core_strings_import :: proc(e: ^Emitter, emitted: ^bool, needed: bool) {
         return
     }
     emit_line(e, "import strings \"core:strings\"")
+    strings.write_byte(&e.builder, '\n')
+    e.line += 1
+    emitted^ = true
+}
+
+emit_core_fmt_import :: proc(e: ^Emitter, emitted: ^bool, needed: bool) {
+    if !needed || emitted^ {
+        return
+    }
+    emit_line(e, "import \"core:fmt\"")
     strings.write_byte(&e.builder, '\n')
     e.line += 1
     emitted^ = true
@@ -6827,12 +6891,15 @@ emit_decls_with_source_map :: proc(decls: []IR_Decl) -> (Emit_Result, Compile_Er
     }
     needs_core_slice_import := decls_need_core_slice_sort_import(decls)
     needs_core_strings_import := decls_need_core_strings_import(decls)
+    needs_core_fmt_import := decls_need_core_fmt_import(decls)
     emitted_core_slice_import := false
     emitted_core_strings_import := false
+    emitted_core_fmt_import := false
     for decl, idx in decls {
         if decl.kind != .Package && decl.kind != .Import {
             emit_core_slice_sort_import(&e, &emitted_core_slice_import, needs_core_slice_import)
             emit_core_strings_import(&e, &emitted_core_strings_import, needs_core_strings_import)
+            emit_core_fmt_import(&e, &emitted_core_fmt_import, needs_core_fmt_import)
         }
         start_line := e.line
         err_decl, ok_decl := emit_decl(&e, decl)
@@ -6860,6 +6927,7 @@ emit_decls_with_source_map :: proc(decls: []IR_Decl) -> (Emit_Result, Compile_Er
     }
     emit_core_slice_sort_import(&e, &emitted_core_slice_import, needs_core_slice_import)
     emit_core_strings_import(&e, &emitted_core_strings_import, needs_core_strings_import)
+    emit_core_fmt_import(&e, &emitted_core_fmt_import, needs_core_fmt_import)
     emit_core_helpers(&e, features)
     if features.dynamic_literals {
         output_builder := strings.builder_make()
@@ -6900,12 +6968,16 @@ emit_eval_decls_with_source_map :: proc(decls: []IR_Decl, eval_form: CST_Form, n
                              form_uses_core_slice_sort(eval_form)
     needs_core_strings_import := decls_need_core_strings_import(decls) ||
                                  form_uses_core_strings(eval_form)
+    needs_core_fmt_import := decls_need_core_fmt_import(decls) ||
+                             form_uses_core_fmt(eval_form)
     emitted_core_slice_import := false
     emitted_core_strings_import := false
+    emitted_core_fmt_import := false
     for decl, idx in decls {
         if decl.kind != .Package && decl.kind != .Import {
             emit_core_slice_sort_import(&e, &emitted_core_slice_import, needs_core_slice_import)
             emit_core_strings_import(&e, &emitted_core_strings_import, needs_core_strings_import)
+            emit_core_fmt_import(&e, &emitted_core_fmt_import, needs_core_fmt_import)
         }
         start_line := e.line
         err_decl, ok_decl := emit_decl(&e, decl)
@@ -6933,6 +7005,7 @@ emit_eval_decls_with_source_map :: proc(decls: []IR_Decl, eval_form: CST_Form, n
     }
     emit_core_slice_sort_import(&e, &emitted_core_slice_import, needs_core_slice_import)
     emit_core_strings_import(&e, &emitted_core_strings_import, needs_core_strings_import)
+    emit_core_fmt_import(&e, &emitted_core_fmt_import, needs_core_fmt_import)
 
     if e.line > 1 {
         strings.write_byte(&e.builder, '\n')
