@@ -169,6 +169,12 @@ For the current-only aggregate helper comparison against direct Odin, run:
 ./scripts/bench_aggregate_helpers.sh
 ```
 
+For the focused mutation/update comparison against direct Odin, run:
+
+```sh
+./scripts/bench_mutation_helpers.sh
+```
+
 The compiler implementation is in Odin under `src/kvist`; the CLI entry point
 is `cmd/kvist/main.odin`.
 

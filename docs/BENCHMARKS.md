@@ -4,6 +4,7 @@ Current benchmark harness:
 
 - `./scripts/bench_sequence_helpers.sh`
 - `./scripts/bench_aggregate_helpers.sh`
+- `./scripts/bench_mutation_helpers.sh`
 
 These compare generated Kvist output against hand-written Odin for the same
 workloads.
@@ -65,6 +66,37 @@ The main performance question is now:
 - where should we encourage in-place or loop-oriented forms?
 - where do we want future optimization/fusion passes, if any?
 
+## Mutation Surface Baseline
+
+The focused mutation benchmark now covers:
+
+- `update!` on struct fields
+- `update` on struct fields
+- explicit pointer mutation
+- `update!` on dynamic arrays
+- `update!` on maps
+
+Current run:
+
+- `array-update!`: Kvist `16.713 ms`, direct Odin `12.573 ms`
+- `map-update!`: Kvist `45.200 ms`, direct Odin `41.079 ms`
+
+The array case got much closer once the Kvist side used
+`(arr/empty int n)` instead of a zero-capacity array grown with repeated
+`arr/push!`. That was a library-surface issue, not a lowering issue.
+
+The struct-local cases currently show `0.000 ms` on both sides. That does not
+mean there is literally no cost. It means this workload is below the current
+timer resolution after Odin optimization. So those cases need either:
+
+- a less optimizable benchmark shape, or
+- finer-grained timing output
+
+The useful conclusion for now is narrower:
+
+- array and map `update!` lower competitively
+- local struct update versus pointer update still needs a sharper benchmark
+
 ## Good Next Benchmarks
 
 The next benchmark additions should target language features we recently added,
@@ -72,10 +104,10 @@ not only older sequence helpers.
 
 Recommended next cases:
 
-1. `update!` on structs, arrays, and maps
-2. `update` on structs versus hand-written copy-update Odin
-3. pointer mutation versus by-value struct update
-4. `for`/`each` loops over arrays, maps, and sets
+1. less-optimizable struct update versus pointer update
+2. `for`/`each` loops over arrays, maps, and sets
+3. package-heavy real-world workloads using explicit `kvist:*` imports
+4. ownership-helper patterns such as `with-delete` around collection builders
 
 These would tell us whether the newer language surface is still lowering as
 cleanly as the older helper benchmarks.
