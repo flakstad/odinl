@@ -101,16 +101,15 @@ The surface grammar uses three primary container shapes:
 indentation. This is separate from generated `.odin` and compiler `.odin`
 source, which use ordinary Odin 4-space indentation.
 
-The language keeps Odin-style top-level package and import forms:
+The language keeps explicit top-level import forms. For file-backed `.kvist`
+programs, `package` is optional and currently defaults to `main`:
 
 ```clojure
-(package main)
-(import "core:fmt")
 (import strings "core:strings")
 (import runtime "base:runtime")
 ```
 
-Qualified Odin names such as `fmt.println`, `strings.clone`, and
+Qualified Odin names such as `strings.clone`, and
 `runtime.Allocator` remain ordinary symbols.
 
 ## File Model
@@ -372,7 +371,7 @@ Examples:
     (+ x 1)))
 
 (comment
-  (fmt.println "debug")
+  (println "debug")
   (dangerous-call))
 ```
 
@@ -667,7 +666,7 @@ such as a keyword should parse as a normal call expression.
 Examples:
 
 ```clojure
-(fmt.println "hello")
+(println "hello")
 (strings.clone raw allocator)
 (make [dynamic]Route allocator)
 (new []int [1 2 3])
@@ -876,7 +875,7 @@ the generated code can stay explicit about whether lookup failure is allowed.
   "positive")
 
 (when debug?
-  (fmt.println "debug"))
+  (println "debug"))
 
 (cond
   (< n 0) "negative"

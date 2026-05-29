@@ -192,20 +192,17 @@ passthrough.
 
 Example:
 
-```odin
-(package main)
-(import "core:fmt")
-
+```clojure
 (struct Point {
   :x int
   :y int
 })
 
-(proc add [a: int, b: int] -> int
+(defn add [a: int, b: int] -> int
   (+ a b))
 
-(proc main []
-  (fmt.println (add 1 2)))
+(defn main []
+  (println (add 1 2)))
 ```
 
 The Odin compiler should only see generated `.odin` files. That keeps normal
@@ -225,11 +222,11 @@ renamed Odin declaration.
   (+ x y))
 ```
 
-Inside a proc with a return type, the final expression should return
+Inside a function with a return type, the final expression should return
 implicitly:
 
 ```clojure
-(proc answer [] -> int
+(defn answer [] -> int
   (let [x 20
         y 22]
     (+ x y)))
