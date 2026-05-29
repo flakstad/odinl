@@ -1018,11 +1018,23 @@ Mutation remains explicit.
 (update! xs 0 42)
 (update! lookup "name" "Ada")
 (update! person :age 37)
+(update! point :x + 3)
 ```
 
 It should lower directly to ordinary Odin assignment against an indexed, keyed,
 or field-selected place. It is not a hidden mutation protocol and it does not
 turn `get` into a writable place form.
+
+The function-style form starts at five arguments so plain replacement stays
+unambiguous:
+
+```clojure
+(update! target key-or-field f arg1 arg2 ...)
+```
+
+That means `(update! point :y delta)` still means replacement, while
+`(update! point :y + delta)` means "read current field value, apply `+`, write
+result back".
 
 ### `get`
 
