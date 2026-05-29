@@ -416,8 +416,9 @@ parse_struct_fields :: proc(form: CST_Form) -> (fields: [dynamic]Struct_Field, e
             return fields, err_type, false
         }
         append(&fields, Struct_Field{
-            name = field_name,
-            ty   = type_text,
+            name        = field_name,
+            source_name = key.text[1:],
+            ty          = type_text,
         })
         i = next_i
     }
@@ -446,8 +447,9 @@ parse_defstruct_fields :: proc(form: CST_Form) -> (fields: [dynamic]Struct_Field
             return fields, err_type, false
         }
         append(&fields, Struct_Field{
-            name = field_name,
-            ty   = type_text,
+            name        = field_name,
+            source_name = key.text[1:],
+            ty          = type_text,
         })
         i += 2
     }

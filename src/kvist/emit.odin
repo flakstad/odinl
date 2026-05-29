@@ -2397,7 +2397,11 @@ emit_struct_fields_literal :: proc(struct_decl: ^Struct_Decl) -> string {
         if i > 0 {
             strings.write_string(&builder, ", ")
         }
-        strings.write_string(&builder, fmt.tprintf("%q", fmt.tprintf(":%s", field.name)))
+        display_name := field.name
+        if len(field.source_name) > 0 {
+            display_name = field.source_name
+        }
+        strings.write_string(&builder, fmt.tprintf("%q", fmt.tprintf(":%s", display_name)))
     }
     strings.write_string(&builder, "}")
     return strings.clone(strings.to_string(builder))
@@ -2455,7 +2459,11 @@ emit_struct_types_literal :: proc(struct_decl: ^Struct_Decl) -> string {
         if i > 0 {
             strings.write_string(&builder, ", ")
         }
-        strings.write_string(&builder, fmt.tprintf("%q = %q", fmt.tprintf(":%s", field.name), surface_type_text(field.ty)))
+        display_name := field.name
+        if len(field.source_name) > 0 {
+            display_name = field.source_name
+        }
+        strings.write_string(&builder, fmt.tprintf("%q = %q", fmt.tprintf(":%s", display_name), surface_type_text(field.ty)))
     }
     strings.write_string(&builder, "}")
     return strings.clone(strings.to_string(builder))

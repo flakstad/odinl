@@ -1050,6 +1050,8 @@ compile_struct_types_reports_source_surface :: proc(t: ^testing.T) {
 
 (defstruct Profile
   {:name string
+   :active? bool
+   :favorite-key keyword
    :tags [set string]
    :scores [arr int]
    :window [slice float]})
@@ -1068,6 +1070,8 @@ compile_struct_types_reports_source_surface :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.contains(output, "\":tags\" = \"[set string]\""), true)
     testing.expect_value(t, strings.contains(output, "\":scores\" = \"[arr int]\""), true)
     testing.expect_value(t, strings.contains(output, "\":window\" = \"[slice float]\""), true)
+    testing.expect_value(t, strings.contains(output, "\":active?\" = \"bool\""), true)
+    testing.expect_value(t, strings.contains(output, "\":favorite-key\" = \"string\""), true)
 }
 
 @(test)
