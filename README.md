@@ -1,7 +1,16 @@
 # Kvist
 
-An experiment in writing Odin with a small Clojure/Lisp-shaped syntax: Odin in
-parens, not Clojure on Odin.
+Kvist - A Practical Lisp for Systems Programming
+
+Kvist is a systems programming language that combines expression-oriented
+syntax and macros with explicit memory and ownership semantics. It is designed
+to make low-level code more composable without introducing a hidden runtime or
+abstracting away the underlying execution model.
+
+Kvist compiles to readable Odin and relies on Odin for checking, building, and
+running generated programs. The language is influenced by Lisp and Clojure in
+its surface shape and metaprogramming model, but it preserves the manual,
+inspectable character of systems programming.
 
 The current language draft is [LANGUAGE.md](LANGUAGE.md). Deferred ideas that
 should not drive the core implementation yet live in
