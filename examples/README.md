@@ -21,6 +21,7 @@ block so `C-c C-e` and `C-c C-c` are practical.
 - `sequences.kvist`: sequence helpers over structs, enums, and strings.
 - `sequence-helpers.kvist`: broad sequence helper coverage.
 - `mutation-and-bang.kvist`: mutating helper variants such as `map!`.
+- `update.kvist`: `update!` over arrays, maps, and defstruct fields.
 - `orders-report.kvist`: a more realistic eager data pipeline.
 
 Owned dynamic arrays, maps, allocated slices, `make`, and sequence helpers that

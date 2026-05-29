@@ -91,6 +91,7 @@ Emitter_Features :: struct {
 Emitter :: struct {
     builder:                   strings.Builder,
     indent:                    int,
+    structs:                   [dynamic]Struct_Decl,
     unions:                    [dynamic]Union_Decl,
     features:                  ^Emitter_Features,
     source_map:                ^[dynamic]Source_Map_Entry,
@@ -2255,6 +2256,106 @@ find_union_decl :: proc(e: ^Emitter, name: string) -> (^Union_Decl, bool) {
     return nil, false
 }
 
+find_struct_decl :: proc(e: ^Emitter, name: string) -> (^Struct_Decl, bool) {
+    for i in 0..<len(e.structs) {
+        if e.structs[i].name == name {
+            return &e.structs[i], true
+        }
+    }
+    return nil, false
+}
+
+find_struct_field :: proc(struct_decl: ^Struct_Decl, name: string) -> (^Struct_Field, bool) {
+    for i in 0..<len(struct_decl.fields) {
+        if struct_decl.fields[i].name == name {
+            return &struct_decl.fields[i], true
+        }
+    }
+    return nil, false
+}
+
+brace_key_name :: proc(form: CST_Form) -> (string, bool) {
+    if form.kind == .Keyword && len(form.text) > 1 {
+        return map_name(form.text[1:]), true
+    }
+    return "", false
+}
+
+number_looks_float :: proc(text: string) -> bool {
+    for ch in text {
+        if ch == '.' || ch == 'e' || ch == 'E' {
+            return true
+        }
+    }
+    return false
+}
+
+literal_matches_struct_field_type :: proc(e: ^Emitter, ty: string, value: CST_Form) -> bool {
+    switch ty {
+    case "string":
+        if value.kind == .String {
+            return true
+        }
+        return value.kind != .Number && value.kind != .Bool
+    case "int":
+        if value.kind == .Number {
+            return !number_looks_float(value.text)
+        }
+        return value.kind != .String && value.kind != .Bool
+    case "f64":
+        if value.kind == .Number {
+            return true
+        }
+        return value.kind != .String && value.kind != .Bool
+    case "bool":
+        if value.kind == .Bool {
+            return true
+        }
+        return value.kind != .String && value.kind != .Number
+    }
+
+    nested_struct, ok_nested := find_struct_decl(e, ty)
+    if ok_nested && value.kind == .List && len(value.items) == 2 && value.items[0].kind == .Symbol && map_name(value.items[0].text) == nested_struct.name && value.items[1].kind == .Brace {
+        return true
+    }
+
+    return true
+}
+
+validate_struct_constructor :: proc(e: ^Emitter, struct_decl: ^Struct_Decl, form: CST_Form) -> (Compile_Error, bool) {
+    if form.kind != .Brace {
+        return Compile_Error{message = "struct construction expects a brace form", span = form.span}, false
+    }
+
+    seen: [dynamic]string
+    for i := 0; i < len(form.items); i += 2 {
+        if i+1 >= len(form.items) {
+            return Compile_Error{message = "missing struct constructor value", span = form.span}, false
+        }
+        key := form.items[i]
+        value := form.items[i+1]
+        field_name, ok_key := brace_key_name(key)
+        if !ok_key {
+            return Compile_Error{message = "struct construction expects keyword fields", span = key.span}, false
+        }
+        for existing in seen {
+            if existing == field_name {
+                return Compile_Error{message = fmt.tprintf("duplicate struct constructor field %s", key.text), span = key.span}, false
+            }
+        }
+        append(&seen, field_name)
+        field, ok_field := find_struct_field(struct_decl, field_name)
+        if !ok_field {
+            return Compile_Error{message = fmt.tprintf("unknown struct constructor field %s", key.text), span = key.span}, false
+        }
+        if !literal_matches_struct_field_type(e, field.ty, value) {
+            return Compile_Error{message = fmt.tprintf("struct constructor literal type mismatch for %s", key.text), span = value.span}, false
+        }
+    }
+
+    return Compile_Error{}, true
+}
+
 emit_union_constructor :: proc(e: ^Emitter, union_decl: ^Union_Decl, arg: CST_Form) -> (string, Compile_Error, bool) {
     if arg.kind != .Brace {
         return "", Compile_Error{message = "union construction expects a brace form", span = arg.span}, false
@@ -3233,11 +3334,19 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
     }
 
     if len(form.items) == 2 && form.items[1].kind == .Brace {
-        union_decl, ok_union := find_union_decl(e, map_name(head.text))
+        head_name := map_name(head.text)
+        struct_decl, ok_struct := find_struct_decl(e, head_name)
+        if ok_struct {
+            err_struct, ok_struct_ctor := validate_struct_constructor(e, struct_decl, form.items[1])
+            if !ok_struct_ctor {
+                return "", err_struct, false
+            }
+        }
+        union_decl, ok_union := find_union_decl(e, head_name)
         if ok_union {
             return emit_union_constructor(e, union_decl, form.items[1])
         }
-        return emit_brace_literal(e, map_name(head.text), form.items[1])
+        return emit_brace_literal(e, head_name, form.items[1])
     }
 
     arg_texts: [dynamic]string
@@ -4180,6 +4289,40 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         strings.write_string(&e.builder, " = ")
         strings.write_string(&e.builder, rhs)
         record_current_line_fragment_map(e, len(lhs) + len(" = "), rhs, form.items[2].span)
+        emit_raw_newline(e)
+        return {}, true
+    case "update!":
+        if len(form.items) != 4 {
+            return Compile_Error{message = "update! expects target, key-or-field, and value", span = form.span}, false
+        }
+        target, err_target, ok_target := emit_expr(e, form.items[1])
+        if !ok_target {
+            return err_target, false
+        }
+        lhs := ""
+        if form.items[2].kind == .Keyword && len(form.items[2].text) > 1 {
+            lhs = fmt.tprintf("(%s).%s", target, map_name(form.items[2].text[1:]))
+        } else {
+            key, err_key, ok_key := emit_expr(e, form.items[2])
+            if !ok_key {
+                return err_key, false
+            }
+            lhs = fmt.tprintf("(%s)[%s]", target, key)
+        }
+        err_owned, bad_owned := owned_result_usage_error(form.items[3], true)
+        if bad_owned {
+            return err_owned, false
+        }
+        rhs, err_rhs, ok_rhs := emit_expr(e, form.items[3])
+        if !ok_rhs {
+            return err_rhs, false
+        }
+        emit_indent(e)
+        strings.write_string(&e.builder, lhs)
+        record_current_line_fragment_map(e, 0, lhs, form.items[1].span)
+        strings.write_string(&e.builder, " = ")
+        strings.write_string(&e.builder, rhs)
+        record_current_line_fragment_map(e, len(lhs) + len(" = "), rhs, form.items[3].span)
         emit_raw_newline(e)
         return {}, true
     case "each":
@@ -6347,6 +6490,9 @@ emit_decls_with_source_map :: proc(decls: []IR_Decl) -> (Emit_Result, Compile_Er
     }
     defer strings.builder_destroy(&e.builder)
     for decl in decls {
+        if decl.kind == .Struct {
+            append(&e.structs, decl.struct_decl)
+        }
         if decl.kind == .Union {
             append(&e.unions, decl.union_decl)
         }
@@ -6410,6 +6556,9 @@ emit_eval_decls_with_source_map :: proc(decls: []IR_Decl, eval_form: CST_Form, n
     }
     defer strings.builder_destroy(&e.builder)
     for decl in decls {
+        if decl.kind == .Struct {
+            append(&e.structs, decl.struct_decl)
+        }
         if decl.kind == .Union {
             append(&e.unions, decl.union_decl)
         }
