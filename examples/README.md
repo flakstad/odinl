@@ -13,6 +13,8 @@ block so `C-c C-e` and `C-c C-c` are practical.
 - `cluck-port-records.kvist`: Cluck reset records demo via `defstruct`.
 - `cluck-port-strings.kvist`: Cluck reset string demo using Odin string ops.
 - `cluck-port-struct-defaults.kvist`: Cluck reset omitted-field/default demo.
+- `cluck-port-docs.kvist`: Cluck reset docstring/doc lookup demo.
+- `cluck-port-struct-introspection.kvist`: Cluck reset struct metadata lookup demo.
 - `cluck-port-struct-types.kvist`: Cluck reset metadata vocabulary demo.
 - `closures.kvist`: non-capturing `fn` literals and explicit callback context.
 - `hello.kvist`: package, import, struct literal, and a tiny `main`.

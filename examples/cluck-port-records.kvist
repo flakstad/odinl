@@ -1,7 +1,6 @@
 // Close port of the Cluck reset records demo.
 (package main)
 (import "core:fmt")
-
 (defstruct Person
   "A small fixed-shape person struct."
   {:name :string
@@ -16,6 +15,7 @@
     (println (:name person))
     (println (:age person))
     (println (:tags person))
+    (println (set/contains? (:tags person) "math"))
     (update! person :age 37)
     (println person)
     true))

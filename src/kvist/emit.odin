@@ -66,6 +66,7 @@ Emitter_Features :: struct {
     core_iterate:     bool,
     core_cycle:       bool,
     core_tap:         bool,
+    core_strings:     bool,
     map_fields:       [dynamic]string,
     index_by_fields:  [dynamic]string,
     group_by_fields:  [dynamic]string,
@@ -91,6 +92,7 @@ Emitter_Features :: struct {
 Emitter :: struct {
     builder:                   strings.Builder,
     indent:                    int,
+    decls:                     []IR_Decl,
     structs:                   [dynamic]Struct_Decl,
     unions:                    [dynamic]Union_Decl,
     features:                  ^Emitter_Features,
@@ -449,6 +451,12 @@ mark_core_cycle :: proc(e: ^Emitter) {
 mark_core_tap :: proc(e: ^Emitter) {
     if e.features != nil {
         e.features.core_tap = true
+    }
+}
+
+mark_core_strings :: proc(e: ^Emitter) {
+    if e.features != nil {
+        e.features.core_strings = true
     }
 }
 
@@ -2274,6 +2282,62 @@ find_struct_field :: proc(struct_decl: ^Struct_Decl, name: string) -> (^Struct_F
     return nil, false
 }
 
+quoted_symbol_name :: proc(form: CST_Form) -> (string, bool) {
+    if form.kind != .Symbol || len(form.text) < 2 || form.text[0] != '\'' {
+        return "", false
+    }
+    return map_name(form.text[1:]), true
+}
+
+find_decl_doc_text :: proc(e: ^Emitter, name: string) -> (string, bool) {
+    for decl in e.decls {
+        if decl_name(decl) != name {
+            continue
+        }
+        if len(decl.doc_lines) == 0 {
+            return "", true
+        }
+        builder := strings.builder_make()
+        defer strings.builder_destroy(&builder)
+        for line, i in decl.doc_lines {
+            if i > 0 {
+                strings.write_byte(&builder, '\n')
+            }
+            strings.write_string(&builder, symbols_clean_doc_line(line))
+        }
+        return strings.clone(strings.to_string(builder)), true
+    }
+    return "", false
+}
+
+emit_struct_fields_literal :: proc(struct_decl: ^Struct_Decl) -> string {
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+    strings.write_string(&builder, "[]string{")
+    for field, i in struct_decl.fields {
+        if i > 0 {
+            strings.write_string(&builder, ", ")
+        }
+        strings.write_string(&builder, fmt.tprintf("%q", fmt.tprintf(":%s", field.name)))
+    }
+    strings.write_string(&builder, "}")
+    return strings.clone(strings.to_string(builder))
+}
+
+emit_struct_types_literal :: proc(struct_decl: ^Struct_Decl) -> string {
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+    strings.write_string(&builder, "map[string]string{")
+    for field, i in struct_decl.fields {
+        if i > 0 {
+            strings.write_string(&builder, ", ")
+        }
+        strings.write_string(&builder, fmt.tprintf("%q = %q", fmt.tprintf(":%s", field.name), field.ty))
+    }
+    strings.write_string(&builder, "}")
+    return strings.clone(strings.to_string(builder))
+}
+
 brace_key_name :: proc(form: CST_Form) -> (string, bool) {
     if form.kind == .Keyword && len(form.text) > 1 {
         return map_name(form.text[1:]), true
@@ -2449,6 +2513,95 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
         return fmt.tprintf("%s[%s]", target, key), {}, true
     }
 
+    if head.text == "arr/count" || head.text == "str/count" {
+        if len(form.items) != 2 {
+            return "", Compile_Error{message = fmt.tprintf("%s expects one collection", head.text), span = form.span}, false
+        }
+        target, err_target, ok_target := emit_expr(e, form.items[1])
+        if !ok_target {
+            return "", err_target, false
+        }
+        return fmt.tprintf("len(%s)", target), {}, true
+    }
+
+    if head.text == "arr/get" || head.text == "str/get" || head.text == "map/get" {
+        if len(form.items) != 3 && len(form.items) != 4 {
+            return "", Compile_Error{message = fmt.tprintf("%s expects collection, key, and optional default", head.text), span = form.span}, false
+        }
+        rewritten := form
+        rewritten.items[0].text = "get"
+        return emit_call_like(e, rewritten)
+    }
+
+    if head.text == "arr/slice" || head.text == "str/slice" {
+        if len(form.items) != 3 && len(form.items) != 4 {
+            return "", Compile_Error{message = fmt.tprintf("%s expects collection, optional start, and end", head.text), span = form.span}, false
+        }
+        rewritten := form
+        rewritten.items[0].text = "slice"
+        return emit_call_like(e, rewritten)
+    }
+
+    if head.text == "arr/push!" {
+        if len(form.items) < 3 {
+            return "", Compile_Error{message = "arr/push! expects dynamic array and at least one value", span = form.span}, false
+        }
+        target, err_target, ok_target := emit_expr(e, form.items[1])
+        if !ok_target {
+            return "", err_target, false
+        }
+        arg_texts: [dynamic]string
+        append(&arg_texts, fmt.tprintf("&(%s)", target))
+        for arg in form.items[2:] {
+            arg_text, err_arg, ok_arg := emit_expr(e, arg)
+            if !ok_arg {
+                return "", err_arg, false
+            }
+            append(&arg_texts, arg_text)
+        }
+        return emit_call_text("append", arg_texts[:]), {}, true
+    }
+
+    if head.text == "str/contains?" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "str/contains? expects string and needle", span = form.span}, false
+        }
+        mark_core_strings(e)
+        target, err_target, ok_target := emit_expr(e, form.items[1])
+        if !ok_target {
+            return "", err_target, false
+        }
+        needle, err_needle, ok_needle := emit_expr(e, form.items[2])
+        if !ok_needle {
+            return "", err_needle, false
+        }
+        return emit_call_text("strings.contains", []string{target, needle}), {}, true
+    }
+
+    if head.text == "map/contains?" || head.text == "set/contains?" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = fmt.tprintf("%s expects collection and key", head.text), span = form.span}, false
+        }
+        rewritten := form
+        rewritten.items[0].text = "contains?"
+        return emit_call_like(e, rewritten)
+    }
+
+    if head.text == "set/add!" {
+        if len(form.items) != 3 {
+            return "", Compile_Error{message = "set/add! expects set and value", span = form.span}, false
+        }
+        target, err_target, ok_target := emit_expr(e, form.items[1])
+        if !ok_target {
+            return "", err_target, false
+        }
+        value, err_value, ok_value := emit_expr(e, form.items[2])
+        if !ok_value {
+            return "", err_value, false
+        }
+        return fmt.tprintf("(%s)[%s] = true", target, value), {}, true
+    }
+
     if head.text == "println" {
         arg_texts: [dynamic]string
         for arg in form.items[1:] {
@@ -2459,6 +2612,25 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
             append(&arg_texts, arg_text)
         }
         return emit_call_text("fmt.println", arg_texts[:]), {}, true
+    }
+
+    if head.text == "struct/fields" || head.text == "struct/types" {
+        if len(form.items) != 2 {
+            return "", Compile_Error{message = fmt.tprintf("%s expects a quoted struct name", head.text), span = form.span}, false
+        }
+        struct_name, ok_name := quoted_symbol_name(form.items[1])
+        if !ok_name {
+            return "", Compile_Error{message = fmt.tprintf("%s currently expects a quoted struct name", head.text), span = form.items[1].span}, false
+        }
+        struct_decl, ok_struct := find_struct_decl(e, struct_name)
+        if !ok_struct {
+            return "", Compile_Error{message = fmt.tprintf("unknown struct: %s", struct_name), span = form.items[1].span}, false
+        }
+        if head.text == "struct/fields" {
+            return emit_struct_fields_literal(struct_decl), {}, true
+        }
+        mark_dynamic_literals(e)
+        return emit_struct_types_literal(struct_decl), {}, true
     }
 
     if head.text == "nil?" {
@@ -4336,6 +4508,20 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         strings.write_string(&e.builder, rhs)
         record_current_line_fragment_map(e, len(lhs) + len(" = "), rhs, form.items[3].span)
         emit_raw_newline(e)
+        return {}, true
+    case "doc":
+        if len(form.items) != 2 {
+            return Compile_Error{message = "doc expects a quoted declaration name", span = form.span}, false
+        }
+        name, ok_name := quoted_symbol_name(form.items[1])
+        if !ok_name {
+            return Compile_Error{message = "doc currently expects a quoted declaration name", span = form.items[1].span}, false
+        }
+        text, ok_doc := find_decl_doc_text(e, name)
+        if !ok_doc {
+            return Compile_Error{message = fmt.tprintf("unknown declaration: %s", name), span = form.items[1].span}, false
+        }
+        emit_line(e, fmt.tprintf("fmt.println(%q)", text))
         return {}, true
     case "each":
         body_start := 3
@@ -6554,6 +6740,52 @@ decls_need_core_slice_sort_import :: proc(decls: []IR_Decl) -> bool {
     return false
 }
 
+form_uses_core_strings :: proc(form: CST_Form) -> bool {
+    if form.kind == .List && len(form.items) > 0 && form.items[0].kind == .Symbol {
+        if form.items[0].text == "str/contains?" {
+            return true
+        }
+    }
+    for item in form.items {
+        if form_uses_core_strings(item) {
+            return true
+        }
+    }
+    return false
+}
+
+decls_need_core_strings_import :: proc(decls: []IR_Decl) -> bool {
+    for decl in decls {
+        if decl.kind == .Import {
+            if (!decl.import_decl.has_alias && decl.import_decl.path == "\"core:strings\"") ||
+               (decl.import_decl.has_alias && decl.import_decl.alias == "strings" && decl.import_decl.path == "\"core:strings\"") {
+                return false
+            }
+        }
+    }
+    for decl in decls {
+        #partial switch decl.kind {
+        case .Const:
+            if form_uses_core_strings(decl.const_decl.value) {
+                return true
+            }
+        case .Enum:
+            for variant in decl.enum_decl.variants {
+                if variant.has_value && form_uses_core_strings(variant.value) {
+                    return true
+                }
+            }
+        case .Proc:
+            for form in decl.proc_decl.body {
+                if form_uses_core_strings(form) {
+                    return true
+                }
+            }
+        }
+    }
+    return false
+}
+
 emit_core_slice_sort_import :: proc(e: ^Emitter, emitted: ^bool, needed: bool) {
     if !needed || emitted^ {
         return
@@ -6564,11 +6796,22 @@ emit_core_slice_sort_import :: proc(e: ^Emitter, emitted: ^bool, needed: bool) {
     emitted^ = true
 }
 
+emit_core_strings_import :: proc(e: ^Emitter, emitted: ^bool, needed: bool) {
+    if !needed || emitted^ {
+        return
+    }
+    emit_line(e, "import strings \"core:strings\"")
+    strings.write_byte(&e.builder, '\n')
+    e.line += 1
+    emitted^ = true
+}
+
 emit_decls_with_source_map :: proc(decls: []IR_Decl) -> (Emit_Result, Compile_Error, bool) {
     result := Emit_Result{}
     features := Emitter_Features{}
     e := Emitter{
         builder  = strings.builder_make(),
+        decls    = decls,
         features = &features,
         source_map = &result.source_map,
         line     = 1,
@@ -6583,10 +6826,13 @@ emit_decls_with_source_map :: proc(decls: []IR_Decl) -> (Emit_Result, Compile_Er
         }
     }
     needs_core_slice_import := decls_need_core_slice_sort_import(decls)
+    needs_core_strings_import := decls_need_core_strings_import(decls)
     emitted_core_slice_import := false
+    emitted_core_strings_import := false
     for decl, idx in decls {
         if decl.kind != .Package && decl.kind != .Import {
             emit_core_slice_sort_import(&e, &emitted_core_slice_import, needs_core_slice_import)
+            emit_core_strings_import(&e, &emitted_core_strings_import, needs_core_strings_import)
         }
         start_line := e.line
         err_decl, ok_decl := emit_decl(&e, decl)
@@ -6613,6 +6859,7 @@ emit_decls_with_source_map :: proc(decls: []IR_Decl) -> (Emit_Result, Compile_Er
         }
     }
     emit_core_slice_sort_import(&e, &emitted_core_slice_import, needs_core_slice_import)
+    emit_core_strings_import(&e, &emitted_core_strings_import, needs_core_strings_import)
     emit_core_helpers(&e, features)
     if features.dynamic_literals {
         output_builder := strings.builder_make()
@@ -6635,6 +6882,7 @@ emit_eval_decls_with_source_map :: proc(decls: []IR_Decl, eval_form: CST_Form, n
     features := Emitter_Features{}
     e := Emitter{
         builder  = strings.builder_make(),
+        decls    = decls,
         features = &features,
         source_map = &result.source_map,
         line     = 1,
@@ -6649,11 +6897,15 @@ emit_eval_decls_with_source_map :: proc(decls: []IR_Decl, eval_form: CST_Form, n
         }
     }
     needs_core_slice_import := decls_need_core_slice_sort_import(decls) ||
-                               form_uses_core_slice_sort(eval_form)
+                             form_uses_core_slice_sort(eval_form)
+    needs_core_strings_import := decls_need_core_strings_import(decls) ||
+                                 form_uses_core_strings(eval_form)
     emitted_core_slice_import := false
+    emitted_core_strings_import := false
     for decl, idx in decls {
         if decl.kind != .Package && decl.kind != .Import {
             emit_core_slice_sort_import(&e, &emitted_core_slice_import, needs_core_slice_import)
+            emit_core_strings_import(&e, &emitted_core_strings_import, needs_core_strings_import)
         }
         start_line := e.line
         err_decl, ok_decl := emit_decl(&e, decl)
@@ -6680,6 +6932,7 @@ emit_eval_decls_with_source_map :: proc(decls: []IR_Decl, eval_form: CST_Form, n
         }
     }
     emit_core_slice_sort_import(&e, &emitted_core_slice_import, needs_core_slice_import)
+    emit_core_strings_import(&e, &emitted_core_strings_import, needs_core_strings_import)
 
     if e.line > 1 {
         strings.write_byte(&e.builder, '\n')

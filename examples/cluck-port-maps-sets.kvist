@@ -10,22 +10,22 @@
     (defer (delete m))
     (defer (delete tags))
     (update! m "lang" "Reset Kvist")
-    (update! tags "mutable" true)
+    (set/add! tags "mutable")
     (each [key value m]
       (println key value)
-      (set! total (+ total (len key)))
-      (set! total (+ total (len value))))
+      (set! total (+ total (str/count key)))
+      (set! total (+ total (str/count value))))
     (each [tag present tags]
       (when present
         (println tag)
-        (set! total (+ total (len tag)))))
+        (set! total (+ total (str/count tag)))))
     total))
 
 (defn main []
   (println (maps_and_sets_demo)))
 
 (comment
-  ;; Map iteration ports cleanly. The real gap here is sets: Kvist still uses
-  ;; map[T]bool rather than a dedicated set literal and set helpers.
+  ;; Map iteration ports cleanly. The remaining set gap is representation,
+  ;; not basic source operations: [:set T] still lowers to map[T]bool.
   (maps_and_sets_demo)
 )

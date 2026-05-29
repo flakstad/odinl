@@ -1,7 +1,6 @@
 // Close port of the Cluck reset struct-types demo.
 (package main)
 (import "core:fmt")
-
 (defstruct Point
   "A small geometric point."
   {:x :float
@@ -35,6 +34,8 @@
     (println (:tags profile))
     (println (:window profile))
     (println (:home profile))
+    (println (arr/count (:scores profile)))
+    (println (set/contains? (:tags profile) "math"))
     (println profile)
     true))
 
