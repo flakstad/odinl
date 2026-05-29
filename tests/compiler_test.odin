@@ -94,6 +94,11 @@ Point :: struct {
 @(test)
 compile_all_examples :: proc(t: ^testing.T) {
     examples := [?]string{
+        "examples/cluck-port-arrays.kvist",
+        "examples/cluck-port-maps-sets.kvist",
+        "examples/cluck-port-multi-return.kvist",
+        "examples/cluck-port-strings.kvist",
+        "examples/closures.kvist",
         "examples/control-flow.kvist",
         "examples/core-concurrency.kvist",
         "examples/core-container-queue.kvist",

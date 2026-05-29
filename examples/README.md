@@ -6,6 +6,11 @@ block so `C-c C-e` and `C-c C-c` are practical.
 
 ## Language Basics
 
+- `cluck-port-arrays.kvist`: Cluck reset arrays demo, showing owned dynamic arrays.
+- `cluck-port-maps-sets.kvist`: Cluck reset maps/sets demo; sets are still `map[T]bool`.
+- `cluck-port-multi-return.kvist`: Cluck reset multi-return demo.
+- `cluck-port-strings.kvist`: Cluck reset string demo using Odin string ops.
+- `closures.kvist`: non-capturing proc literals and explicit callback context.
 - `hello.kvist`: package, import, struct literal, and a tiny `main`.
 - `declarations.kvist`: doc comments, import aliases, constants, enums, structs.
 - `defstructs.kvist`: `defstruct` docstrings, Malli-like metadata, nested structs.

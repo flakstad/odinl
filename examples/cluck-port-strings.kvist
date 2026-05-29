@@ -1,0 +1,26 @@
+// Port of the Cluck reset string demo, using ordinary Odin string operations.
+(package main)
+(import "core:fmt")
+(import strings "core:strings")
+
+(proc strings-demo [] -> bool
+  (let [name "kvist"
+        greeting (fmt.tprintf "hello %s" name)]
+    (defer (delete greeting))
+    (fmt.println (count name))
+    (fmt.println (get name 1))
+    (fmt.println (slice name 1 4))
+    (fmt.println greeting)
+    (fmt.println (strings.contains name "vis"))
+    true))
+
+(proc main []
+  (fmt.println (strings-demo)))
+
+(comment
+  ;; Strings port cleanly for count/get/slice. Richer string helpers are host
+  ;; library calls, and some of them allocate owned strings that must be
+  ;; deleted locally.
+  (strings-demo)
+  ;; => true
+)

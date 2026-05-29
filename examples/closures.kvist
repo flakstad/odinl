@@ -1,0 +1,39 @@
+// Demonstrates the current anonymous-procedure boundary: proc literals work,
+// but they do not capture surrounding locals.
+(package main)
+(import "core:fmt")
+
+(proc apply-pred [pred: proc [x: int] -> bool, x: int] -> bool
+  (pred x))
+
+(proc greater-than? [threshold: int, x: int] -> bool
+  (> x threshold))
+
+(proc proc-literal-demo [] -> bool
+  (apply-pred (proc [x: int] -> bool
+                (> x 0))
+              5))
+
+(proc explicit-context-demo [] -> bool
+  (greater-than? 10 12))
+
+(proc main []
+  (fmt.println (proc-literal-demo) (explicit-context-demo)))
+
+(comment
+  ;; This works because the proc literal is non-capturing.
+  (proc-literal-demo)
+  ;; => true
+
+  ;; This is the current honest workaround for would-be closures: pass the
+  ;; context explicitly.
+  (explicit-context-demo)
+  ;; => true
+
+  ;; Do not assume this will work implicitly:
+  ;;
+  ;; (let [threshold 10]
+  ;;   (apply-pred (proc [x: int] -> bool
+  ;;                 (> x threshold))
+  ;;               12))
+)
