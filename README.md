@@ -193,7 +193,7 @@ passthrough.
 Example:
 
 ```clojure
-(struct Point {
+(defstruct Point {
   :x int
   :y int
 })
@@ -595,11 +595,11 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - `(defconst name type expr)` -> `name: type : expr`
 - `(defvar name expr)` -> `name := expr`
 - `(defvar name type expr)` -> `name: type = expr`
-- `(struct Name {:field Type ...})`
+- `(defstruct Name {:field Type ...})`
 - `(defstruct Name "Doc..." {:field type ...})`
-- `(enum Name [A B C])` and `(enum Name {:A 1 :B 2})`
+- `(defenum Name [A B C])` and `(defenum Name {:A 1 :B 2})`
 - `(defenum Name "Doc..." [A B C])` and `(defenum Name "Doc..." {:A 1 :B 2})`
-- `(union Name {:variant Type ...})`
+- `(defunion Name {:variant Type ...})`
 - `(defunion Name "Doc..." {:variant Type ...})`
 - `(defn name [arg: type, ...] -> return-type body...)`
   - `defn` is the preferred source-level declaration form

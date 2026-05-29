@@ -1,7 +1,7 @@
 // A small end-to-end order report using eager helpers, in-place helpers, and loops.
 (package main)
 
-(struct Order {
+(defstruct Order {
   :id int
   :region int
   :amount int
@@ -9,7 +9,7 @@
   :status int
 })
 
-(struct Region-Report {
+(defstruct Region-Report {
   :region int
   :revenue int
   :count int

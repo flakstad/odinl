@@ -2,12 +2,12 @@
 (package main)
 (import runtime "base:runtime")
 
-(struct User {
+(defstruct User {
   :name string
   :age int
 })
 
-(struct State {
+(defstruct State {
   :values []int
   :fixed [3]int
   :buffer [dynamic]int

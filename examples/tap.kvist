@@ -1,7 +1,7 @@
 // Explicit tap-style inspection for eval-driven development.
 (package main)
 
-(struct User {
+(defstruct User {
   :name string
   :age int
 })

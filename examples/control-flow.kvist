@@ -1,7 +1,7 @@
 // Exercises conditionals, value switches, grouped cases, loops, and name mapping.
 (package main)
 
-(enum Method [
+(defenum Method [
   Get
   Head
   Post

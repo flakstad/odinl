@@ -39,7 +39,7 @@
     (return (* x x) true)
     (return 0 false)))
 
-(struct Segment {
+(defstruct Segment {
   :values []int
 })
 

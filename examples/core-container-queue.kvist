@@ -7,7 +7,7 @@
 (package main)
 (import queue "core:container/queue")
 
-(struct Job {
+(defstruct Job {
   :id int
   :priority int
 })

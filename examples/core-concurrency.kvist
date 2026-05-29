@@ -10,7 +10,7 @@
 (import chan "core:sync/chan")
 (import thread "core:thread")
 
-(struct Counter {
+(defstruct Counter {
   :lock sync.Mutex
   :value int
 })

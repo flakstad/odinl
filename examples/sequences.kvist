@@ -1,13 +1,13 @@
 // Exercises core sequence helpers over structs, enums, and strings.
 (package main)
 
-(enum Status [
+(defenum Status [
   Active
   Paused
   Archived
 ])
 
-(struct User {
+(defstruct User {
   :name string
   :age int
   :status Status

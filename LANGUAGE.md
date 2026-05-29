@@ -215,7 +215,7 @@ Examples:
 So:
 
 ```clojure
-(struct Cookie {
+(defstruct Cookie {
   :http-only bool
   :created-at string
 })
@@ -238,7 +238,7 @@ hyphens become underscores, case is otherwise preserved.
 Examples:
 
 ```clojure
-(enum Http-Status [
+(defenum Http-Status [
   OK
   Not-Found
   Unprocessable-Content
@@ -309,7 +309,7 @@ Brace forms are reader-level syntax. Their meaning is determined by context.
 Examples:
 
 ```clojure
-(struct Request {
+(defstruct Request {
   :method Method
   :path string
 })
@@ -407,12 +407,13 @@ The planned v0.1 top-level forms are:
 (defvar retries int 3)
 ```
 
-### `struct`
+### `defstruct`
 
-Structs use brace syntax with keyword field names.
+`defstruct` is the preferred user-facing fixed-shape declaration form. It
+supports both the direct brace form and the richer docstring/metadata form.
 
 ```clojure
-(struct Request {
+(defstruct Request {
   :method Method
   :path string
   :query string
@@ -423,10 +424,8 @@ Structs use brace syntax with keyword field names.
 Important: although brace syntax resembles a map, struct field order is
 preserved exactly as written because Odin struct layout depends on field order.
 
-### `defstruct`
-
-`defstruct` is the richer source-language struct form. It exists to carry more
-language help at compile time while still lowering to an ordinary Odin struct.
+The richer source-language `defstruct` form exists to carry more language help
+at compile time while still lowering to an ordinary Odin struct.
 
 Current first-pass shape:
 
@@ -450,13 +449,13 @@ The current implementation:
 `struct` remains the direct Odin-shaped declaration form. `defstruct` is the
 preferred path when the richer Cluck-derived surface is useful.
 
-### `enum`
+### `defenum`
 
-Enums are ordered by default and should use sequence syntax when values are
-implicit.
+`defenum` is the preferred user-facing enum declaration form. Enums are ordered
+by default and should use sequence syntax when values are implicit.
 
 ```clojure
-(enum Method [
+(defenum Method [
   Get
   Post
   Delete
@@ -466,14 +465,14 @@ implicit.
 For explicit values, keyed brace syntax is allowed:
 
 ```clojure
-(enum Http-Status {
+(defenum Http-Status {
   :OK 200
   :Not-Found 404
   :Unprocessable-Content 422
 })
 ```
 
-`defenum` is the docstring-friendly alias:
+The docstring-bearing form is:
 
 ```clojure
 (defenum Method
@@ -481,19 +480,20 @@ For explicit values, keyed brace syntax is allowed:
   [Get Post Delete])
 ```
 
-### `union`
+### `defunion`
 
-`union` denotes a tagged union in the Odin sense, not a C raw union.
+`defunion` is the preferred user-facing tagged union declaration form. It
+denotes a tagged union in the Odin sense, not a C raw union.
 
 ```clojure
-(union Value {
+(defunion Value {
   :i int
   :s string
   :ok bool
 })
 ```
 
-`defunion` is the docstring-friendly alias:
+The docstring-bearing form is:
 
 ```clojure
 (defunion Value
@@ -1401,7 +1401,7 @@ The recommended stance is:
 Example construction:
 
 ```clojure
-(union Value {
+(defunion Value {
   :i int
   :s string
 })
@@ -1609,7 +1609,7 @@ Likewise for types:
 
 ```clojure
 // Incoming HTTP request.
-(struct Request {
+(defstruct Request {
   :method Method
   :path string
 })
@@ -1771,7 +1771,7 @@ Example source:
 (import strings "core:strings")
 (import runtime "base:runtime")
 
-(struct Person {
+(defstruct Person {
   :name string
   :age int
 })

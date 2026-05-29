@@ -1,7 +1,7 @@
 // Exercises struct field updates, pointer mutation, and in-place sequence helpers.
 (package main)
 
-(struct Order {
+(defstruct Order {
   :id int
   :amount int
   :discount int
