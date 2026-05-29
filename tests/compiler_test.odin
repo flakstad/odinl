@@ -2377,6 +2377,61 @@ macroexpand_source_map_marks_generated_lines :: proc(t: ^testing.T) {
 }
 
 @(test)
+macroexpand_user_macro_in_file_context :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defmacro unless [condition & body]
+  (if (= (count body) 1)
+    (list (quote if) condition (list (quote do)) (first body))
+    (list (quote if) condition (list (quote do)) (list (quote do) body))))
+
+(defn answer [] -> int
+  42)`
+
+    output, err, ok := kvist.macroexpand_eval_source_with_map(source, `(unless (> n 0)
+  (return 0))`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output.output)
+    defer delete(output.source_map)
+    defer kvist.compile_warning_slice_delete(output.warnings)
+
+    expected := `(if (> n 0) (do) (return 0))
+`
+    testing.expect_value(t, output.output, expected)
+}
+
+@(test)
+compile_source_with_user_macro :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defmacro unless [condition & body]
+  (if (= (count body) 1)
+    (list (quote if) condition (list (quote do)) (first body))
+    (list (quote if) condition (list (quote do)) (list (quote do) body))))
+
+(defn classify [n: int] -> string
+  (unless (> n 0)
+    (return "non-positive"))
+  "positive")`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, `classify :: proc(n: int) -> string`), true)
+    testing.expect_value(t, strings.contains(output, `return "non-positive"`), true)
+    testing.expect_value(t, strings.contains(output, `return "positive"`), true)
+}
+
+@(test)
 compile_proc_types_and_literals :: proc(t: ^testing.T) {
     source := `(package main)
 
