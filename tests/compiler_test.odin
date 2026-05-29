@@ -3457,6 +3457,49 @@ borrow_name :: proc(p: ^Person) -> ^string {
 }
 
 @(test)
+compile_pointer_suffix_deref_and_set_bang_locals :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defvar counter int 0)
+
+(proc bump [total: ^int] -> int
+  (set! total^ (+ total^ 1))
+  total^)
+
+(proc main [] -> int
+  (let [local 2]
+    (set! local (+ local 1))
+    (set! counter local)
+    (bump (addr counter))))`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+expected := `package main
+
+counter: int = 0
+
+bump :: proc(total: ^int) -> int {
+    total^ = (total^) + (1)
+    return total^
+}
+
+main :: proc() -> int {
+    local := 2
+    local = (local) + (1)
+    counter = local
+    return bump(&counter)
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 compile_nil_predicate :: proc(t: ^testing.T) {
     source := `(package main)
 

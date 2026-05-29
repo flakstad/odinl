@@ -14,9 +14,12 @@ Preferred source style:
 ```clojure
 ^Order
 (addr order)
-(deref order)
-(set! (deref total) (+ (deref total) 1))
+total^
+(set! total^ (+ total^ 1))
 ```
+
+Use `x^` for the simple symbol case. Keep `(deref ...)` for more complex
+expressions such as `(deref (get ptrs i))`.
 
 Prefer this over the older compatibility spellings:
 

@@ -1827,6 +1827,10 @@ addr_expr_text :: proc(text: string) -> string {
     return fmt.tprintf("&(%s)", text)
 }
 
+symbol_is_simple_deref_suffix :: proc(text: string) -> bool {
+    return len(text) > 1 && text[len(text)-1] == '^' && is_plain_identifier_text(map_name(text[:len(text)-1]))
+}
+
 field_from_keyword :: proc(form: CST_Form) -> (field: string, ok: bool) {
     if form.kind != .Keyword || len(form.text) < 2 {
         return "", false
@@ -4083,6 +4087,9 @@ emit_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, bool) 
     case .Nil:
         return form.text, {}, true
     case .Symbol:
+        if symbol_is_simple_deref_suffix(form.text) {
+            return deref_expr_text(map_name(form.text[:len(form.text)-1])), {}, true
+        }
         return map_name(form.text), {}, true
     case .Keyword:
         return fmt.tprintf("%q", form.text), {}, true

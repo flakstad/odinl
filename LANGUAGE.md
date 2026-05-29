@@ -1065,9 +1065,12 @@ Pointer types keep Odin spelling in type position:
 In expression position, prefer the readable aliases:
 
 ```clojure
-(deref order)
+order^
 (addr (:amount order))
 ```
+
+For a simple symbol, `x^` is the lightest read/write form. Keep `(deref x)`
+for more complex pointer expressions.
 
 These lower to Odin pointer dereference and address-of:
 
@@ -1100,7 +1103,7 @@ Preferred user-facing pointer style:
 ```clojure
 ^Order
 (addr order)
-(deref order)
+order^
 ```
 
 The older compatibility spellings still work:

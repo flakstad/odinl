@@ -7,13 +7,12 @@
 })
 
 (defn bump! [x: ^int]
-  ;; Pointer mutation is explicit: dereference, then update the pointed-to
-  ;; place. This lowers directly to `x^ += 1`-style Odin.
-  (set! (deref x) (+ (deref x) 1)))
+  ;; For a simple pointer symbol, `x^` is the lightest read/write form.
+  (set! x^ (+ x^ 1)))
 
 (defn counter-value [counter: ^Counter] -> int
   ;; Read through a pointer when shared identity matters.
-  (:value (deref counter)))
+  (:value counter^))
 
 (defn counter-after-bump [] -> int
   (let [counter (Counter {:value 41})]
@@ -25,8 +24,8 @@
   (println (counter-after-bump)))
 
 (comment
-  ;; Prefer `^T`, `addr`, and `deref` in ordinary Kvist code. The symbolic
-  ;; `&` and `^` forms still exist, but this is the documented style.
+  ;; Prefer `^T`, `addr`, and `x^` in ordinary Kvist code. Keep `(deref ...)`
+  ;; for more complex pointer expressions.
   (counter-after-bump)
   ;; => 42
 )
