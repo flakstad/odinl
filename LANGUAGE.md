@@ -570,6 +570,37 @@ entry points still require an explicit package declaration for now.
 
 Host imports still use Odin package paths such as `"core:fmt"`.
 
+### Kvist Library Packages
+
+Most library helpers are intentionally not part of an implicit global prelude.
+Import them explicitly:
+
+```clojure
+(import arr "kvist:arr")
+(import str "kvist:str")
+(import map "kvist:map")
+(import set "kvist:set")
+(import struct "kvist:struct")
+```
+
+Then use the qualified helpers normally:
+
+```clojure
+(defn score [xs: [dynamic]int, tags: set[string]] -> int
+  (let [out (arr/empty int)
+        names (map/of string int {"Ada" 36})]
+    (arr/push! out (map/get names "Ada" 0))
+    (if (set/contains? tags "math")
+      (arr/get out 0)
+      0)))
+```
+
+`println` and `doc` remain implicitly available for now. The current bias is:
+
+- tiny implicit language core;
+- explicit Kvist library imports for ordinary helpers;
+- compiler/language machinery only where syntax or lowering genuinely requires it.
+
 ### Empty Collection Constructors
 
 When there is no literal element to infer from, use the package constructors:

@@ -1,5 +1,6 @@
 // Explicit tap-style inspection for eval-driven development.
 (package main)
+(import arr "kvist:arr")
 
 (defstruct User {
   :name string

@@ -1,4 +1,5 @@
 (package math)
+(import arr "kvist:arr")
 
 (defconst default-limit
   "Default upper bound used by package examples."

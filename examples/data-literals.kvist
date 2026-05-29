@@ -1,5 +1,8 @@
 // Exercises structs, field access, typed collection literals, map lookup, and make.
 (package main)
+(import arr "kvist:arr")
+(import map "kvist:map")
+
 (import runtime "base:runtime")
 
 (defstruct User {

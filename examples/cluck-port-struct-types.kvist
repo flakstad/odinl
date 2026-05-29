@@ -1,5 +1,8 @@
 // Close port of the Cluck reset struct-types demo.
 (package main)
+(import arr "kvist:arr")
+(import set "kvist:set")
+
 (defstruct Point
   "A small geometric point."
   {:x float

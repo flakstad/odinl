@@ -1,6 +1,10 @@
 // Port of the Cluck reset map/set demo. Sets are currently expressed as
 // map[T]bool rather than a dedicated set surface.
 (package main)
+(import str "kvist:str")
+(import map "kvist:map")
+(import set "kvist:set")
+
 (defn maps_and_sets_demo [] -> int
   (let [m (map/empty string string)
         tags (set/empty string)

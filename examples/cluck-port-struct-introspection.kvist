@@ -1,5 +1,7 @@
 // Close port of the Cluck reset struct-introspection demo.
 (package main)
+(import struct "kvist:struct")
+
 (defstruct Point
   "A small geometric point."
   {:x float

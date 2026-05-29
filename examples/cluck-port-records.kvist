@@ -1,5 +1,7 @@
 // Close port of the Cluck reset records demo.
 (package main)
+(import set "kvist:set")
+
 (defstruct Person
   "A small fixed-shape person struct."
   {:name string

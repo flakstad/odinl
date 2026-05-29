@@ -1,5 +1,6 @@
 // Exercises conditionals, value switches, grouped cases, loops, and name mapping.
 (package main)
+(import arr "kvist:arr")
 
 (defenum Method [
   Get

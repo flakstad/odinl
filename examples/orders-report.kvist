@@ -1,5 +1,7 @@
 // A small end-to-end order report using eager helpers, in-place helpers, and loops.
 (package main)
+(import arr "kvist:arr")
+(import map "kvist:map")
 
 (defstruct Order {
   :id int

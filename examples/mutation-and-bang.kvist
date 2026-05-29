@@ -1,5 +1,6 @@
 // Exercises struct field updates, pointer mutation, and in-place sequence helpers.
 (package main)
+(import arr "kvist:arr")
 
 (defstruct Order {
   :id int
