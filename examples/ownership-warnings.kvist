@@ -1,6 +1,5 @@
 // Compiles successfully, but should produce conservative ownership warnings.
 (package main)
-(import "core:fmt")
 
 (defn discarded-owned-result-demo []
   (range 3)
@@ -17,7 +16,7 @@
     (println (count xs))))
 
 (defn main []
-  (fmt.println "Run `kvist check examples/ownership-warnings.kvist` to see warnings."))
+  (println "Run `kvist check examples/ownership-warnings.kvist` to see warnings."))
 
 (comment
   ;; These are documentation examples for the warning surface. They are meant

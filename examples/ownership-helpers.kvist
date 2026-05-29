@@ -1,7 +1,6 @@
 // Exercises the explicit local ownership helpers: with-delete,
 // with-allocator, and with-temp-allocator.
 (package main)
-(import "core:fmt")
 (import runtime "base:runtime")
 
 (defn local-buffer-count [] -> int
@@ -23,7 +22,7 @@
       (count buffer))))
 
 (defn main []
-  (fmt.println (local-buffer-count)))
+  (println (local-buffer-count)))
 
 (comment
   (local-buffer-count)

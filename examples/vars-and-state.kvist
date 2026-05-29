@@ -1,6 +1,5 @@
 // Exercises defconst and defvar together with explicit top-level mutation.
 (package main)
-(import "core:fmt")
 
 (defconst default-port int 8080)
 (defvar live-port int 8080)
@@ -22,7 +21,7 @@
   (+ live-port request-count))
 
 (defn main []
-  (fmt.println (bump-request-count!)))
+  (println (bump-request-count!)))
 
 (comment
   (reset-state!)
