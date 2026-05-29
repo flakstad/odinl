@@ -80,12 +80,16 @@ bench_pointer_update :: proc(reps, inner: int) -> int {
 }
 
 bench_array_update_bang :: proc(reps, n: int) -> int {
+    base := make([dynamic]int, 0, n)
+    for j := 0; j < n; j += 1 {
+        append(&base, j)
+    }
+    defer delete(base)
+
     checksum := 0
     for i := 0; i < reps; i += 1 {
-        xs := make([dynamic]int, 0, n)
-        for j := 0; j < n; j += 1 {
-            append(&xs, j)
-        }
+        xs := make([dynamic]int, 0, len(base))
+        append(&xs, ..base[:])
         for j := 0; j < n; j += 1 {
             xs[j] = xs[j] + 1
         }

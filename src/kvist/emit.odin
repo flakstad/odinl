@@ -1112,6 +1112,41 @@ emit_update_rhs :: proc(e: ^Emitter, fn_form: CST_Form, arg_texts: []string) -> 
     return emit_call_text(fn_text, arg_texts), {}, true
 }
 
+emit_compound_update_op :: proc(fn_form: CST_Form, extra_arg_texts: []string) -> (string, bool) {
+    if fn_form.kind != .Symbol {
+        return "", false
+    }
+
+    switch fn_form.text {
+    case "inc":
+        if len(extra_arg_texts) == 0 {
+            return "+= 1", true
+        }
+    case "dec":
+        if len(extra_arg_texts) == 0 {
+            return "-= 1", true
+        }
+    case "+":
+        if len(extra_arg_texts) == 1 {
+            return fmt.tprintf("+= (%s)", extra_arg_texts[0]), true
+        }
+    case "-":
+        if len(extra_arg_texts) == 1 {
+            return fmt.tprintf("-= (%s)", extra_arg_texts[0]), true
+        }
+    case "*":
+        if len(extra_arg_texts) == 1 {
+            return fmt.tprintf("*= (%s)", extra_arg_texts[0]), true
+        }
+    case "/":
+        if len(extra_arg_texts) == 1 {
+            return fmt.tprintf("/= (%s)", extra_arg_texts[0]), true
+        }
+    }
+
+    return "", false
+}
+
 update_form_is_unary_updater :: proc(form: CST_Form) -> bool {
     if form.kind == .Symbol {
         return form.text == "inc" || form.text == "dec"
@@ -5274,6 +5309,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             }
             rhs = rhs_text
         } else {
+            extra_arg_texts: [dynamic]string
             arg_texts: [dynamic]string
             append(&arg_texts, current)
             if len(form.items) > 4 {
@@ -5282,8 +5318,18 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
                     if !ok_extra {
                         return err_extra, false
                     }
+                    append(&extra_arg_texts, extra_text)
                     append(&arg_texts, extra_text)
                 }
+            }
+            if compound_text, ok_compound := emit_compound_update_op(form.items[3], extra_arg_texts[:]); ok_compound {
+                emit_indent(e)
+                strings.write_string(&e.builder, lhs)
+                record_current_line_fragment_map(e, 0, lhs, form.items[1].span)
+                strings.write_string(&e.builder, " ")
+                strings.write_string(&e.builder, compound_text)
+                emit_raw_newline(e)
+                return {}, true
             }
             rhs_text, err_rhs, ok_rhs := emit_update_rhs(e, form.items[3], arg_texts[:])
             if !ok_rhs {

@@ -76,14 +76,27 @@ The focused mutation benchmark now covers:
 - `update!` on dynamic arrays
 - `update!` on maps
 
-Current run:
+Current runs are noisy at this scale, but after the lowering fix the important
+result is structural rather than a single exact number:
 
-- `array-update!`: Kvist `16.713 ms`, direct Odin `12.573 ms`
-- `map-update!`: Kvist `45.200 ms`, direct Odin `41.079 ms`
+- `array-update!` and direct Odin are now in the same low-millisecond range
+- `map-update!` and direct Odin are now in the same tens-of-milliseconds range
 
-The array case got much closer once the Kvist side used
-`(arr/empty int n)` instead of a zero-capacity array grown with repeated
-`arr/push!`. That was a library-surface issue, not a lowering issue.
+Two fixes mattered here:
+
+1. `update!` now lowers simple arithmetic updater cases to compound
+   assignment when possible:
+   - `+=`
+   - `-=`
+   - `*=`
+   - `/=`
+   - unary `inc` / `dec`
+
+   That removed duplicate place reads for array and map updates.
+
+2. The array benchmark was tightened so it measures update cost more directly
+   instead of conflating it with avoidable growth churn from a zero-capacity
+   buffer.
 
 The struct-local cases currently show `0.000 ms` on both sides. That does not
 mean there is literally no cost. It means this workload is below the current
@@ -92,9 +105,9 @@ timer resolution after Odin optimization. So those cases need either:
 - a less optimizable benchmark shape, or
 - finer-grained timing output
 
-The useful conclusion for now is narrower:
+The useful conclusion for now is:
 
-- array and map `update!` lower competitively
+- array and map `update!` now lower competitively
 - local struct update versus pointer update still needs a sharper benchmark
 
 ## Good Next Benchmarks

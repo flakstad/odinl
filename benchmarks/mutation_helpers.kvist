@@ -77,20 +77,24 @@ MAP_N :: 20_000")
     checksum))
 
 (defn bench-array-update! [reps: int, n: int] -> int
-  (let [i 0
-        checksum 0]
+  (let [base (arr/empty int n)
+        j 0
+        i 0
+    checksum 0]
+    (for (< j n)
+      (arr/push! base j)
+      (set! j (+ j 1)))
+    (defer (delete base))
     (for (< i reps)
       (let [xs (arr/empty int n)
             j 0]
-        (defer (delete xs))
-        (for (< j n)
-          (arr/push! xs j)
-          (set! j (+ j 1)))
+        (into! xs (slice base))
         (set! j 0)
         (for (< j n)
           (update! xs j + 1)
           (set! j (+ j 1)))
-        (set! checksum (+ checksum (get xs (- n 1)))))
+        (set! checksum (+ checksum (get xs (- n 1))))
+        (delete xs))
       (set! i (+ i 1)))
     checksum))
 
@@ -100,11 +104,11 @@ MAP_N :: 20_000")
     (for (< i reps)
       (let [counts (map/empty int int)
             j 0]
-        (defer (delete counts))
         (for (< j n)
           (update! counts (% j 1024) + 1)
           (set! j (+ j 1)))
-        (set! checksum (+ checksum (get counts 17 0))))
+        (set! checksum (+ checksum (get counts 17 0)))
+        (delete counts))
       (set! i (+ i 1)))
     checksum))
 

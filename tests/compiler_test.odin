@@ -3537,9 +3537,9 @@ score :: proc() -> int {
     xs := [dynamic]int{1, 2, 3}
     lookup := map[string]int{"a" = 1}
     point := Point{x = 4, y = 5}
-    (xs)[1] = ((xs)[1]) + (40)
-    (lookup)["a"] = ((lookup)["a"]) + (6)
-    (point).y = ((point).y) + (4)
+    (xs)[1] += (40)
+    (lookup)["a"] += (6)
+    (point).y += (4)
     return (xs[1]) + (lookup["a"]) + (point.y)
 }
 `
@@ -3619,7 +3619,7 @@ compile_update_bang_unary_inc :: proc(t: ^testing.T) {
     }
     defer delete(output)
 
-    testing.expect_value(t, strings.contains(output, "(point).y = inc((point).y)"), true)
+    testing.expect_value(t, strings.contains(output, "(point).y += 1"), true)
 }
 
 @(test)
