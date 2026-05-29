@@ -3555,9 +3555,12 @@ compile_update_expr_struct_field :: proc(t: ^testing.T) {
   :y int
 })
 
+(proc inc [x: int] -> int
+  (+ x 1))
+
 (proc score [] -> int
   (let [point (Point {:x 4 :y 5})
-        newer (update point :y + 4)]
+        newer (update point :y inc)]
     (+ (:y point) (:y newer))))`
 
     output, err, ok := kvist.compile_source(source)
@@ -3575,17 +3578,48 @@ Point :: struct {
     y: int,
 }
 
+inc :: proc(x: int) -> int {
+    return (x) + (1)
+}
+
 score :: proc() -> int {
     point := Point{x = 4, y = 5}
     newer := proc(value: Point) -> Point {
         kvist_eval_1 := value
-        (kvist_eval_1).y = ((kvist_eval_1).y) + (4)
+        (kvist_eval_1).y = inc((kvist_eval_1).y)
         return kvist_eval_1
     }(point)
     return (point.y) + (newer.y)
 }
 `
     testing.expect_value(t, output, expected)
+}
+
+@(test)
+compile_update_bang_unary_inc :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(struct Point {
+  :y int
+})
+
+(proc inc [x: int] -> int
+  (+ x 1))
+
+(proc score [] -> int
+  (let [point (Point {:y 5})]
+    (update! point :y inc)
+    (:y point)))`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "(point).y = inc((point).y)"), true)
 }
 
 @(test)

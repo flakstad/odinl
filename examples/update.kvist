@@ -5,6 +5,9 @@
   {:x :int
    :y :int})
 
+(defn inc [x: int] -> int
+  (+ x 1))
+
 (defn update-score [] -> int
   (let [xs (new [dynamic]int [1 2 3])
         lookup (new map[string]int {"a" 1 "b" 2})
@@ -19,7 +22,7 @@
 
 (defn updated-point-score [] -> int
   (let [point (Point {:x 4 :y 5})
-        newer (update point :y + 4)]
+        newer (update point :y inc)]
     ;; `update` returns a modified copy, so the original point stays unchanged.
     (+ (:y point) (:y newer))))
 

@@ -1019,6 +1019,7 @@ Mutation remains explicit.
 (update! lookup "name" "Ada")
 (update! person :age 37)
 (update! point :x + 3)
+(update! point :x inc)
 ```
 
 It should lower directly to ordinary Odin assignment against an indexed, keyed,
@@ -1036,6 +1037,16 @@ That means `(update! point :y delta)` still means replacement, while
 `(update! point :y + delta)` means "read current field value, apply `+`, write
 result back".
 
+Unary updater shorthand is intentionally narrow in the 4-argument form:
+
+```clojure
+(update! point :y inc)
+(update! point :y (fn [x: int] -> int (+ x 1)))
+```
+
+That is supported for the obvious updater cases without making plain symbol
+replacement ambiguous again.
+
 ### `update`
 
 `update` returns a modified copy instead of mutating in place.
@@ -1043,6 +1054,7 @@ result back".
 ```clojure
 (update point :y 9)
 (update point :y + 4)
+(update point :y inc)
 ```
 
 For now this is intentionally narrower than `update!`:

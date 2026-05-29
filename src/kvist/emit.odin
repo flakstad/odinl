@@ -1112,6 +1112,15 @@ emit_update_rhs :: proc(e: ^Emitter, fn_form: CST_Form, arg_texts: []string) -> 
     return emit_call_text(fn_text, arg_texts), {}, true
 }
 
+update_form_is_unary_updater :: proc(form: CST_Form) -> bool {
+    if form.kind == .Symbol {
+        return form.text == "inc" || form.text == "dec"
+    }
+    return form.kind == .List && len(form.items) > 0 &&
+        form.items[0].kind == .Symbol &&
+        (form.items[0].text == "fn" || form.items[0].text == "proc")
+}
+
 emit_update_place :: proc(e: ^Emitter, target_form, key_form: CST_Form) -> (lhs, current: string, err: Compile_Error, ok: bool) {
     target, err_target, ok_target := emit_expr(e, target_form)
     if !ok_target {
@@ -1155,7 +1164,7 @@ emit_update_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error,
     current := lhs
     rhs := ""
 
-    if len(form.items) == 4 {
+    if len(form.items) == 4 && !update_form_is_unary_updater(form.items[3]) {
         err_owned, bad_owned := owned_result_usage_error(form.items[3], true)
         if bad_owned {
             return "", err_owned, false
@@ -1168,12 +1177,14 @@ emit_update_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error,
     } else {
         arg_texts: [dynamic]string
         append(&arg_texts, current)
-        for extra_form in form.items[4:] {
-            extra_text, err_extra, ok_extra := emit_expr(e, extra_form)
-            if !ok_extra {
-                return "", err_extra, false
+        if len(form.items) > 4 {
+            for extra_form in form.items[4:] {
+                extra_text, err_extra, ok_extra := emit_expr(e, extra_form)
+                if !ok_extra {
+                    return "", err_extra, false
+                }
+                append(&arg_texts, extra_text)
             }
-            append(&arg_texts, extra_text)
         }
         rhs_text, err_rhs, ok_rhs := emit_update_rhs(e, form.items[3], arg_texts[:])
         if !ok_rhs {
@@ -5252,7 +5263,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
             return err_place, false
         }
         rhs := ""
-        if len(form.items) == 4 {
+        if len(form.items) == 4 && !update_form_is_unary_updater(form.items[3]) {
             err_owned, bad_owned := owned_result_usage_error(form.items[3], true)
             if bad_owned {
                 return err_owned, false
@@ -5265,12 +5276,14 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         } else {
             arg_texts: [dynamic]string
             append(&arg_texts, current)
-            for extra_form in form.items[4:] {
-                extra_text, err_extra, ok_extra := emit_expr(e, extra_form)
-                if !ok_extra {
-                    return err_extra, false
+            if len(form.items) > 4 {
+                for extra_form in form.items[4:] {
+                    extra_text, err_extra, ok_extra := emit_expr(e, extra_form)
+                    if !ok_extra {
+                        return err_extra, false
+                    }
+                    append(&arg_texts, extra_text)
                 }
-                append(&arg_texts, extra_text)
             }
             rhs_text, err_rhs, ok_rhs := emit_update_rhs(e, form.items[3], arg_texts[:])
             if !ok_rhs {
