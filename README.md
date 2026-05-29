@@ -54,14 +54,11 @@ inventing a new language on top of Odin.
 ## Example
 
 ```clojure
-(package main)
-(import "core:fmt")
-
 (defn add [a: int, b: int] -> int
   (+ a b))
 
 (defn main []
-  (fmt.println (add 20 22)))
+  (println (add 20 22)))
 ```
 
 emits:
@@ -79,6 +76,10 @@ main :: proc() {
     fmt.println(add(20, 22))
 }
 ```
+
+For file-backed `.kvist` programs, `package` is optional. Kvist will inject a
+root `package main` when compiling from a path if you omit it. Raw source APIs
+such as `compile_source` still require an explicit package for now.
 
 ## Usage
 

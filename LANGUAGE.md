@@ -553,7 +553,7 @@ An empty return annotation means the function is `void`:
 
 ```clojure
 (defn main []
-  (fmt.println "hello"))
+  (println "hello"))
 ```
 
 ### Source Packages
@@ -564,6 +564,10 @@ Kvist can inline relative `.kvist` packages from source:
 (import "support/math")
 (math/sum-range 0 5)
 ```
+
+For file-backed `.kvist` programs, `(package ...)` is optional. Kvist currently
+defaults the root package to `main` when compiling from a path. Raw source
+entry points still require an explicit package declaration for now.
 
 Host imports still use Odin package paths such as `"core:fmt"`.
 
