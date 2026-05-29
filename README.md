@@ -17,7 +17,8 @@ should not drive the core implementation yet live in
 [docs/FUTURE-IDEAS.md](docs/FUTURE-IDEAS.md). The larger unresolved language
 areas are tracked in [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md). Ownership rules
 live in [docs/OWNERSHIP.md](docs/OWNERSHIP.md), and pointer/value guidance
-lives in [docs/POINTERS.md](docs/POINTERS.md).
+lives in [docs/POINTERS.md](docs/POINTERS.md). Benchmark notes live in
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 This is intentionally a source-to-source translator, not a new runtime or a
 new semantic layer. The goal is:
