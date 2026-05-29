@@ -14,7 +14,8 @@ inspectable character of systems programming.
 
 The current language draft is [LANGUAGE.md](LANGUAGE.md). Deferred ideas that
 should not drive the core implementation yet live in
-[docs/FUTURE-IDEAS.md](docs/FUTURE-IDEAS.md).
+[docs/FUTURE-IDEAS.md](docs/FUTURE-IDEAS.md). The larger unresolved language
+areas are tracked in [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md).
 
 This is intentionally a source-to-source translator, not a new runtime or a
 new semantic layer. The goal is:
