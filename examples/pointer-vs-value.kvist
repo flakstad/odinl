@@ -9,14 +9,14 @@
 (defn apply-bonus [score: Score] -> Score
   ;; By-value update: copy, mutate the local copy, return the new value.
   (let [updated score]
-    (set! (:value updated) (+ (:value updated) (:bonus updated)))
-    (set! (:bonus updated) 0)
+    (update! updated :value (+ (:value updated) (:bonus updated)))
+    (update! updated :bonus 0)
     updated))
 
 (defn apply-bonus! [score: ^Score]
   ;; Pointer update: mutate the caller's value directly.
-  (set! (:value score^) (+ (:value score^) (:bonus score^)))
-  (set! (:bonus score^) 0))
+  (update! score^ :value (+ (:value score^) (:bonus score^)))
+  (update! score^ :bonus 0))
 
 (defn value-style-score [] -> int
   (let [original (Score {:value 10 :bonus 5})

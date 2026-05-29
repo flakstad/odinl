@@ -25,7 +25,7 @@ Preferred writable places:
 
 ```clojure
 (set! total^ (+ total^ 1))
-(set! (:amount order^) 42)
+(update! order^ :amount 42)
 (set! (get xs i) 9)
 ```
 

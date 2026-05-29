@@ -1007,7 +1007,7 @@ Mutation remains explicit.
 
 ```clojure
 (set! total (+ total x))
-(set! (:status res) 200)
+(set! total^ (+ total^ 1))
 ```
 
 ### `update!`
@@ -1044,7 +1044,7 @@ Keyword access is the primary field access form:
 ```clojure
 (:path req)
 (:name person)
-(set! (:status res) 200)
+(update! res :status 200)
 ```
 
 This should compile to ordinary Odin field access such as `req.path`.
