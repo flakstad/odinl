@@ -8,9 +8,9 @@
 })
 
 (defstruct State {
-  :values [slice int]
-  :fixed [fixed-arr 3 int]
-  :buffer [arr int]
+  :values []int
+  :fixed [3]int
+  :buffer [dynamic]int
   :lookup map[string]int
 })
 

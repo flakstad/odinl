@@ -14,7 +14,7 @@
 
 (defn evens-under
   "Return a dynamic array of even integers below LIMIT."
-  [limit: int] -> [arr int]
+  [limit: int] -> [dynamic]int
   (let [out (arr/empty int)]
     (for [i (range 0 limit)]
       (when (== 0 (% i 2))

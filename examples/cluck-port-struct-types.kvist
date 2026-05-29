@@ -11,9 +11,9 @@
    :age int
    :active? bool
    :favorite-key keyword
-   :scores [arr int]
+   :scores [dynamic]int
    :tags [set string]
-   :window [slice float]
+   :window []float
    :home Point})
 
 (defn struct-types-demo [] -> bool

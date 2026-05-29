@@ -604,7 +604,7 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - `(defn name [arg: type, ...] -> return-type body...)`
   - `defn` is the preferred source-level declaration form
   - `proc` remains available for direct Odin-shaped code and proc types
-  - params and returns use ordinary types like `int`, `string`, `Person`, plus composite forms like `[arr string]` and `[set keyword]`
+  - params and returns use ordinary types like `int`, `string`, `Person`, plus Odin-style container types like `[]string`, `[dynamic]int`, `map[string]int`, and Kvist set types like `[set keyword]`
 - top-level and statement `(odin "...")` raw escape hatches
 - `(let [binding value ...] body...)` scoped expression/block, including
   multi-return and struct-field destructuring

@@ -57,7 +57,7 @@ compile_defstruct_program :: proc(t: ^testing.T) {
    :age int
    :active? bool
    :tags [set string]
-   :scores [arr int]
+   :scores [dynamic]int
    :home Point})
 
 (defstruct Point
@@ -981,7 +981,7 @@ compile_defconst_and_defvar_forms :: proc(t: ^testing.T) {
 compile_malli_types_and_empty_collection_constructors :: proc(t: ^testing.T) {
     source := `(package main)
 
-(defn score [xs: [arr int], tags: [set string]] -> int
+(defn score [xs: [dynamic]int, tags: [set string]] -> int
   (let [out (arr/empty int 4)
         lookup (map/empty string int)
         seen (set/empty string 8)]
@@ -1058,8 +1058,8 @@ compile_struct_types_reports_source_surface :: proc(t: ^testing.T) {
    :active? bool
    :favorite-key keyword
    :tags [set string]
-   :scores [arr int]
-   :window [slice float]})
+   :scores [dynamic]int
+   :window []float})
 
 (proc type-map [] -> map[string]string
   (struct/types 'Profile))`
@@ -1073,8 +1073,8 @@ compile_struct_types_reports_source_surface :: proc(t: ^testing.T) {
     defer delete(output)
 
     testing.expect_value(t, strings.contains(output, "\":tags\" = \"[set string]\""), true)
-    testing.expect_value(t, strings.contains(output, "\":scores\" = \"[arr int]\""), true)
-    testing.expect_value(t, strings.contains(output, "\":window\" = \"[slice float]\""), true)
+    testing.expect_value(t, strings.contains(output, "\":scores\" = \"[dynamic]int\""), true)
+    testing.expect_value(t, strings.contains(output, "\":window\" = \"[]float\""), true)
     testing.expect_value(t, strings.contains(output, "\":active?\" = \"bool\""), true)
     testing.expect_value(t, strings.contains(output, "\":favorite-key\" = \"string\""), true)
 }

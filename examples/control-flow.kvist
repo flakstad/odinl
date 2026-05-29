@@ -26,7 +26,7 @@
     (== n 0) "zero"
     :else "positive"))
 
-(defn sum [xs: [slice int]] -> int
+(defn sum [xs: []int] -> int
   (let [total 0]
     (each [x xs]
       (set! total (+ total x)))

@@ -2626,12 +2626,12 @@ surface_type_text :: proc(ty: string) -> string {
 
     if strings.has_prefix(ty, "[dynamic]") {
         elem := ty[len("[dynamic]"):]
-        return fmt.tprintf("[arr %s]", surface_type_text(elem))
+        return fmt.tprintf("[dynamic]%s", surface_type_text(elem))
     }
 
     if strings.has_prefix(ty, "[]") {
         elem := ty[2:]
-        return fmt.tprintf("[slice %s]", surface_type_text(elem))
+        return fmt.tprintf("[]%s", surface_type_text(elem))
     }
 
     if strings.has_prefix(ty, "map[") && strings.has_suffix(ty, "]bool") {
@@ -2647,7 +2647,7 @@ surface_type_text :: proc(ty: string) -> string {
         if closing > 1 {
             length := ty[1:closing]
             elem := ty[closing+1:]
-            return fmt.tprintf("[fixed-arr %s %s]", length, surface_type_text(elem))
+            return fmt.tprintf("[%s]%s", length, surface_type_text(elem))
         }
     }
 
