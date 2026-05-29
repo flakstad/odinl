@@ -155,6 +155,9 @@ The eager sequence helper direction is documented in
 [docs/SEQUENCES.md](docs/SEQUENCES.md).
 Ownership and deletion rules are documented in
 [docs/OWNERSHIP.md](docs/OWNERSHIP.md).
+Notes on carrying richer language design over from Cluck while preserving
+inspectable Odin lowering are in
+[docs/CLUCK-TRANSFER.md](docs/CLUCK-TRANSFER.md).
 The runnable example guide is in [examples/README.md](examples/README.md).
 Emacs support is in [emacs/kvist-mode.el](emacs/kvist-mode.el) and
 [emacs/kvist-eval.el](emacs/kvist-eval.el).

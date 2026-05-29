@@ -22,6 +22,11 @@ The language should smell like Clojure in surface syntax while remaining honest
 about Odin's operational model: explicit layout, explicit mutation, explicit
 allocation, and ordinary Odin interop.
 
+The practical transfer notes from the Cluck language design work are in
+[docs/CLUCK-TRANSFER.md](docs/CLUCK-TRANSFER.md). The short version is:
+Kvist should absorb as much of that source-language design as it can without
+introducing a hidden runtime model or opaque lowering.
+
 ## Non-Goals
 
 These are explicit non-goals for the first language design:
