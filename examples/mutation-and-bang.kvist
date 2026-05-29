@@ -27,18 +27,18 @@
     (set! (:discount (deref order)) 0)
     (set! (:status (deref order)) 3)))
 
-(defn order-score [orders: []Order] -> int
+(defn order-score [orders: [slice Order]] -> int
   (let [total 0]
     (each [order orders]
       (set! total (+ total (:amount order)))
       (set! total (+ total (:status order))))
     total))
 
-(defn sample-orders [] -> [dynamic]Order
-  (new [dynamic]Order [(Order {:id 1 :amount 80 :discount 5 :status 1})
-                       (Order {:id 2 :amount 250 :discount 20 :status 2})
-                       (Order {:id 3 :amount 140 :discount 10 :status 2})
-                       (Order {:id 4 :amount 90 :discount 0 :status 3})]))
+(defn sample-orders [] -> [arr Order]
+  (arr/dynamic Order [(Order {:id 1 :amount 80 :discount 5 :status 1})
+                      (Order {:id 2 :amount 250 :discount 20 :status 2})
+                      (Order {:id 3 :amount 140 :discount 10 :status 2})
+                      (Order {:id 4 :amount 90 :discount 0 :status 3})]))
 
 (defn map-bang-score [] -> int
   (let [orders (sample-orders)]

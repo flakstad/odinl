@@ -29,7 +29,7 @@
       (set! (:status updated) 3))
     updated))
 
-(defn row-score [rows: []Region-Report] -> int
+(defn row-score [rows: [slice Region-Report]] -> int
   (let [total 0]
     (each [row rows]
       (set! total (+ total (:revenue row)))
@@ -37,33 +37,33 @@
       (set! total (+ total (:count row))))
     total))
 
-(defn sample-orders [] -> [dynamic]Order
-  (new [dynamic]Order [(Order {:id 1 :region 0 :amount 80 :discount 5 :status 1})
-                       (Order {:id 2 :region 1 :amount 250 :discount 20 :status 2})
-                       (Order {:id 3 :region 1 :amount 140 :discount 10 :status 2})
-                       (Order {:id 4 :region 2 :amount 90 :discount 0 :status 3})
-                       (Order {:id 5 :region 2 :amount 410 :discount 35 :status 2})]))
+(defn sample-orders [] -> [arr Order]
+  (arr/dynamic Order [(Order {:id 1 :region 0 :amount 80 :discount 5 :status 1})
+                      (Order {:id 2 :region 1 :amount 250 :discount 20 :status 2})
+                      (Order {:id 3 :region 1 :amount 140 :discount 10 :status 2})
+                      (Order {:id 4 :region 2 :amount 90 :discount 0 :status 3})
+                      (Order {:id 5 :region 2 :amount 410 :discount 35 :status 2})]))
 
-(defn rows-from-groups [groups: Order-Groups] -> [dynamic]Region-Report
-  (let [rows (make [dynamic]Region-Report)]
+(defn rows-from-groups [groups: Order-Groups] -> [arr Region-Report]
+  (let [rows (arr/empty Region-Report)]
     (each [region group groups]
       (let [revenue 0]
         (each [order group]
           (set! revenue (+ revenue (:amount order))))
-        (append (addr rows)
-                (Region-Report {:region region
-                                :revenue revenue
-                                :count (len group)}))))
+        (arr/push! rows
+          (Region-Report {:region region
+                          :revenue revenue
+                          :count (len group)}))))
     (sort-by! :revenue rows)
     rows))
 
-(defn rows-from-aggregates [revenue-by-region: map[int]int, count-by-region: map[int]int] -> [dynamic]Region-Report
-  (let [rows (make [dynamic]Region-Report)]
+(defn rows-from-aggregates [revenue-by-region: map[int]int, count-by-region: map[int]int] -> [arr Region-Report]
+  (let [rows (arr/empty Region-Report)]
     (each [region revenue revenue-by-region]
-      (append (addr rows)
-              (Region-Report {:region region
-                              :revenue revenue
-                              :count (get count-by-region region 0)})))
+      (arr/push! rows
+        (Region-Report {:region region
+                        :revenue revenue
+                        :count (get count-by-region region 0)})))
     (sort-by! :revenue rows)
     rows))
 
@@ -115,8 +115,8 @@
 
 (defn loop-report-score [] -> int
   (let [orders (sample-orders)
-        revenue-by-region (make map[int]int)
-        count-by-region (make map[int]int)]
+        revenue-by-region (map/empty int int)
+        count-by-region (map/empty int int)]
     (each [order orders]
       (let [settled (settle-order order)]
         (when (settled? settled)
