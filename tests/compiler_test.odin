@@ -1045,6 +1045,32 @@ compile_defenum_and_defunion_aliases :: proc(t: ^testing.T) {
 }
 
 @(test)
+compile_struct_types_reports_source_surface :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defstruct Profile
+  {:name string
+   :tags [set string]
+   :scores [arr int]
+   :window [slice float]})
+
+(proc type-map [] -> map[string]string
+  (struct/types 'Profile))`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "\":tags\" = \"[set string]\""), true)
+    testing.expect_value(t, strings.contains(output, "\":scores\" = \"[arr int]\""), true)
+    testing.expect_value(t, strings.contains(output, "\":window\" = \"[slice float]\""), true)
+}
+
+@(test)
 compile_switch_with_implicit_branch_returns :: proc(t: ^testing.T) {
     source := `(package main)
 

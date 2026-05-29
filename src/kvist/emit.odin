@@ -2403,6 +2403,50 @@ emit_struct_fields_literal :: proc(struct_decl: ^Struct_Decl) -> string {
     return strings.clone(strings.to_string(builder))
 }
 
+surface_type_text :: proc(ty: string) -> string {
+    switch ty {
+    case "bool":
+        return "bool"
+    case "int":
+        return "int"
+    case "f64":
+        return "float"
+    case "string":
+        return "string"
+    case "rune":
+        return "char"
+    }
+
+    if strings.has_prefix(ty, "[dynamic]") {
+        elem := ty[len("[dynamic]"):]
+        return fmt.tprintf("[arr %s]", surface_type_text(elem))
+    }
+
+    if strings.has_prefix(ty, "[]") {
+        elem := ty[2:]
+        return fmt.tprintf("[slice %s]", surface_type_text(elem))
+    }
+
+    if strings.has_prefix(ty, "map[") && strings.has_suffix(ty, "]bool") {
+        key_end := strings.index(ty, "]")
+        if key_end > 4 {
+            key := ty[4:key_end]
+            return fmt.tprintf("[set %s]", surface_type_text(key))
+        }
+    }
+
+    if len(ty) > 2 && ty[0] == '[' {
+        closing := strings.index(ty, "]")
+        if closing > 1 {
+            length := ty[1:closing]
+            elem := ty[closing+1:]
+            return fmt.tprintf("[fixed-arr %s %s]", length, surface_type_text(elem))
+        }
+    }
+
+    return ty
+}
+
 emit_struct_types_literal :: proc(struct_decl: ^Struct_Decl) -> string {
     builder := strings.builder_make()
     defer strings.builder_destroy(&builder)
@@ -2411,7 +2455,7 @@ emit_struct_types_literal :: proc(struct_decl: ^Struct_Decl) -> string {
         if i > 0 {
             strings.write_string(&builder, ", ")
         }
-        strings.write_string(&builder, fmt.tprintf("%q = %q", fmt.tprintf(":%s", field.name), field.ty))
+        strings.write_string(&builder, fmt.tprintf("%q = %q", fmt.tprintf(":%s", field.name), surface_type_text(field.ty)))
     }
     strings.write_string(&builder, "}")
     return strings.clone(strings.to_string(builder))
