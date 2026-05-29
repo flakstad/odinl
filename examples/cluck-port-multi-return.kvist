@@ -2,17 +2,17 @@
 (package main)
 (import "core:fmt")
 
-(proc half-and-ok [x: int] -> [value: int, ok: bool]
+(defn half-and-ok [x: int] -> [value: int, ok: bool]
   (return (/ x 2) true))
 
-(proc multi-return-demo [] -> int
+(defn multi-return-demo [] -> int
   (let [[value ok] (half-and-ok 10)]
     (if ok
       value
       0)))
 
-(proc main []
-  (fmt.println (multi-return-demo)))
+(defn main []
+  (println (multi-return-demo)))
 
 (comment
   (multi-return-demo)

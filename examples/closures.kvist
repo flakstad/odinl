@@ -3,22 +3,22 @@
 (package main)
 (import "core:fmt")
 
-(proc apply-pred [pred: proc [x: int] -> bool, x: int] -> bool
+(defn apply-pred [pred: proc [x: int] -> bool, x: int] -> bool
   (pred x))
 
-(proc greater-than? [threshold: int, x: int] -> bool
+(defn greater-than? [threshold: int, x: int] -> bool
   (> x threshold))
 
-(proc proc-literal-demo [] -> bool
-  (apply-pred (proc [x: int] -> bool
+(defn proc-literal-demo [] -> bool
+  (apply-pred (fn [x: int] -> bool
                 (> x 0))
               5))
 
-(proc explicit-context-demo [] -> bool
+(defn explicit-context-demo [] -> bool
   (greater-than? 10 12))
 
-(proc main []
-  (fmt.println (proc-literal-demo) (explicit-context-demo)))
+(defn main []
+  (println (proc-literal-demo) (explicit-context-demo)))
 
 (comment
   ;; This works because the proc literal is non-capturing.
@@ -33,7 +33,7 @@
   ;; Do not assume this will work implicitly:
   ;;
   ;; (let [threshold 10]
-  ;;   (apply-pred (proc [x: int] -> bool
+  ;;   (apply-pred (fn [x: int] -> bool
   ;;                 (> x threshold))
   ;;               12))
 )

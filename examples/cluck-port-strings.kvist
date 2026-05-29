@@ -3,19 +3,19 @@
 (import "core:fmt")
 (import strings "core:strings")
 
-(proc strings-demo [] -> bool
+(defn strings-demo [] -> bool
   (let [name "kvist"
         greeting (fmt.tprintf "hello %s" name)]
     (defer (delete greeting))
-    (fmt.println (count name))
-    (fmt.println (get name 1))
-    (fmt.println (slice name 1 4))
-    (fmt.println greeting)
-    (fmt.println (strings.contains name "vis"))
+    (println (count name))
+    (println (get name 1))
+    (println (slice name 1 4))
+    (println greeting)
+    (println (strings.contains name "vis"))
     true))
 
-(proc main []
-  (fmt.println (strings-demo)))
+(defn main []
+  (println (strings-demo)))
 
 (comment
   ;; Strings port cleanly for count/get/slice. Richer string helpers are host

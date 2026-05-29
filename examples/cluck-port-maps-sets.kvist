@@ -3,7 +3,7 @@
 (package main)
 (import "core:fmt")
 
-(proc maps_and_sets_demo [] -> int
+(defn maps_and_sets_demo [] -> int
   (let [m (new map[string]string {"name" "Ada" "lang" "Kvist"})
         tags (new map[string]bool {"native" true "lisp" true})
         total 0]
@@ -12,17 +12,17 @@
     (update! m "lang" "Reset Kvist")
     (update! tags "mutable" true)
     (each [key value m]
-      (fmt.println key value)
+      (println key value)
       (set! total (+ total (len key)))
       (set! total (+ total (len value))))
     (each [tag present tags]
       (when present
-        (fmt.println tag)
+        (println tag)
         (set! total (+ total (len tag)))))
     total))
 
-(proc main []
-  (fmt.println (maps_and_sets_demo)))
+(defn main []
+  (println (maps_and_sets_demo)))
 
 (comment
   ;; Map iteration ports cleanly. The real gap here is sets: Kvist still uses

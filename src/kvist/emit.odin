@@ -2037,8 +2037,8 @@ emit_predicate_callback_call :: proc(e: ^Emitter, helper_name: string, callback:
 }
 
 emit_proc_literal_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, bool) {
-    if len(form.items) < 2 || !is_symbol(form.items[0], "proc") || form.items[1].kind != .Vector {
-        return "", Compile_Error{message = "invalid proc literal", span = form.span}, false
+    if len(form.items) < 2 || (!is_symbol(form.items[0], "proc") && !is_symbol(form.items[0], "fn")) || form.items[1].kind != .Vector {
+        return "", Compile_Error{message = "invalid function literal", span = form.span}, false
     }
 
     params, err_params, ok_params := parse_param_vector(form.items[1])
@@ -2050,7 +2050,7 @@ emit_proc_literal_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_
     returns := Return_Spec{kind = .None}
     if body_index < len(form.items) && is_symbol(form.items[body_index], "->") {
         if body_index+1 >= len(form.items) {
-            return "", Compile_Error{message = "missing proc literal return spec", span = form.items[body_index].span}, false
+            return "", Compile_Error{message = "missing function literal return spec", span = form.items[body_index].span}, false
         }
         return_form := form.items[body_index+1]
         #partial switch return_form.kind {
@@ -2071,11 +2071,11 @@ emit_proc_literal_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_
             returns.single_ty = return_text
             body_index = next_index
         case:
-            return "", Compile_Error{message = "unsupported proc literal return spec", span = return_form.span}, false
+            return "", Compile_Error{message = "unsupported function literal return spec", span = return_form.span}, false
         }
     }
     if body_index >= len(form.items) {
-        return "", Compile_Error{message = "proc literal body is empty", span = form.span}, false
+        return "", Compile_Error{message = "function literal body is empty", span = form.span}, false
     }
 
     sub := Emitter{
@@ -2447,6 +2447,18 @@ emit_call_like :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, b
             return emit_call_text("kvist_get_or_default", []string{target, key, default_value}), {}, true
         }
         return fmt.tprintf("%s[%s]", target, key), {}, true
+    }
+
+    if head.text == "println" {
+        arg_texts: [dynamic]string
+        for arg in form.items[1:] {
+            arg_text, err_arg, ok_arg := emit_expr(e, arg)
+            if !ok_arg {
+                return "", err_arg, false
+            }
+            append(&arg_texts, arg_text)
+        }
+        return emit_call_text("fmt.println", arg_texts[:]), {}, true
     }
 
     if head.text == "nil?" {
@@ -3381,7 +3393,7 @@ emit_expr :: proc(e: ^Emitter, form: CST_Form) -> (string, Compile_Error, bool) 
         if form.items[0].kind == .Symbol && len(form.items[0].text) > 0 && form.items[0].text[0] == '#' {
             return emit_directive_expr(e, form)
         }
-        if is_symbol(form.items[0], "proc") {
+        if is_symbol(form.items[0], "proc") || is_symbol(form.items[0], "fn") {
             return emit_proc_literal_expr(e, form)
         }
         if form.items[0].kind == .Keyword {

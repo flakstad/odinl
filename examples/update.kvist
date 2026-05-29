@@ -6,7 +6,7 @@
   {:x :int
    :y :int})
 
-(proc update-score [] -> int
+(defn update-score [] -> int
   (let [xs (new [dynamic]int [1 2 3])
         lookup (new map[string]int {"a" 1 "b" 2})
         point (Point {:x 4 :y 5})]
@@ -18,8 +18,8 @@
     (+ (+ (get xs 1) (get lookup "a"))
        (:y point))))
 
-(proc main []
-  (fmt.println (update-score)))
+(defn main []
+  (println (update-score)))
 
 (comment
   (update-score)

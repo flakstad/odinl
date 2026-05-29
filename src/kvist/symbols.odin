@@ -237,7 +237,7 @@ symbols_source :: proc(source: string) -> (output: string, err: Compile_Error, o
                 symbols_write_record_doc(&builder, "union", name, source, form.items[1].span, "", top.doc_lines[:])
                 symbols_write_union_variants(&builder, source, name, form.items[2])
             }
-        case "proc":
+        case "proc", "defn":
             if len(form.items) >= 2 && form.items[1].kind == .Symbol {
                 symbols_write_record_doc(&builder, "proc", form.items[1].text, source, form.items[1].span, "", top.doc_lines[:])
             }
