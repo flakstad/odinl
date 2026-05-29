@@ -443,7 +443,8 @@ Current first-pass shape:
 The current implementation:
 
 - accepts an optional inline docstring immediately after the name;
-- accepts Malli-like field metadata forms;
+- accepts ordinary field type forms such as `string`, `Method`, `[arr string]`,
+  and `[set keyword]`;
 - lowers to an ordinary Odin struct declaration;
 - validates declaration shape at compile time.
 
@@ -1549,7 +1550,7 @@ Examples of the kind of thing this covers:
 
 The current design stance is:
 
-- do not design a separate metadata language for v0.1
+- do not design a separate schema language for v0.1
 - keep the common cases in mind
 - prefer the raw escape hatch until a truly obvious surface emerges
 
