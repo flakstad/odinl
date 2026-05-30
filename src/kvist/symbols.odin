@@ -2,12 +2,19 @@ package kvist
 
 import "core:fmt"
 import "core:os"
+import "core:sort"
 import "core:strings"
 import "base:runtime"
 
 Imported_Symbol_Entry :: struct {
     alias: string,
     path:  string,
+}
+
+Imported_Symbol_Record :: struct {
+    name:   string,
+    record: string,
+    rank:   int,
 }
 
 import_path_text :: proc(form: CST_Form) -> string {
@@ -227,6 +234,7 @@ odin_preceding_doc :: proc(source: string, line_start: int) -> string {
     docs: [dynamic]string
     defer delete(docs)
     idx := line_start - 2
+doc_scan:
     for idx >= 0 {
         line := lines[idx]
         trimmed := strings.trim_space(line)
@@ -248,9 +256,9 @@ odin_preceding_doc :: proc(source: string, line_start: int) -> string {
             }
             append(&docs, odin_clean_block_doc_comment(strings.to_string(builder)))
         case trimmed == "":
-            break
+            break doc_scan
         case:
-            break
+            break doc_scan
         }
         idx -= 1
     }
@@ -263,7 +271,43 @@ odin_preceding_doc :: proc(source: string, line_start: int) -> string {
     return strings.join(docs[:], "\n", context.allocator)
 }
 
-odin_decl_rank :: proc(file: string) -> int {
+odin_trim_doc :: proc(text: string) -> string {
+    if text == "" {
+        return ""
+    }
+    lines := strings.split_lines(text, context.allocator)
+    defer delete(lines)
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+    line_count := 0
+    truncated := false
+    for line in lines {
+        clean := strings.trim_space(line)
+        if clean == "" {
+            break
+        }
+        if line_count >= 4 {
+            truncated = true
+            break
+        }
+        if line_count > 0 {
+            strings.write_string(&builder, "\n")
+        }
+        strings.write_string(&builder, clean)
+        line_count += 1
+        if len(strings.to_string(builder)) >= 320 {
+            truncated = true
+            break
+        }
+    }
+    out := strings.to_string(builder)
+    if truncated && !strings.has_suffix(out, "...") {
+        out = fmt.tprintf("%s...", out)
+    }
+    return out
+}
+
+odin_decl_rank :: proc(file, name: string) -> int {
     rank := 0
     if strings.contains(file, "/old/") {
         rank += 100
@@ -273,6 +317,15 @@ odin_decl_rank :: proc(file: string) -> int {
     }
     if strings.contains(file, "/example.odin") {
         rank += 200
+    }
+    if name == "main" {
+        rank += 500
+    }
+    if strings.contains(name, "_") && len(name) > 0 && name[0] >= 'a' && name[0] <= 'z' {
+        rank += 120
+    }
+    if strings.has_prefix(name, "fmt_") || strings.has_prefix(name, "int_from_") {
+        rank += 120
     }
     return rank
 }
@@ -320,8 +373,8 @@ imported_symbols_scan_odin_dir :: proc(builder: ^strings.Builder, alias, import_
                 continue
             }
             signature := odin_signature_at_line(source, idx+1)
-            doc := odin_preceding_doc(source, idx+1)
-            rank := odin_decl_rank(path)
+            doc := odin_trim_doc(odin_preceding_doc(source, idx+1))
+            rank := odin_decl_rank(path, name)
             key_slash := fmt.tprintf("%s/%s", alias, name)
             existing_rank, found_rank := best_rank[key_slash]
             if found_rank && existing_rank <= rank {
@@ -344,13 +397,32 @@ imported_symbols_scan_odin_dir :: proc(builder: ^strings.Builder, alias, import_
         }
     }
 
-    names: [dynamic]string
-    defer delete(names)
-    for name, _ in best {
-        append(&names, name)
+    records: [dynamic]Imported_Symbol_Record
+    defer delete(records)
+    for name, record in best {
+        rank := best_rank[name]
+        append(&records, Imported_Symbol_Record{name = name, record = record, rank = rank})
     }
-    for name in names {
-        strings.write_string(builder, best[name])
+    sort.sort(sort.Interface{
+        collection = rawptr(&records),
+        len = proc(it: sort.Interface) -> int {
+            items := (^([dynamic]Imported_Symbol_Record))(it.collection)
+            return len(items^)
+        },
+        less = proc(it: sort.Interface, i, j: int) -> bool {
+            items := (^([dynamic]Imported_Symbol_Record))(it.collection)
+            if items[i].rank != items[j].rank {
+                return items[i].rank < items[j].rank
+            }
+            return items[i].name < items[j].name
+        },
+        swap = proc(it: sort.Interface, i, j: int) {
+            items := (^([dynamic]Imported_Symbol_Record))(it.collection)
+            items[i], items[j] = items[j], items[i]
+        },
+    })
+    for item in records {
+        strings.write_string(builder, item.record)
     }
 }
 
