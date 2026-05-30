@@ -2006,9 +2006,10 @@ The first supported shape is:
 
 ```clojure
 (defmacro unless [condition & body]
-  (if (= (count body) 1)
-    (list (quote if) condition (list (quote do)) (first body))
-    (list (quote if) condition (list (quote do)) (list (quote do) body))))
+  (quasiquote
+    (if (unquote condition)
+      (do)
+      (do (splice body)))))
 ```
 
 Parameters are untyped symbols. A final `& name` collects the remaining raw
@@ -2016,7 +2017,7 @@ call forms.
 
 Supported macro-evaluator building blocks are intentionally small in v1:
 
-- control: `quote`, `if`, `do`, `let`
+- control: `quote`, `quasiquote`, `unquote`, `splice`, `if`, `do`, `let`
 - form builders: `list`, `vector`, `brace`, `forms`
 - sequence/form helpers: `first`, `rest`, `nth`, `count`, `concat`
 - string/symbol helpers: `str`, `symbol`, `keyword`, `name`
@@ -2032,9 +2033,11 @@ Top-level macros may now expand into multiple top-level forms by returning
 (defmacro defentity [name fields]
   (let [make-name (symbol (str "make-" (name name)))]
     (forms
-      (list (quote defstruct) name fields)
-      (list (quote defn) make-name (vector) (quote ->) name
-            (list name (brace))))))
+      (quasiquote
+        (defstruct (unquote name) (unquote fields)))
+      (quasiquote
+        (defn (unquote make-name) [] -> (unquote name)
+          ((unquote name) {}))))))
 ```
 
 ### `with-*` forms

@@ -2413,9 +2413,10 @@ macroexpand_user_macro_in_file_context :: proc(t: ^testing.T) {
     source := `(package main)
 
 (defmacro unless [condition & body]
-  (if (= (count body) 1)
-    (list (quote if) condition (list (quote do)) (first body))
-    (list (quote if) condition (list (quote do)) (list (quote do) body))))
+  (quasiquote
+    (if (unquote condition)
+      (do)
+      (do (splice body)))))
 
 (defn answer [] -> int
   42)`
@@ -2431,7 +2432,7 @@ macroexpand_user_macro_in_file_context :: proc(t: ^testing.T) {
     defer delete(output.source_map)
     defer kvist.compile_warning_slice_delete(output.warnings)
 
-    expected := `(if (> n 0) (do) (return 0))
+    expected := `(if (> n 0) (do) (do (return 0)))
 `
     testing.expect_value(t, output.output, expected)
 }
@@ -2441,9 +2442,10 @@ compile_source_with_user_macro :: proc(t: ^testing.T) {
     source := `(package main)
 
 (defmacro unless [condition & body]
-  (if (= (count body) 1)
-    (list (quote if) condition (list (quote do)) (first body))
-    (list (quote if) condition (list (quote do)) (list (quote do) body))))
+  (quasiquote
+    (if (unquote condition)
+      (do)
+      (do (splice body)))))
 
 (defn classify [n: int] -> string
   (unless (> n 0)
@@ -2470,9 +2472,11 @@ compile_source_with_top_level_macro_dsl :: proc(t: ^testing.T) {
 (defmacro defentity [name fields]
   (let [make-name (symbol (str "make-" (name name)))]
     (forms
-      (list (quote defstruct) name fields)
-      (list (quote defn) make-name (vector) (quote ->) name
-            (list name (brace))))))
+      (quasiquote
+        (defstruct (unquote name) (unquote fields)))
+      (quasiquote
+        (defn (unquote make-name) [] -> (unquote name)
+          ((unquote name) {}))))))
 
 (defentity Point {:x float :y float})
 

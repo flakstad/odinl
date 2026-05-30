@@ -3,9 +3,11 @@
 (defmacro defentity [name fields]
   (let [make-name (symbol (str "make-" (name name)))]
     (forms
-      (list (quote defstruct) name fields)
-      (list (quote defn) make-name (vector) (quote ->) name
-            (list name (brace))))))
+      (quasiquote
+        (defstruct (unquote name) (unquote fields)))
+      (quasiquote
+        (defn (unquote make-name) [] -> (unquote name)
+          ((unquote name) {}))))))
 
 (defentity Point {:x float :y float})
 

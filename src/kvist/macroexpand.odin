@@ -645,6 +645,150 @@ macro_list_from_value :: proc(value: Macro_Value, span: Span) -> ([]CST_Form, Co
     }
 }
 
+macro_is_symbol_call :: proc(form: CST_Form, name: string) -> bool {
+    return form.kind == .List && len(form.items) > 0 && is_symbol(form.items[0], name)
+}
+
+macro_quasiquote_form :: proc(form: CST_Form, macros: []User_Macro, bindings: []Macro_Binding, depth: int = 0) -> (CST_Form, Compile_Error, bool) {
+    if macro_is_symbol_call(form, "unquote") {
+        if len(form.items) != 2 {
+            return CST_Form{}, Compile_Error{message = "unquote expects one form", span = form.span}, false
+        }
+        if depth == 0 {
+            value, err_value, ok_value := macro_eval_expr(form.items[1], macros, bindings)
+            if !ok_value {
+                return CST_Form{}, err_value, false
+            }
+            return macro_value_to_form(value, form.items[1].span)
+        }
+        inner, err_inner, ok_inner := macro_quasiquote_form(form.items[1], macros, bindings, depth-1)
+        if !ok_inner {
+            return CST_Form{}, err_inner, false
+        }
+        out := CST_Form{kind = .List, span = form.span}
+        append(&out.items, form.items[0])
+        append(&out.items, inner)
+        return out, Compile_Error{}, true
+    }
+
+    if macro_is_symbol_call(form, "splice") {
+        if len(form.items) != 2 {
+            return CST_Form{}, Compile_Error{message = "splice expects one form", span = form.span}, false
+        }
+        if depth == 0 {
+            return CST_Form{}, Compile_Error{message = "splice is only valid inside quasiquoted list, vector, or brace items", span = form.span}, false
+        }
+        inner, err_inner, ok_inner := macro_quasiquote_form(form.items[1], macros, bindings, depth-1)
+        if !ok_inner {
+            return CST_Form{}, err_inner, false
+        }
+        out := CST_Form{kind = .List, span = form.span}
+        append(&out.items, form.items[0])
+        append(&out.items, inner)
+        return out, Compile_Error{}, true
+    }
+
+    #partial switch form.kind {
+    case .List:
+        if macro_is_symbol_call(form, "quasiquote") {
+            if len(form.items) != 2 {
+                return CST_Form{}, Compile_Error{message = "quasiquote expects one form", span = form.span}, false
+            }
+            inner, err_inner, ok_inner := macro_quasiquote_form(form.items[1], macros, bindings, depth+1)
+            if !ok_inner {
+                return CST_Form{}, err_inner, false
+            }
+            out := CST_Form{kind = .List, span = form.span}
+            append(&out.items, form.items[0])
+            append(&out.items, inner)
+            return out, Compile_Error{}, true
+        }
+
+        out := CST_Form{kind = .List, span = form.span}
+        for item in form.items {
+            if macro_is_symbol_call(item, "splice") && depth == 0 {
+                if len(item.items) != 2 {
+                    return CST_Form{}, Compile_Error{message = "splice expects one form", span = item.span}, false
+                }
+                value, err_value, ok_value := macro_eval_expr(item.items[1], macros, bindings)
+                if !ok_value {
+                    return CST_Form{}, err_value, false
+                }
+                forms, err_forms, ok_forms := macro_value_to_forms(value, item.items[1].span)
+                if !ok_forms {
+                    return CST_Form{}, err_forms, false
+                }
+                for expanded in forms {
+                    append(&out.items, expanded)
+                }
+                continue
+            }
+            child, err_child, ok_child := macro_quasiquote_form(item, macros, bindings, depth)
+            if !ok_child {
+                return CST_Form{}, err_child, false
+            }
+            append(&out.items, child)
+        }
+        return out, Compile_Error{}, true
+    case .Vector:
+        out := CST_Form{kind = .Vector, span = form.span}
+        for item in form.items {
+            if macro_is_symbol_call(item, "splice") && depth == 0 {
+                if len(item.items) != 2 {
+                    return CST_Form{}, Compile_Error{message = "splice expects one form", span = item.span}, false
+                }
+                value, err_value, ok_value := macro_eval_expr(item.items[1], macros, bindings)
+                if !ok_value {
+                    return CST_Form{}, err_value, false
+                }
+                forms, err_forms, ok_forms := macro_value_to_forms(value, item.items[1].span)
+                if !ok_forms {
+                    return CST_Form{}, err_forms, false
+                }
+                for expanded in forms {
+                    append(&out.items, expanded)
+                }
+                continue
+            }
+            child, err_child, ok_child := macro_quasiquote_form(item, macros, bindings, depth)
+            if !ok_child {
+                return CST_Form{}, err_child, false
+            }
+            append(&out.items, child)
+        }
+        return out, Compile_Error{}, true
+    case .Brace:
+        out := CST_Form{kind = .Brace, span = form.span}
+        for item in form.items {
+            if macro_is_symbol_call(item, "splice") && depth == 0 {
+                if len(item.items) != 2 {
+                    return CST_Form{}, Compile_Error{message = "splice expects one form", span = item.span}, false
+                }
+                value, err_value, ok_value := macro_eval_expr(item.items[1], macros, bindings)
+                if !ok_value {
+                    return CST_Form{}, err_value, false
+                }
+                forms, err_forms, ok_forms := macro_value_to_forms(value, item.items[1].span)
+                if !ok_forms {
+                    return CST_Form{}, err_forms, false
+                }
+                for expanded in forms {
+                    append(&out.items, expanded)
+                }
+                continue
+            }
+            child, err_child, ok_child := macro_quasiquote_form(item, macros, bindings, depth)
+            if !ok_child {
+                return CST_Form{}, err_child, false
+            }
+            append(&out.items, child)
+        }
+        return out, Compile_Error{}, true
+    case:
+        return form, Compile_Error{}, true
+    }
+}
+
 macro_eval_expr :: proc(form: CST_Form, macros: []User_Macro, bindings: []Macro_Binding) -> (Macro_Value, Compile_Error, bool) {
     #partial switch form.kind {
     case .Nil:
@@ -693,6 +837,15 @@ macro_eval_expr :: proc(form: CST_Form, macros: []User_Macro, bindings: []Macro_
                     return Macro_Value{}, Compile_Error{message = "quote expects one form", span = form.span}, false
                 }
                 return macro_form_value(form.items[1]), Compile_Error{}, true
+            case "quasiquote":
+                if len(form.items) != 2 {
+                    return Macro_Value{}, Compile_Error{message = "quasiquote expects one form", span = form.span}, false
+                }
+                quoted, err_quoted, ok_quoted := macro_quasiquote_form(form.items[1], macros, bindings)
+                if !ok_quoted {
+                    return Macro_Value{}, err_quoted, false
+                }
+                return macro_form_value(quoted), Compile_Error{}, true
             case "do":
                 return macro_eval_sequence(form.items[1:], macros, bindings)
             case "if":
