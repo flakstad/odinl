@@ -449,6 +449,47 @@
                          :file file)))))
             members))))
 
+(defun kvist--cli-package-symbols (alias import-path)
+  "Return package symbols for ALIAS and IMPORT-PATH from the Kvist CLI."
+  (pcase-let ((`(,exit-code . ,output)
+                (kvist--call-string (kvist--executable)
+                                    (list "package-symbols" import-path alias))))
+    (when (or (and (integerp exit-code) (zerop exit-code))
+              (string-prefix-p "kind\tname\tline\tcolumn\tdetail\tsignature\tdoc\n" output))
+      (let ((lines (cdr (split-string output "\n" t))))
+        (delq nil
+              (mapcar (lambda (line)
+                        (kvist--parse-symbol-line line nil))
+                      lines))))))
+
+(defun kvist--merge-symbol-metadata (base updates)
+  "Merge signature/doc metadata from UPDATES into BASE symbols by name."
+  (let ((update-map (make-hash-table :test #'equal)))
+    (dolist (symbol updates)
+      (puthash (plist-get symbol :name) symbol update-map))
+    (mapcar
+     (lambda (symbol)
+       (if-let ((update (gethash (plist-get symbol :name) update-map)))
+           (let ((merged (copy-sequence symbol)))
+             (when-let ((signature (plist-get update :signature)))
+               (setq merged (plist-put merged :signature signature)))
+             (when-let ((doc (plist-get update :doc)))
+               (setq merged (plist-put merged :doc doc)))
+             merged)
+         symbol))
+     base)))
+
+(defun kvist--dedupe-symbols-by-name (symbols)
+  "Deduplicate SYMBOLS by their :name field, preserving first occurrence."
+  (let ((seen (make-hash-table :test #'equal))
+        out)
+    (dolist (symbol symbols)
+      (let ((name (plist-get symbol :name)))
+        (unless (gethash name seen)
+          (puthash name t seen)
+          (push symbol out))))
+    (nreverse out)))
+
 (defun kvist--canonical-kvist-package-symbols ()
   "Return built-in Kvist package symbols under their canonical aliases."
   (apply #'append
@@ -460,7 +501,11 @@
 
 (defun kvist--package-definition-symbols (alias import-path)
   "Return exported-looking symbols for ALIAS from IMPORT-PATH."
-  (or (kvist--package-member-symbols alias import-path)
+  (or (let ((base (kvist--package-member-symbols alias import-path)))
+        (when base
+          (kvist--merge-symbol-metadata base
+                                        (or (kvist--cli-package-symbols alias import-path)
+                                            nil))))
       (let ((dir (kvist--import-dir import-path))
             symbols)
         (when (and dir (file-directory-p dir))
@@ -684,14 +729,15 @@
 
 (defun kvist--package-symbols-for-current-buffer ()
   "Return imported Odin package symbols for current buffer imports."
-  (append
-   (apply #'append
-          (mapcar (lambda (symbol)
-                    (kvist--package-definition-symbols
-                     (plist-get symbol :name)
-                     (plist-get symbol :detail)))
-                  (kvist--import-symbols)))
-   (kvist--canonical-kvist-package-symbols)))
+  (kvist--dedupe-symbols-by-name
+   (append
+    (apply #'append
+           (mapcar (lambda (symbol)
+                     (kvist--package-definition-symbols
+                      (plist-get symbol :name)
+                      (plist-get symbol :detail)))
+                   (kvist--import-symbols)))
+    (kvist--canonical-kvist-package-symbols))))
 
 (defun kvist--package-definitions (identifier)
   "Return package definitions matching alias-qualified IDENTIFIER."
