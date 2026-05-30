@@ -2044,6 +2044,13 @@ Macros may also invoke other package-local macros during expansion. That makes
 recursive declaration DSLs possible, for example emitting one constructor helper
 per union variant from a single top-level form.
 
+That same pattern scales to more realistic message/event declarations, where one
+macro can emit:
+
+- one payload `defstruct` per entry
+- one `defunion` over those payloads
+- one constructor helper per variant
+
 ### `with-*` forms
 
 Allocator-oriented `with-*` forms should behave like macro-expanded resource

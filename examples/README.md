@@ -20,6 +20,7 @@ block so `C-c C-e` and `C-c C-c` are practical.
 - `macros.kvist`: package-local `defmacro` with a real control-flow rewrite.
 - `macro-dsl.kvist`: package-local declaration DSL that expands into multiple top-level forms.
 - `macro-union-helpers.kvist`: recursive macro DSL that emits a union plus variant constructors.
+- `macro-messages.kvist`: message-family DSL that emits payload structs, a tagged union, and constructors.
 - `closures.kvist`: non-capturing `fn` literals and explicit callback context.
 - `hello.kvist`: package, import, struct literal, and a tiny `main`.
 - `declarations.kvist`: doc comments, import aliases, constants, enums, structs.

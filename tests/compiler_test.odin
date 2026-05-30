@@ -2542,6 +2542,77 @@ compile_source_with_recursive_macro_dsl :: proc(t: ^testing.T) {
 }
 
 @(test)
+compile_source_with_message_family_macro :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defmacro emit-message-structs [entries]
+  (if (= (count entries) 0)
+    (forms)
+    (let [entry (first entries)
+          struct-name (nth entry 0)
+          fields (nth entry 1)]
+      (forms
+        (quasiquote
+          (defstruct (unquote struct-name) (unquote fields)))
+        (emit-message-structs (rest entries))))))
+
+(defmacro emit-message-union-entries [entries]
+  (if (= (count entries) 0)
+    (forms)
+    (let [entry (first entries)
+          struct-name (nth entry 0)
+          tag (keyword (name struct-name))]
+      (forms
+        tag
+        struct-name
+        (emit-message-union-entries (rest entries))))))
+
+(defmacro emit-message-ctors [union-name entries]
+  (if (= (count entries) 0)
+    (forms)
+    (let [entry (first entries)
+          struct-name (nth entry 0)
+          ctor-name (symbol (str "make-" (name union-name) "-" (name struct-name)))
+          tag (keyword (name struct-name))]
+      (forms
+        (quasiquote
+          (defn (unquote ctor-name) [value: (unquote struct-name)] -> (unquote union-name)
+            ((unquote union-name) {(unquote tag) value})))
+        (emit-message-ctors union-name (rest entries))))))
+
+(defmacro defmessages [union-name entries]
+  (forms
+    (emit-message-structs entries)
+    (quasiquote
+      (defunion (unquote union-name) {
+        (splice (emit-message-union-entries entries))
+      }))
+    (emit-message-ctors union-name entries)))
+
+(defmessages Event [
+  [Connected {:id int}]
+  [Disconnected {:id int :reason string}]
+  [Data {:id int :payload string}]
+])`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, `Connected :: struct {`), true)
+    testing.expect_value(t, strings.contains(output, `Disconnected :: struct {`), true)
+    testing.expect_value(t, strings.contains(output, `Data :: struct {`), true)
+    testing.expect_value(t, strings.contains(output, `Event :: union {`), true)
+    testing.expect_value(t, strings.contains(output, `make_Event_Connected :: proc(value: Connected) -> Event`), true)
+    testing.expect_value(t, strings.contains(output, `make_Event_Disconnected :: proc(value: Disconnected) -> Event`), true)
+    testing.expect_value(t, strings.contains(output, `make_Event_Data :: proc(value: Data) -> Event`), true)
+}
+
+@(test)
 compile_proc_types_and_literals :: proc(t: ^testing.T) {
     source := `(package main)
 
