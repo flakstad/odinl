@@ -1053,6 +1053,30 @@
         (special-mode)))
     (display-buffer buffer)))
 
+(defun kvist--eldoc-string (symbol)
+  "Return a one-line Eldoc string for SYMBOL."
+  (let* ((name (plist-get symbol :name))
+         (signature (or (plist-get symbol :signature) name))
+         (doc (string-trim (or (plist-get symbol :doc) "")))
+         (doc-line (car (split-string doc "\n" t))))
+    (if (and doc-line (not (string-empty-p doc-line)))
+        (format "%s -- %s" signature doc-line)
+      signature)))
+
+(defun kvist-eldoc-function ()
+  "Return Eldoc text for the Kvist symbol at point."
+  (when-let* ((identifier (kvist--identifier-at-point))
+              (matches (kvist--symbol-doc-candidates identifier)))
+    (let* ((normalized (kvist--normalize-qualified-identifier identifier))
+           (exact (seq-find (lambda (symbol)
+                              (string=
+                               (kvist--normalize-qualified-identifier
+                                (plist-get symbol :name))
+                               normalized))
+                            matches))
+           (symbol (or exact (car matches))))
+      (kvist--eldoc-string symbol))))
+
 ;;;###autoload
 (defun kvist-doc-at-point ()
   "Show documentation for the Kvist or imported Odin symbol at point."
@@ -1105,6 +1129,7 @@
               "\\(\\(^\\|[^\\\\\n]\\)\\(\\\\\\\\\\)*\\)\\(;+\\|//+\\|/\\*+\\|#|\\) *")
   (add-hook 'xref-backend-functions #'kvist--xref-backend nil t)
   (add-hook 'completion-at-point-functions #'kvist-completion-at-point nil t)
+  (add-hook 'eldoc-documentation-functions #'kvist-eldoc-function nil t)
   (add-hook 'post-self-insert-hook #'kvist--post-self-insert-auto-import nil t)
   (font-lock-add-keywords nil kvist-font-lock-keywords)
   (kvist--setup-indentation))
