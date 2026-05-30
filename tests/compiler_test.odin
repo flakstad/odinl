@@ -334,6 +334,29 @@ editor_symbols_source_merges_context_surfaces :: proc(t: ^testing.T) {
 }
 
 @(test)
+editor_symbols_source_includes_language_forms_and_helpers :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defn main []
+  (let [x 1]
+    (if true
+      (map inc [1 2 3])
+      (println x))))`
+
+    output, err, ok := kvist.editor_symbols_source("/Users/andreas/Projects/kvist/.tmp-editor-symbols-test.kvist", source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "kvist form\tlet\t"), true)
+    testing.expect_value(t, strings.contains(output, "kvist form\tif\t"), true)
+    testing.expect_value(t, strings.contains(output, "kvist helper\tmap\t"), true)
+}
+
+@(test)
 compile_eval_source_can_emit_statement_runner :: proc(t: ^testing.T) {
     source := `(package main)
 (import "core:fmt")

@@ -30,6 +30,13 @@ Package_Source_Entry :: struct {
     snippet:     string,
 }
 
+Language_Source_Entry :: struct {
+    name:     string,
+    kind:     string,
+    relative: string,
+    snippet:  string,
+}
+
 KVIST_CANONICAL_IMPORTS_FOR_EDITOR :: [5]Imported_Symbol_Entry{
     {alias = "arr", path = "kvist:arr"},
     {alias = "str", path = "kvist:str"},
@@ -80,6 +87,110 @@ PACKAGE_SOURCE_ENTRIES :: []Package_Source_Entry{
     {import_path = "kvist:set", member = "add!", relative = "src/kvist/emit.odin", snippet = "if head.text == \"set/add!\""},
     {import_path = "kvist:struct", member = "fields", relative = "src/kvist/emit.odin", snippet = "if head.text == \"struct/fields\" || head.text == \"struct/types\""},
     {import_path = "kvist:struct", member = "types", relative = "src/kvist/emit.odin", snippet = "if head.text == \"struct/fields\" || head.text == \"struct/types\""},
+}
+
+LANGUAGE_SOURCE_ENTRIES :: []Language_Source_Entry{
+    {name = "package", kind = "kvist form", relative = "src/kvist/parse.odin", snippet = "case \"package\":"},
+    {name = "import", kind = "kvist form", relative = "src/kvist/parse.odin", snippet = "case \"import\":"},
+    {name = "const", kind = "kvist form", relative = "src/kvist/parse.odin", snippet = "case \"const\":"},
+    {name = "struct", kind = "kvist form", relative = "src/kvist/parse.odin", snippet = "case \"struct\":"},
+    {name = "enum", kind = "kvist form", relative = "src/kvist/parse.odin", snippet = "case \"enum\":"},
+    {name = "union", kind = "kvist form", relative = "src/kvist/parse.odin", snippet = "case \"union\":"},
+    {name = "proc", kind = "kvist form", relative = "src/kvist/parse.odin", snippet = "parse_proc_decl :: proc"},
+    {name = "odin", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"odin\":"},
+    {name = "let", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"let\":"},
+    {name = "do", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"do\":"},
+    {name = "if", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "emit_if_like :: proc"},
+    {name = "when", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"when\":"},
+    {name = "cond", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "emit_cond_stmt :: proc"},
+    {name = "switch", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "emit_switch_stmt :: proc"},
+    {name = "set!", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"set!\":"},
+    {name = "return", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"return\":"},
+    {name = "defer", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"defer\":"},
+    {name = "for", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"for\":"},
+    {name = "each", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"each\":"},
+    {name = "update", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"update\":"},
+    {name = "update!", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"update!\":"},
+    {name = "comment", kind = "kvist form", relative = "src/kvist/parse.odin", snippet = "case \"comment\":"},
+    {name = "new", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "if head.text == \"new\""},
+    {name = "make", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "if head.text == \"make\""},
+    {name = "get", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "if head.text == \"get\""},
+    {name = "nil?", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "if head.text == \"nil?\""},
+    {name = "type", kind = "kvist form", relative = "src/kvist/parse.odin", snippet = "if is_symbol(form.items[0], \"type\")"},
+    {name = "in", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "if op == \"in\" || op == \"not-in\""},
+    {name = "not-in", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "if op == \"in\" || op == \"not-in\""},
+    {name = "break", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"break\":"},
+    {name = "continue", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "case \"continue\":"},
+    {name = "with-allocator", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "emit_with_allocator_stmt :: proc"},
+    {name = "with-temp-allocator", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "emit_with_temp_allocator_stmt :: proc"},
+    {name = "with-delete", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "emit_with_delete_stmt :: proc"},
+    {name = "slurp", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "if head.text == \"slurp\""},
+    {name = "spit", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "if head.text == \"spit\""},
+    {name = "tap>", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "if head.text == \"tap>\""},
+    {name = "->", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "emit_thread_expr :: proc"},
+    {name = "->>", kind = "kvist form", relative = "src/kvist/emit.odin", snippet = "emit_thread_expr :: proc"},
+    {name = "map", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_map_helper :: proc"},
+    {name = "filter", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_filter_helper :: proc"},
+    {name = "remove", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_remove_helper :: proc"},
+    {name = "reduce", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_reduce_helper :: proc"},
+    {name = "map-indexed", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_map_indexed_helper :: proc"},
+    {name = "keep", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_keep_helper :: proc"},
+    {name = "mapcat", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_mapcat_helper :: proc"},
+    {name = "concat", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_concat_helper :: proc"},
+    {name = "merge", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_merge_helper :: proc"},
+    {name = "merge!", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_merge_in_place_helper :: proc"},
+    {name = "into", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_into_helper :: proc"},
+    {name = "into!", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "if head.text == \"into!\""},
+    {name = "interpose", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_interpose_helper :: proc"},
+    {name = "interleave", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_interleave_helper :: proc"},
+    {name = "reverse", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_reverse_helper :: proc"},
+    {name = "reverse!", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_reverse_in_place_helper :: proc"},
+    {name = "shuffle", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_shuffle_helper :: proc"},
+    {name = "shuffle!", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_shuffle_in_place_helper :: proc"},
+    {name = "sort", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_sort_helper :: proc"},
+    {name = "sort!", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_sort_in_place_helper :: proc"},
+    {name = "sort-by", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_sort_by_helper :: proc"},
+    {name = "sort-by!", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_sort_by_in_place_helper :: proc"},
+    {name = "map!", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_map_in_place_helper :: proc"},
+    {name = "map-indexed!", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_map_indexed_in_place_helper :: proc"},
+    {name = "filter!", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_filter_in_place_helper :: proc"},
+    {name = "remove!", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_remove_in_place_helper :: proc"},
+    {name = "keep!", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_keep_in_place_helper :: proc"},
+    {name = "split-at", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_split_at_helper :: proc"},
+    {name = "partition", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_partition_helper :: proc"},
+    {name = "partition-all", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_partition_all_helper :: proc"},
+    {name = "partition-by", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_partition_by_helper :: proc"},
+    {name = "zipmap", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_zipmap_helper :: proc"},
+    {name = "index-by", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_index_by_helper :: proc"},
+    {name = "group-by", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_group_by_helper :: proc"},
+    {name = "frequencies", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_frequencies_helper :: proc"},
+    {name = "keys", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_keys_helper :: proc"},
+    {name = "vals", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_vals_helper :: proc"},
+    {name = "distinct", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_distinct_helper :: proc"},
+    {name = "distinct-by", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_distinct_by_helper :: proc"},
+    {name = "range", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_range_helper :: proc"},
+    {name = "repeat", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_repeat_helper :: proc"},
+    {name = "repeatedly", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_repeatedly_helper :: proc"},
+    {name = "iterate", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_iterate_helper :: proc"},
+    {name = "cycle", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_cycle_helper :: proc"},
+    {name = "take", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_take_helper :: proc"},
+    {name = "drop", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_drop_helper :: proc"},
+    {name = "butlast", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "if head.text == \"first\" || head.text == \"second\""},
+    {name = "drop-last", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_drop_last_helper :: proc"},
+    {name = "take-nth", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_take_nth_helper :: proc"},
+    {name = "take-while", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_take_while_helper :: proc"},
+    {name = "drop-while", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_drop_while_helper :: proc"},
+    {name = "find", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_find_helper :: proc"},
+    {name = "some?", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_some_helper :: proc"},
+    {name = "every?", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "emit_core_every_helper :: proc"},
+    {name = "first", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "if head.text == \"first\" || head.text == \"second\""},
+    {name = "second", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "if head.text == \"first\" || head.text == \"second\""},
+    {name = "last", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "if head.text == \"first\" || head.text == \"second\""},
+    {name = "nth", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "if head.text == \"nth\""},
+    {name = "rest", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "if head.text == \"first\" || head.text == \"second\""},
+    {name = "empty?", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "if head.text == \"first\" || head.text == \"second\""},
+    {name = "count", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "if head.text == \"first\" || head.text == \"second\""},
+    {name = "contains?", kind = "kvist helper", relative = "src/kvist/emit.odin", snippet = "if op == \"in?\" || op == \"contains?\""},
 }
 
 import_path_text :: proc(form: CST_Form) -> string {
@@ -538,8 +649,8 @@ symbols_record_name :: proc(line: string) -> string {
 symbols_append_unique_records :: proc(builder: ^strings.Builder, seen: ^map[string]bool, output: string) {
     lines := strings.split_lines(output, context.allocator)
     defer delete(lines)
-    for line, idx in lines {
-        if idx == 0 || line == "" {
+    for line in lines {
+        if line == "" || line == "kind\tname\tline\tcolumn\tdetail\tsignature\tdoc" || line == "kind\tname\tline\tcolumn\tdetail\tsignature\tdoc\tfile" {
             continue
         }
         name := symbols_record_name(line)
@@ -557,6 +668,13 @@ symbols_append_unique_records :: proc(builder: ^strings.Builder, seen: ^map[stri
 
 repo_root_for_path :: proc(path: string) -> (string, bool) {
     current := path
+    if current != "" && !os.is_absolute_path(current) {
+        absolute, abs_err := os.get_absolute_path(current, context.allocator)
+        if abs_err == nil {
+            current = absolute
+            defer delete(absolute)
+        }
+    }
     if !os.is_dir(current) {
         dir, _ := os.split_path(current)
         current = dir
@@ -709,6 +827,20 @@ editor_package_symbols_append :: proc(builder: ^strings.Builder, seen: ^map[stri
     }
 }
 
+editor_language_symbols_append :: proc(builder: ^strings.Builder, seen: ^map[string]bool, repo_root: string) {
+    for entry in LANGUAGE_SOURCE_ENTRIES {
+        file, line, column, ok := file_location_for_snippet(repo_root, entry.relative, entry.snippet)
+        if !ok {
+            continue
+        }
+        temp := strings.builder_make()
+        defer strings.builder_destroy(&temp)
+        symbols_write_record_doc_file(&temp, entry.kind, entry.name, line, column, entry.relative, "", nil, file)
+        symbols_append_unique_records(builder, seen, strings.to_string(temp))
+        delete(file)
+    }
+}
+
 imported_symbols_source :: proc(path, source: string) -> (output: string, err: Compile_Error, ok: bool) {
     result_allocator := context.allocator
     old_allocator := context.allocator
@@ -807,6 +939,7 @@ editor_symbols_source :: proc(path, source: string) -> (output: string, err: Com
 
     if repo_root != "" {
         editor_builtin_symbols_append(&builder, &seen, repo_root)
+        editor_language_symbols_append(&builder, &seen, repo_root)
     } else {
         builtin_output := builtin_symbols_source()
         symbols_append_unique_records(&builder, &seen, builtin_output)
