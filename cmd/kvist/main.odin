@@ -21,6 +21,7 @@ print_usage :: proc() {
     fmt.println("  kvist macroexpand <input.kvist> <form> [-o output.kvist] [--map output.map]")
     fmt.println("  kvist symbols <input.kvist>")
     fmt.println("  kvist editor-symbols <input.kvist> [identifier]")
+    fmt.println("  kvist complete <input.kvist> [prefix]")
     fmt.println("  kvist doc <input.kvist> <identifier>")
     fmt.println("  kvist xref <input.kvist> <identifier>")
     fmt.println("  kvist builtin-symbols")
@@ -32,7 +33,7 @@ print_usage :: proc() {
 }
 
 is_command :: proc(text: string) -> bool {
-    return text == "compile" || text == "build" || text == "check" || text == "run" || text == "eval" || text == "expand" || text == "macroexpand" || text == "symbols" || text == "editor-symbols" || text == "doc" || text == "xref" || text == "builtin-symbols" || text == "imported-symbols" || text == "package-symbols" || text == "cache"
+    return text == "compile" || text == "build" || text == "check" || text == "run" || text == "eval" || text == "expand" || text == "macroexpand" || text == "symbols" || text == "editor-symbols" || text == "complete" || text == "doc" || text == "xref" || text == "builtin-symbols" || text == "imported-symbols" || text == "package-symbols" || text == "cache"
 }
 
 read_source_or_exit :: proc(path: string) -> string {
@@ -549,6 +550,32 @@ symbol_matches_identifier :: proc(name, identifier: string) -> bool {
     return false
 }
 
+symbol_matches_prefix :: proc(name, prefix: string) -> bool {
+    if prefix == "" {
+        return true
+    }
+
+    normalized_name := normalize_qualified_identifier(name)
+    defer delete(normalized_name)
+    normalized_prefix := normalize_qualified_identifier(prefix)
+    defer delete(normalized_prefix)
+
+    if strings.has_prefix(name, prefix) || strings.has_prefix(normalized_name, normalized_prefix) {
+        return true
+    }
+
+    if !strings.contains_any(prefix, "./") {
+        bare_name := name
+        if slash := strings.last_index_any(name, "./"); slash >= 0 && slash+1 < len(name) {
+            bare_name = name[slash+1:]
+        }
+        if strings.has_prefix(bare_name, prefix) {
+            return true
+        }
+    }
+    return false
+}
+
 filter_symbol_output :: proc(output, identifier: string) -> string {
     if identifier == "" {
         return strings.clone(output)
@@ -559,6 +586,8 @@ filter_symbol_output :: proc(output, identifier: string) -> string {
 
     builder := strings.builder_make()
     defer strings.builder_destroy(&builder)
+    seen := make(map[string]bool)
+    defer delete(seen)
 
     if len(lines) > 0 {
         strings.write_string(&builder, lines[0])
@@ -568,7 +597,40 @@ filter_symbol_output :: proc(output, identifier: string) -> string {
         if idx == 0 || line == "" {
             continue
         }
-        if symbol_matches_identifier(kvist.symbols_record_name(line), identifier) {
+        name := kvist.symbols_record_name(line)
+        if symbol_matches_identifier(name, identifier) && !seen[name] {
+            seen[name] = true
+            strings.write_string(&builder, line)
+            strings.write_byte(&builder, '\n')
+        }
+    }
+    return strings.clone(strings.to_string(builder))
+}
+
+filter_symbol_output_by_prefix :: proc(output, prefix: string) -> string {
+    if prefix == "" {
+        return strings.clone(output)
+    }
+
+    lines := strings.split_lines(output, context.allocator)
+    defer delete(lines)
+
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+    seen := make(map[string]bool)
+    defer delete(seen)
+
+    if len(lines) > 0 {
+        strings.write_string(&builder, lines[0])
+        strings.write_byte(&builder, '\n')
+    }
+    for line, idx in lines {
+        if idx == 0 || line == "" {
+            continue
+        }
+        name := kvist.symbols_record_name(line)
+        if symbol_matches_prefix(name, prefix) && !seen[name] {
+            seen[name] = true
             strings.write_string(&builder, line)
             strings.write_byte(&builder, '\n')
         }
@@ -760,6 +822,19 @@ xref_command :: proc(input, identifier: string) {
         fmt.printf("%s:%d:%d\t%s\t%s\n", row.file, row.line, row.column, row.kind, row.name)
         delete(key)
     }
+}
+
+complete_command :: proc(input: string, prefix := "") {
+    data := read_source_or_exit(input)
+    output, err, ok := kvist.editor_symbols_source(input, data)
+    if !ok {
+        fmt.eprintln(err.message)
+        os.exit(1)
+    }
+    defer delete(output)
+    filtered := filter_symbol_output_by_prefix(output, prefix)
+    defer delete(filtered)
+    fmt.print(filtered)
 }
 
 package_symbols_command :: proc(import_path, alias: string) {
@@ -1098,6 +1173,18 @@ parse_editor_symbols_command :: proc() {
     editor_symbols_command(os.args[2], identifier)
 }
 
+parse_complete_command :: proc() {
+    if len(os.args) != 3 && len(os.args) != 4 {
+        print_usage()
+        os.exit(2)
+    }
+    prefix := ""
+    if len(os.args) == 4 {
+        prefix = os.args[3]
+    }
+    complete_command(os.args[2], prefix)
+}
+
 parse_doc_command :: proc() {
     if len(os.args) != 4 {
         print_usage()
@@ -1172,6 +1259,8 @@ main :: proc() {
         parse_symbols_command()
     case "editor-symbols":
         parse_editor_symbols_command()
+    case "complete":
+        parse_complete_command()
     case "doc":
         parse_doc_command()
     case "xref":

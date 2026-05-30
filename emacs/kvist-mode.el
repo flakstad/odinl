@@ -377,6 +377,28 @@
       (when temp
         (ignore-errors (delete-file temp))))))
 
+(defun kvist--complete-symbols (&optional prefix file)
+  "Return completion symbols for PREFIX via the CLI."
+  (let* ((source-file (or file buffer-file-name))
+         (temp (if file nil (kvist--source-temp-file)))
+         (input (or temp source-file))
+         (program (kvist--executable source-file)))
+    (unwind-protect
+        (pcase-let ((`(,exit-code . ,output)
+                      (kvist--call-string
+                       program
+                       (append (list "complete" input)
+                               (when prefix (list prefix))))))
+          (unless (zerop exit-code)
+            (user-error "%s" (string-trim output)))
+          (let ((lines (cdr (split-string output "\n" t))))
+            (delq nil
+                  (mapcar (lambda (line)
+                            (kvist--parse-symbol-line line source-file))
+                          lines))))
+      (when temp
+        (ignore-errors (delete-file temp))))))
+
 (defun kvist--symbol-bounds ()
   "Return bounds of the Kvist symbol-like token at point."
   (let ((chars "-[:alnum:]_?!+*/<>=.:"))
@@ -520,29 +542,18 @@
 (defun kvist--completion-candidates ()
   "Return completion candidates appropriate for the symbol at point."
   (let* ((identifier (kvist--identifier-at-point))
-         (package-prefix (kvist--package-prefix identifier)))
-    (if package-prefix
-        (let* ((alias (car package-prefix))
-               (sep (cdr package-prefix))
-               (prefix (concat alias sep))
-               (normalized-prefix (kvist--normalize-qualified-identifier prefix)))
-          (delete-dups
-           (mapcar
-            (lambda (symbol)
-              (let ((name (plist-get symbol :name)))
-                (if (string= sep ".")
-                    (replace-regexp-in-string "/" "." name t t)
-                  (replace-regexp-in-string "\\." "/" name t t))))
-            (seq-filter
-             (lambda (symbol)
-               (string-prefix-p normalized-prefix
-                                (kvist--normalize-qualified-identifier
-                                 (plist-get symbol :name))))
-             (ignore-errors (kvist--package-symbols-for-current-buffer))))))
-      (delete-dups
-       (append kvist-completion-builtins
-               (mapcar (lambda (symbol) (plist-get symbol :name))
-                       (ignore-errors (kvist--editor-symbols))))))))
+         (package-prefix (kvist--package-prefix identifier))
+         (symbols (or (ignore-errors (kvist--complete-symbols identifier))
+                      (ignore-errors (kvist--editor-symbols)))))
+    (delete-dups
+     (mapcar
+      (lambda (symbol)
+        (let ((name (plist-get symbol :name)))
+          (if (and package-prefix
+                   (string= (cdr package-prefix) "."))
+              (replace-regexp-in-string "/" "." name t t)
+            (replace-regexp-in-string "\\." "/" name t t))))
+      symbols))))
 
 (defun kvist--completion-exit (completed status)
   "Handle completion of COMPLETED with STATUS."
@@ -553,18 +564,9 @@
   "Return symbol metadata alist keyed by display name for IDENTIFIER context."
   (let* ((identifier (or identifier (kvist--identifier-at-point)))
          (package-prefix (kvist--package-prefix identifier))
-         (symbols (if package-prefix
-                      (let* ((alias (car package-prefix))
-                             (normalized-prefix
-                              (kvist--normalize-qualified-identifier (concat alias "/"))))
-                        (seq-filter
-                         (lambda (symbol)
-                           (string-prefix-p normalized-prefix
-                                            (kvist--normalize-qualified-identifier
-                                             (plist-get symbol :name))))
-                         (ignore-errors (kvist--package-symbols-for-current-buffer))))
-                    (append (ignore-errors (kvist--symbols))
-                            (ignore-errors (kvist--editor-symbols))))))
+         (symbols (or (ignore-errors (kvist--complete-symbols identifier))
+                      (append (ignore-errors (kvist--symbols))
+                              (ignore-errors (kvist--editor-symbols))))))
     (let (table)
       (dolist (symbol symbols)
         (let* ((name (plist-get symbol :name))
