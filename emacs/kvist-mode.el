@@ -1096,7 +1096,7 @@
       (when-let ((entry (assoc (car candidates) metadata)))
         (cdr entry)))))
 
-(defun kvist-eldoc-function ()
+(defun kvist-eldoc-function (&rest _ignored)
   "Return Eldoc text for the Kvist symbol at point."
   (when-let ((identifier (kvist--identifier-at-point)))
     (if-let ((matches (kvist--symbol-doc-candidates identifier)))
