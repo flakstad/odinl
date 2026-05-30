@@ -321,12 +321,14 @@
             (line-text (nth 2 fields))
             (column-text (nth 3 fields))
             (detail (or (nth 4 fields) ""))
-            (doc (or (nth 5 fields) "")))
+            (signature (or (nth 5 fields) ""))
+            (doc (or (nth 6 fields) "")))
       (list :kind kind
             :name name
             :line (string-to-number line-text)
             :column (string-to-number column-text)
             :detail (or detail "")
+            :signature (and signature (not (string-empty-p signature)) signature)
               :doc (kvist--unescape-doc doc)
               :file file)))))
 
@@ -951,7 +953,8 @@
                                 (kvist--symbol-matches-identifier-p symbol identifier))
                               symbols)))
     (seq-filter (lambda (symbol)
-                  (not (string-empty-p (or (plist-get symbol :doc) ""))))
+                  (or (not (string-empty-p (or (plist-get symbol :doc) "")))
+                      (not (string-empty-p (or (plist-get symbol :signature) "")))))
                 matches)))
 
 (defun kvist--builtin-doc-candidates (identifier)
