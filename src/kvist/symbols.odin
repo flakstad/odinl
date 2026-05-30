@@ -1,8 +1,14 @@
 package kvist
 
 import "core:fmt"
+import "core:os"
 import "core:strings"
 import "base:runtime"
+
+Imported_Symbol_Entry :: struct {
+    alias: string,
+    path:  string,
+}
 
 import_path_text :: proc(form: CST_Form) -> string {
     if form.kind != .String {
@@ -42,6 +48,357 @@ builtin_symbols_source :: proc() -> string {
     strings.write_string(&builder, "kind\tname\tline\tcolumn\tdetail\tsignature\tdoc\n")
     builtin_symbols_append(&builder)
     return strings.clone(strings.to_string(builder), result_allocator)
+}
+
+import_entry_from_form :: proc(form: CST_Form) -> (Imported_Symbol_Entry, bool) {
+    if form.kind != .List || len(form.items) == 0 || !is_symbol(form.items[0], "import") {
+        return {}, false
+    }
+    if len(form.items) == 2 && form.items[1].kind == .String {
+        path := import_path_text(form.items[1])
+        alias := import_default_alias(path)
+        if alias == "" {
+            return {}, false
+        }
+        return Imported_Symbol_Entry{alias = alias, path = path}, true
+    }
+    if len(form.items) == 3 && form.items[1].kind == .Symbol && form.items[2].kind == .String {
+        path := import_path_text(form.items[2])
+        return Imported_Symbol_Entry{alias = map_name(form.items[1].text), path = path}, true
+    }
+    return {}, false
+}
+
+odin_root_path :: proc() -> (string, bool) {
+    state, stdout, stderr, err := os.process_exec(
+        os.Process_Desc{command = {"odin", "root"}},
+        context.allocator,
+    )
+    defer delete(stdout)
+    defer delete(stderr)
+    if err != nil || !state.exited || state.exit_code != 0 {
+        return "", false
+    }
+    return strings.trim_space(string(stdout)), true
+}
+
+odin_import_dir :: proc(root, import_path: string) -> (string, bool) {
+    switch {
+    case strings.has_prefix(import_path, "core:"):
+        path, err := os.join_path({root, "core", import_path[5:]}, context.allocator)
+        if err != nil {
+            return "", false
+        }
+        return path, true
+    case strings.has_prefix(import_path, "vendor:"):
+        path, err := os.join_path({root, "vendor", import_path[7:]}, context.allocator)
+        if err != nil {
+            return "", false
+        }
+        return path, true
+    case:
+        return "", false
+    }
+}
+
+trim_line_ws :: proc(text: string) -> string {
+    return strings.trim_space(text)
+}
+
+line_start_offset :: proc(source: string, line_start: int) -> int {
+    if line_start <= 0 {
+        return 0
+    }
+    line := 1
+    for i := 0; i < len(source); i += 1 {
+        if line == line_start {
+            return i
+        }
+        if source[i] == '\n' {
+            line += 1
+        }
+    }
+    return len(source)
+}
+
+odin_line_range :: proc(source: string, line_start: int) -> (start, end: int) {
+    start = line_start_offset(source, line_start)
+    end = start
+    for end < len(source) && source[end] != '\n' {
+        end += 1
+    }
+    return
+}
+
+odin_signature_at_line :: proc(source: string, line_start: int) -> string {
+    start, end := odin_line_range(source, line_start)
+    if start >= len(source) {
+        return ""
+    }
+    line := trim_line_ws(source[start:end])
+    if strings.contains(line, ":: proc {") {
+        builder := strings.builder_make()
+        defer strings.builder_destroy(&builder)
+        strings.write_string(&builder, line)
+        current := line_start + 1
+        for current <= 1000000 {
+            next_start, next_end := odin_line_range(source, current)
+            if next_start >= len(source) {
+                break
+            }
+            next_line := trim_line_ws(source[next_start:next_end])
+            strings.write_string(&builder, " ")
+            strings.write_string(&builder, next_line)
+            if next_line == "}" {
+                break
+            }
+            current += 1
+        }
+        return strings.join(strings.fields(strings.to_string(builder))[:], " ", context.allocator)
+    }
+    compact := trim_line_ws(line)
+    brace_idx := strings.index(compact, "{")
+    if brace_idx >= 0 {
+        compact = trim_line_ws(compact[:brace_idx])
+    }
+    return strings.join(strings.fields(compact)[:], " ", context.allocator)
+}
+
+odin_clean_doc_comment_line :: proc(line: string) -> string {
+    text := strings.trim_left(line, " \t")
+    if strings.has_prefix(text, "///") {
+        return strings.trim_left(text[3:], " \t")
+    }
+    if strings.has_prefix(text, "//") {
+        return strings.trim_left(text[2:], " \t")
+    }
+    return text
+}
+
+odin_clean_block_doc_line :: proc(line: string) -> string {
+    text := strings.trim_space(line)
+    if strings.has_prefix(text, "*") {
+        return strings.trim_left(text[1:], " \t")
+    }
+    return text
+}
+
+odin_clean_block_doc_comment :: proc(text: string) -> string {
+    value := text
+    if strings.has_prefix(value, "/*") {
+        value = value[2:]
+    }
+    if strings.has_suffix(value, "*/") {
+        value = value[:len(value)-2]
+    }
+    lines := strings.split_lines(value, context.allocator)
+    defer delete(lines)
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+    seen_content := false
+    pending_blank := false
+    for line in lines {
+        clean := odin_clean_block_doc_line(line)
+        if clean == "" {
+            if seen_content {
+                pending_blank = true
+            }
+            continue
+        }
+        if pending_blank {
+            strings.write_string(&builder, "\n")
+        }
+        if seen_content {
+            strings.write_string(&builder, "\n")
+        }
+        strings.write_string(&builder, clean)
+        seen_content = true
+        pending_blank = false
+    }
+    return strings.to_string(builder)
+}
+
+odin_preceding_doc :: proc(source: string, line_start: int) -> string {
+    lines := strings.split_lines(source, context.allocator)
+    defer delete(lines)
+    if line_start <= 1 || line_start > len(lines)+1 {
+        return ""
+    }
+    docs: [dynamic]string
+    defer delete(docs)
+    idx := line_start - 2
+    for idx >= 0 {
+        line := lines[idx]
+        trimmed := strings.trim_space(line)
+        switch {
+        case strings.has_prefix(trimmed, "//"):
+            append(&docs, odin_clean_doc_comment_line(line))
+        case strings.has_suffix(trimmed, "*/"):
+            builder := strings.builder_make()
+            defer strings.builder_destroy(&builder)
+            strings.write_string(&builder, line)
+            idx -= 1
+            for idx >= 0 {
+                strings.write_string(&builder, "\n")
+                strings.write_string(&builder, lines[idx])
+                if strings.contains(lines[idx], "/*") {
+                    break
+                }
+                idx -= 1
+            }
+            append(&docs, odin_clean_block_doc_comment(strings.to_string(builder)))
+        case trimmed == "":
+            break
+        case:
+            break
+        }
+        idx -= 1
+    }
+    if len(docs) == 0 {
+        return ""
+    }
+    for i, j := 0, len(docs)-1; i < j; i, j = i+1, j-1 {
+        docs[i], docs[j] = docs[j], docs[i]
+    }
+    return strings.join(docs[:], "\n", context.allocator)
+}
+
+odin_decl_rank :: proc(file: string) -> int {
+    rank := 0
+    if strings.contains(file, "/old/") {
+        rank += 100
+    }
+    if strings.has_suffix(file, "_js.odin") {
+        rank += 10
+    }
+    if strings.contains(file, "/example.odin") {
+        rank += 200
+    }
+    return rank
+}
+
+imported_symbols_scan_odin_dir :: proc(builder: ^strings.Builder, alias, import_path, dir: string) {
+    if !os.exists(dir) {
+        return
+    }
+    entries, err := os.read_directory_by_path(dir, -1, context.allocator)
+    if err != nil {
+        return
+    }
+    defer os.file_info_slice_delete(entries, context.allocator)
+
+    best := make(map[string]string)
+    defer delete(best)
+    best_rank := make(map[string]int)
+    defer delete(best_rank)
+
+    for entry in entries {
+        if entry.type != .Regular || !strings.has_suffix(entry.name, ".odin") {
+            continue
+        }
+        path, join_err := os.join_path({dir, entry.name}, context.allocator)
+        if join_err != nil {
+            continue
+        }
+        defer delete(path)
+        data, read_err := os.read_entire_file_from_path(path, context.allocator)
+        if read_err != nil {
+            continue
+        }
+        source := string(data)
+        defer delete(data)
+        lines := strings.split_lines(source, context.allocator)
+        defer delete(lines)
+        for line, idx in lines {
+            trimmed_left := strings.trim_left(line, " \t")
+            name_end := strings.index(trimmed_left, "::")
+            if name_end <= 0 {
+                continue
+            }
+            name := strings.trim_space(trimmed_left[:name_end])
+            if name == "" || name[0] == '_' || strings.contains(name, " ") || strings.contains(name, "\t") {
+                continue
+            }
+            signature := odin_signature_at_line(source, idx+1)
+            doc := odin_preceding_doc(source, idx+1)
+            rank := odin_decl_rank(path)
+            key_slash := fmt.tprintf("%s/%s", alias, name)
+            existing_rank, found_rank := best_rank[key_slash]
+            if found_rank && existing_rank <= rank {
+                delete(signature)
+                delete(doc)
+                continue
+            }
+            if prev, found := best[key_slash]; found {
+                delete(prev)
+            }
+            if prev, found := best[fmt.tprintf("%s.%s", alias, name)]; found {
+                delete(prev)
+            }
+            record_slash := strings.clone(fmt.tprintf("odin\t%s/%s\t%d\t1\t%s\t%s\t%s\t%s\n", alias, name, idx+1, import_path, signature, symbols_escape_doc_text(doc), path))
+            record_dot := strings.clone(fmt.tprintf("odin\t%s.%s\t%d\t1\t%s\t%s\t%s\t%s\n", alias, name, idx+1, import_path, signature, symbols_escape_doc_text(doc), path))
+            best[key_slash] = record_slash
+            best[fmt.tprintf("%s.%s", alias, name)] = record_dot
+            best_rank[key_slash] = rank
+            best_rank[fmt.tprintf("%s.%s", alias, name)] = rank
+        }
+    }
+
+    names: [dynamic]string
+    defer delete(names)
+    for name, _ in best {
+        append(&names, name)
+    }
+    for name in names {
+        strings.write_string(builder, best[name])
+    }
+}
+
+symbols_escape_doc_text :: proc(text: string) -> string {
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+    lines := symbols_doc_lines_from_string(text)
+    defer delete(lines)
+    symbols_write_escaped_doc(&builder, lines[:])
+    return strings.to_string(builder)
+}
+
+imported_symbols_source :: proc(path, source: string) -> (output: string, err: Compile_Error, ok: bool) {
+    result_allocator := context.allocator
+    old_allocator := context.allocator
+    temp_scope := runtime.default_temp_allocator_temp_begin()
+    defer runtime.default_temp_allocator_temp_end(temp_scope)
+    context.allocator = context.temp_allocator
+    defer context.allocator = old_allocator
+
+    forms, err_forms, ok_forms := read_top_forms(source)
+    if !ok_forms {
+        return "", clone_compile_error(err_forms, result_allocator), false
+    }
+    odin_root, have_odin_root := odin_root_path()
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+    strings.write_string(&builder, "kind\tname\tline\tcolumn\tdetail\tsignature\tdoc\tfile\n")
+    for top in forms {
+        entry, ok_import := import_entry_from_form(top.form)
+        if !ok_import {
+            continue
+        }
+        if strings.has_prefix(entry.path, "kvist:") {
+            _ = package_symbols_append(&builder, entry.path, entry.alias)
+            continue
+        }
+        if !have_odin_root {
+            continue
+        }
+        dir, ok_dir := odin_import_dir(odin_root, entry.path)
+        if !ok_dir {
+            continue
+        }
+        imported_symbols_scan_odin_dir(&builder, entry.alias, entry.path, dir)
+        delete(dir)
+    }
+    return strings.clone(strings.to_string(builder), result_allocator), {}, true
 }
 
 package_symbols_write_entry :: proc(builder: ^strings.Builder, alias, import_path, member, signature, doc: string) {

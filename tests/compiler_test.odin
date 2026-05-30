@@ -281,6 +281,24 @@ builtin_symbols_source_emits_signatures_and_docs :: proc(t: ^testing.T) {
 }
 
 @(test)
+imported_symbols_source_indexes_odin_imports :: proc(t: ^testing.T) {
+    source := `(package main)
+(import fmt "core:fmt")`
+
+    output, err, ok := kvist.imported_symbols_source("/tmp/imported-symbols-test.kvist", source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "kind\tname\tline\tcolumn\tdetail\tsignature\tdoc\tfile\n"), true)
+    testing.expect_value(t, strings.contains(output, "fmt.println"), true)
+    testing.expect_value(t, strings.contains(output, "\tcore:fmt\t"), true)
+}
+
+@(test)
 compile_eval_source_can_emit_statement_runner :: proc(t: ^testing.T) {
     source := `(package main)
 (import "core:fmt")
