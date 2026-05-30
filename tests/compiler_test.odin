@@ -1512,6 +1512,34 @@ first_positive :: proc(xs: []int) -> int {
 }
 
 @(test)
+compile_for_iteration_forms :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defn score-array [xs: [dynamic]int] -> int
+  (let [total 0]
+    (for [i x xs]
+      (set! total (+ total i x)))
+    total))
+
+(defn score-map [counts: map[string]int] -> int
+  (let [total 0]
+    (for [key value counts]
+      (set! total (+ total value)))
+    total))`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "for i, x in xs {"), true)
+    testing.expect_value(t, strings.contains(output, "for key, value in counts {"), true)
+}
+
+@(test)
 compile_defer_forms :: proc(t: ^testing.T) {
     source := `(package main)
 (import "core:fmt")
