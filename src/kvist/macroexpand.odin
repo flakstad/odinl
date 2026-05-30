@@ -261,6 +261,10 @@ builtin_macro_kind :: proc(head: string) -> Builtin_Macro_Kind {
         return .With_Temp_Allocator
     case "with-delete":
         return .With_Delete
+    case "->":
+        return .Thread_First
+    case "->>":
+        return .Thread_Last
     case "when-let":
         return .When_Let
     case "if-let":
@@ -271,6 +275,51 @@ builtin_macro_kind :: proc(head: string) -> Builtin_Macro_Kind {
         return .If_Ok
     }
     return .None
+}
+
+expand_thread_step_form :: proc(current, step: CST_Form, thread_last: bool) -> (expanded: CST_Form, err: Compile_Error, ok: bool) {
+    #partial switch step.kind {
+    case .Symbol, .Keyword:
+        expanded = CST_Form{kind = .List, span = step.span}
+        append(&expanded.items, step)
+        append(&expanded.items, current)
+        return expanded, Compile_Error{}, true
+    case .List:
+        if len(step.items) == 0 {
+            return expanded, Compile_Error{message = "thread step cannot be an empty list", span = step.span}, false
+        }
+        expanded = CST_Form{kind = .List, span = step.span}
+        if thread_last {
+            for item in step.items {
+                append(&expanded.items, item)
+            }
+            append(&expanded.items, current)
+        } else {
+            append(&expanded.items, step.items[0])
+            append(&expanded.items, current)
+            for item in step.items[1:] {
+                append(&expanded.items, item)
+            }
+        }
+        return expanded, Compile_Error{}, true
+    case:
+        return expanded, Compile_Error{message = "unsupported thread step in macroexpand", span = step.span}, false
+    }
+}
+
+expand_thread_form :: proc(form: CST_Form, thread_last: bool) -> (expanded: CST_Form, err: Compile_Error, ok: bool) {
+    if len(form.items) < 2 {
+        return expanded, Compile_Error{message = "thread form expects an initial value", span = form.span}, false
+    }
+    current := form.items[1]
+    for step in form.items[2:] {
+        next, err_step, ok_step := expand_thread_step_form(current, step, thread_last)
+        if !ok_step {
+            return expanded, err_step, false
+        }
+        current = next
+    }
+    return current, Compile_Error{}, true
 }
 
 builtin_macro_form_kind :: proc(form: CST_Form) -> Builtin_Macro_Kind {
@@ -1013,6 +1062,18 @@ write_macro_form_expanded :: proc(builder: ^strings.Builder, form: CST_Form, mac
             defer delete(expanded.source_map)
             write_macro_expanded_output(builder, expanded.output)
             return Compile_Error{}, true
+        case .Thread_First:
+            expanded, err_expand, ok_expand := expand_thread_form(form, false)
+            if !ok_expand {
+                return err_expand, false
+            }
+            return write_macro_form_expanded(builder, expanded, macros)
+        case .Thread_Last:
+            expanded, err_expand, ok_expand := expand_thread_form(form, true)
+            if !ok_expand {
+                return err_expand, false
+            }
+            return write_macro_form_expanded(builder, expanded, macros)
         case .When_Let:
             expanded, err_expand, ok_expand := macroexpand_when_let(form, macros)
             if !ok_expand {
@@ -1308,6 +1369,18 @@ macroexpand_form_with_macros :: proc(form: CST_Form, macros: []User_Macro) -> (r
             return macroexpand_with_temp_allocator(form, macros)
         case .With_Delete:
             return macroexpand_with_delete(form, macros)
+        case .Thread_First:
+            expanded, err_expand, ok_expand := expand_thread_form(form, false)
+            if !ok_expand {
+                return result, err_expand, false
+            }
+            return macroexpand_form_with_macros(expanded, macros)
+        case .Thread_Last:
+            expanded, err_expand, ok_expand := expand_thread_form(form, true)
+            if !ok_expand {
+                return result, err_expand, false
+            }
+            return macroexpand_form_with_macros(expanded, macros)
         case .When_Let:
             return macroexpand_when_let(form, macros)
         case .If_Let:

@@ -2319,6 +2319,36 @@ macroexpand_if_ok :: proc(t: ^testing.T) {
 }
 
 @(test)
+macroexpand_thread_first :: proc(t: ^testing.T) {
+    output, err, ok := kvist.macroexpand_source(`(-> req :method method-name)`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `(method-name (:method req))
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+macroexpand_thread_last :: proc(t: ^testing.T) {
+    output, err, ok := kvist.macroexpand_source(`(->> xs (filter even?) (map inc) (count))`)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `(count (map inc (filter even? xs)))
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
 macroexpand_rejects_binding_macro_shapes :: proc(t: ^testing.T) {
     _, err_if_let, ok_if_let := kvist.macroexpand_source(`(if-let [value found (query)]
   value)`)

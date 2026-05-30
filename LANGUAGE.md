@@ -1989,7 +1989,9 @@ The current compiler still carries an explicit built-in macro registry for the
 resource-scope bootstrap forms `with-allocator`, `with-temp-allocator`, and
 `with-delete`. The simpler binding forms `when-let`, `if-let`, `when-ok`, and
 `if-ok` now come through the ordinary compile-time macro path as core
-package-local macros.
+package-local macros. Threading forms `->` and `->>` are also inspectable
+through `kvist macroexpand`, but they still stay compile-special for now
+because the compiler uses their pipeline shape to manage owned intermediates.
 
 That split is deliberate:
 

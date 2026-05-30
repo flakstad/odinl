@@ -5091,6 +5091,7 @@ emit_stmt :: proc(e: ^Emitter, form: CST_Form, last_in_proc: bool, returns: Retu
         return emit_with_temp_allocator_stmt(e, form, last_in_proc, returns)
     case .With_Delete:
         return emit_with_delete_stmt(e, form, last_in_proc, returns)
+    case .Thread_First, .Thread_Last:
     case .When_Let, .If_Let, .When_Ok, .If_Ok:
     case .None:
     }
