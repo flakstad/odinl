@@ -38,7 +38,7 @@
   '("package" "import" "const" "struct" "enum" "union" "proc" "odin"
     "let" "do" "if" "when" "cond" "switch" "set!" "return" "defer"
     "for" "each" "comment" "new" "make" "get" "nil?" "in" "not-in"
-    "type"
+    "type" "update" "update!"
     "break" "continue" "with-allocator" "with-temp-allocator"
     "with-delete" "when-let" "if-let" "when-ok" "if-ok"
     "slurp" "spit" "tap>"
@@ -75,6 +75,10 @@
                   "Print one or more values. Kvist lowers this to fmt output and auto-imports core:fmt when needed."))
     ("doc" . ("kvist core" "'symbol"
               "Print the stored docstring for a declaration name."))
+    ("update!" . ("kvist form" "target key-or-field value-or-updater ..."
+                  "Mutate a struct field, array/slice slot, or map key in place. Supports replacement and updater forms such as inc or +."))
+    ("update" . ("kvist form" "target key-or-field value-or-updater ..."
+                 "Return an updated copy. Currently supported for struct fields."))
     ("type" . ("kvist form" "Head Arg..."
                "Instantiate an Odin polymorphic type constructor. For example, (type chan.Chan int) lowers to chan.Chan(int) in both type and value positions.")))
   "Static documentation for compiler-defined Kvist forms.")
@@ -609,6 +613,8 @@
     ("defer" . ("src/kvist/emit.odin" "case \"defer\":" "kvist form"))
     ("for" . ("src/kvist/emit.odin" "case \"for\":" "kvist form"))
     ("each" . ("src/kvist/emit.odin" "case \"each\":" "kvist form"))
+    ("update" . ("src/kvist/emit.odin" "case \"update\":" "kvist form"))
+    ("update!" . ("src/kvist/emit.odin" "case \"update!\":" "kvist form"))
     ("comment" . ("src/kvist/parse.odin" "case \"comment\":" "kvist form"))
     ("new" . ("src/kvist/emit.odin" "if head.text == \"new\"" "kvist form"))
     ("make" . ("src/kvist/emit.odin" "if head.text == \"make\"" "kvist form"))
@@ -783,13 +789,39 @@
   "Return completion bounds for Kvist symbols."
   (kvist--symbol-bounds))
 
+(defun kvist--package-prefix (identifier)
+  "Return (ALIAS . SEP) when IDENTIFIER starts a qualified package symbol."
+  (when (and identifier
+             (string-match "\\`\\([^./]+\\)\\([./]\\)\\([^./]*\\)\\'" identifier))
+    (cons (match-string 1 identifier) (match-string 2 identifier))))
+
 (defun kvist--completion-candidates ()
-  "Return simple Kvist completion candidates."
-  (delete-dups
-   (append kvist-completion-builtins
-           (mapcar (lambda (symbol) (plist-get symbol :name))
-                   (ignore-errors (append (kvist--symbols)
-                                          (kvist--package-symbols-for-current-buffer)))))))
+  "Return completion candidates appropriate for the symbol at point."
+  (let* ((identifier (kvist--identifier-at-point))
+         (package-prefix (kvist--package-prefix identifier)))
+    (if package-prefix
+        (let* ((alias (car package-prefix))
+               (sep (cdr package-prefix))
+               (prefix (concat alias sep))
+               (normalized-prefix (kvist--normalize-qualified-identifier prefix)))
+          (delete-dups
+           (mapcar
+            (lambda (symbol)
+              (let ((name (plist-get symbol :name)))
+                (if (string= sep ".")
+                    (replace-regexp-in-string "/" "." name t t)
+                  (replace-regexp-in-string "\\." "/" name t t))))
+            (seq-filter
+             (lambda (symbol)
+               (string-prefix-p normalized-prefix
+                                (kvist--normalize-qualified-identifier
+                                 (plist-get symbol :name))))
+             (ignore-errors (kvist--package-symbols-for-current-buffer))))))
+      (delete-dups
+       (append kvist-completion-builtins
+               (mapcar (lambda (symbol) (plist-get symbol :name))
+                       (ignore-errors (append (kvist--symbols)
+                                              (kvist--package-symbols-for-current-buffer)))))))))
 
 (defun kvist--symbol-doc-candidates (identifier)
   "Return documentation candidates for IDENTIFIER."
@@ -884,6 +916,7 @@
 
 (define-key kvist-mode-map (kbd "M-.") #'xref-find-definitions)
 (define-key kvist-mode-map (kbd "C-c C-.") #'kvist-doc-at-point)
+(define-key kvist-mode-map (kbd "C-c C-d") #'kvist-doc-at-point)
 (define-key kvist-mode-map kvist-doc-keybinding #'kvist-doc-at-point)
 
 ;;;###autoload
