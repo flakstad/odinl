@@ -11,9 +11,44 @@ import_path_text :: proc(form: CST_Form) -> string {
     return unquote_string(form.text)
 }
 
+builtin_symbols_write_entry :: proc(builder: ^strings.Builder, kind, name, signature, doc: string) {
+    doc_lines := symbols_doc_lines_from_string(doc)
+    defer delete(doc_lines)
+    symbols_write_record_doc(builder, kind, name, "", Span{start = 0, end = 0, source = .File}, "", signature, doc_lines[:])
+}
+
+builtin_symbols_append :: proc(builder: ^strings.Builder) {
+    builtin_symbols_write_entry(builder, "kvist macro", "when-let", "(when-let [value bool expr] body...)", "Bind a value and explicit boolean result from a multi-return expression. Run the body only when the boolean is true. Expands to a destructuring let plus when.")
+    builtin_symbols_write_entry(builder, "kvist macro", "if-let", "(if-let [value bool expr] then else)", "Bind a value and explicit boolean result from a multi-return expression. Evaluate the then branch when the boolean is true, otherwise the else branch. Expands to a destructuring let plus if.")
+    builtin_symbols_write_entry(builder, "kvist macro", "when-ok", "(when-ok [value err expr] body...)", "Bind a value and Odin error result from a multi-return expression. Run the body only when the error equals Odin's zero value {}. Expands to a destructuring let plus when.")
+    builtin_symbols_write_entry(builder, "kvist macro", "if-ok", "(if-ok [value err expr] then else)", "Bind a value and Odin error result from a multi-return expression. Evaluate the then branch when the error equals Odin's zero value {}, otherwise the else branch. Expands to a destructuring let plus if.")
+    builtin_symbols_write_entry(builder, "kvist core", "println", "(println value...)", "Print one or more values. Kvist lowers this to fmt output and auto-imports core:fmt when needed.")
+    builtin_symbols_write_entry(builder, "kvist core", "doc", "(doc 'symbol)", "Print the stored docstring for a declaration name.")
+    builtin_symbols_write_entry(builder, "kvist form", "update!", "(update! target key-or-field value-or-updater ...)", "Mutate a struct field, array/slice slot, or map key in place. Supports replacement and updater forms such as inc or +.")
+    builtin_symbols_write_entry(builder, "kvist form", "update", "(update target key-or-field value-or-updater ...)", "Return an updated copy. Currently supported for struct fields.")
+    builtin_symbols_write_entry(builder, "kvist form", "type", "(type Head Arg...)", "Instantiate an Odin polymorphic type constructor. For example, (type chan.Chan int) lowers to chan.Chan(int) in both type and value positions.")
+}
+
+builtin_symbols_source :: proc() -> string {
+    result_allocator := context.allocator
+    old_allocator := context.allocator
+    temp_scope := runtime.default_temp_allocator_temp_begin()
+    defer runtime.default_temp_allocator_temp_end(temp_scope)
+    context.allocator = context.temp_allocator
+    defer context.allocator = old_allocator
+
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+    strings.write_string(&builder, "kind\tname\tline\tcolumn\tdetail\tsignature\tdoc\n")
+    builtin_symbols_append(&builder)
+    return strings.clone(strings.to_string(builder), result_allocator)
+}
+
 package_symbols_write_entry :: proc(builder: ^strings.Builder, alias, import_path, member, signature, doc: string) {
-    symbols_write_record_doc(builder, "kvist package", fmt.tprintf("%s/%s", alias, member), "", Span{start = 0, end = 0, source = .File}, import_path, signature, symbols_doc_lines_from_string(doc)[:])
-    symbols_write_record_doc(builder, "kvist package", fmt.tprintf("%s.%s", alias, member), "", Span{start = 0, end = 0, source = .File}, import_path, signature, symbols_doc_lines_from_string(doc)[:])
+    doc_lines := symbols_doc_lines_from_string(doc)
+    defer delete(doc_lines)
+    symbols_write_record_doc(builder, "kvist package", fmt.tprintf("%s/%s", alias, member), "", Span{start = 0, end = 0, source = .File}, import_path, signature, doc_lines[:])
+    symbols_write_record_doc(builder, "kvist package", fmt.tprintf("%s.%s", alias, member), "", Span{start = 0, end = 0, source = .File}, import_path, signature, doc_lines[:])
 }
 
 package_symbols_append :: proc(builder: ^strings.Builder, import_path, alias: string) -> bool {
@@ -63,6 +98,13 @@ package_symbols_append :: proc(builder: ^strings.Builder, import_path, alias: st
 }
 
 package_symbols_source :: proc(import_path, alias: string) -> (output: string, ok: bool) {
+    result_allocator := context.allocator
+    old_allocator := context.allocator
+    temp_scope := runtime.default_temp_allocator_temp_begin()
+    defer runtime.default_temp_allocator_temp_end(temp_scope)
+    context.allocator = context.temp_allocator
+    defer context.allocator = old_allocator
+
     resolved_alias := alias
     if resolved_alias == "" {
         resolved_alias = import_default_alias(import_path)
@@ -76,7 +118,7 @@ package_symbols_source :: proc(import_path, alias: string) -> (output: string, o
     if !package_symbols_append(&builder, import_path, resolved_alias) {
         return "", false
     }
-    return strings.to_string(builder), true
+    return strings.clone(strings.to_string(builder), result_allocator), true
 }
 
 import_default_alias :: proc(path: string) -> string {

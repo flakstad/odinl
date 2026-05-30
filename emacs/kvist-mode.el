@@ -62,27 +62,6 @@
   (append kvist-special-forms kvist-core-helpers)
   "Static Kvist completions.")
 
-(defconst kvist--builtin-doc-map
-  '(("when-let" . ("kvist macro" "(when-let [value bool expr] body...)"
-                   "Bind a value and explicit boolean result from a multi-return expression. Run the body only when the boolean is true. Expands to a destructuring let plus when."))
-    ("if-let" . ("kvist macro" "(if-let [value bool expr] then else)"
-                 "Bind a value and explicit boolean result from a multi-return expression. Evaluate the then branch when the boolean is true, otherwise the else branch. Expands to a destructuring let plus if."))
-    ("when-ok" . ("kvist macro" "(when-ok [value err expr] body...)"
-                  "Bind a value and Odin error result from a multi-return expression. Run the body only when the error equals Odin's zero value {}. Expands to a destructuring let plus when."))
-    ("if-ok" . ("kvist macro" "(if-ok [value err expr] then else)"
-                "Bind a value and Odin error result from a multi-return expression. Evaluate the then branch when the error equals Odin's zero value {}, otherwise the else branch. Expands to a destructuring let plus if."))
-    ("println" . ("kvist core" "(println value...)"
-                  "Print one or more values. Kvist lowers this to fmt output and auto-imports core:fmt when needed."))
-    ("doc" . ("kvist core" "(doc 'symbol)"
-              "Print the stored docstring for a declaration name."))
-    ("update!" . ("kvist form" "(update! target key-or-field value-or-updater ...)"
-                  "Mutate a struct field, array/slice slot, or map key in place. Supports replacement and updater forms such as inc or +."))
-    ("update" . ("kvist form" "(update target key-or-field value-or-updater ...)"
-                 "Return an updated copy. Currently supported for struct fields."))
-    ("type" . ("kvist form" "(type Head Arg...)"
-               "Instantiate an Odin polymorphic type constructor. For example, (type chan.Chan int) lowers to chan.Chan(int) in both type and value positions.")))
-  "Static documentation for compiler-defined Kvist forms.")
-
 (defconst kvist--kvist-package-member-map
   '(("kvist:arr"
      ("count" . ("src/kvist/emit.odin" "if head.text == \"arr/count\" || head.text == \"str/count\"" "kvist package" "(arr/count xs)"
@@ -156,6 +135,9 @@
     ("set" . "kvist:set")
     ("struct" . "kvist:struct"))
   "Canonical explicit imports for compiler-provided Kvist packages.")
+
+(defvar kvist--builtin-symbol-cache nil
+  "Cached CLI metadata for compiler-defined Kvist built-ins.")
 
 (defun kvist--inside-string-on-line-p (pos)
   "Return non-nil if POS is inside a simple string on its current line."
@@ -461,6 +443,21 @@
               (mapcar (lambda (line)
                         (kvist--parse-symbol-line line nil))
                       lines))))))
+
+(defun kvist--builtin-symbols ()
+  "Return compiler-defined Kvist built-ins from the Kvist CLI."
+  (or kvist--builtin-symbol-cache
+      (setq kvist--builtin-symbol-cache
+            (pcase-let ((`(,exit-code . ,output)
+                          (kvist--call-string (kvist--executable)
+                                              '("builtin-symbols"))))
+              (when (or (and (integerp exit-code) (zerop exit-code))
+                        (string-prefix-p "kind\tname\tline\tcolumn\tdetail\tsignature\tdoc\n" output))
+                (let ((lines (cdr (split-string output "\n" t))))
+                  (delq nil
+                        (mapcar (lambda (line)
+                                  (kvist--parse-symbol-line line nil))
+                                lines))))))))
 
 (defun kvist--merge-symbol-metadata (base updates)
   "Merge signature/doc metadata from UPDATES into BASE symbols by name."
@@ -1015,13 +1012,7 @@
                          (ignore-errors (kvist--package-symbols-for-current-buffer))))
                     (append (ignore-errors (kvist--symbols))
                             (ignore-errors (kvist--package-symbols-for-current-buffer))
-                            (mapcar (lambda (entry)
-                                      (pcase-let ((`(,name . (,kind ,signature ,doc)) entry))
-                                        (list :name name
-                                              :kind kind
-                                              :signature signature
-                                              :doc doc)))
-                                    kvist--builtin-doc-map)))))
+                            (ignore-errors (kvist--builtin-symbols))))))
     (let (table)
       (dolist (symbol symbols)
         (let* ((name (plist-get symbol :name))
@@ -1051,7 +1042,7 @@
   "Return documentation candidates for IDENTIFIER."
   (let* ((symbols (append (ignore-errors (kvist--symbols))
                           (ignore-errors (kvist--package-definitions identifier))
-                          (kvist--builtin-doc-candidates identifier)))
+                          (ignore-errors (kvist--builtin-symbols))))
          (matches (seq-filter (lambda (symbol)
                                 (kvist--symbol-matches-identifier-p symbol identifier))
                               symbols)))
@@ -1059,18 +1050,6 @@
                   (or (not (string-empty-p (or (plist-get symbol :doc) "")))
                       (not (string-empty-p (or (plist-get symbol :signature) "")))))
                 matches)))
-
-(defun kvist--builtin-doc-candidates (identifier)
-  "Return static documentation candidates for Kvist built-in IDENTIFIER."
-  (when-let ((entry (cdr (assoc identifier kvist--builtin-doc-map))))
-    (pcase-let ((`(,kind ,signature ,doc) entry))
-      (list (list :kind kind
-                  :name identifier
-                  :signature signature
-                  :line 1
-                  :column 1
-                  :detail ""
-                  :doc doc)))))
 
 (defun kvist--show-doc (symbol)
   "Show documentation for SYMBOL."

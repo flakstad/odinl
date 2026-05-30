@@ -270,6 +270,17 @@ symbols_source_indexes_defstruct_docstring :: proc(t: ^testing.T) {
 }
 
 @(test)
+builtin_symbols_source_emits_signatures_and_docs :: proc(t: ^testing.T) {
+    output := kvist.builtin_symbols_source()
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "kind\tname\tline\tcolumn\tdetail\tsignature\tdoc\n"), true)
+    testing.expect_value(t, strings.contains(output, "kvist core\tprintln\t1\t1\t\t(println value...)\tPrint one or more values. Kvist lowers this to fmt output and auto-imports core:fmt when needed.\n"), true)
+    testing.expect_value(t, strings.contains(output, "kvist form\tupdate!\t1\t1\t\t(update! target key-or-field value-or-updater ...)\tMutate a struct field, array/slice slot, or map key in place. Supports replacement and updater forms such as inc or +.\n"), true)
+    testing.expect_value(t, strings.contains(output, "kvist macro\twhen-let\t1\t1\t\t(when-let [value bool expr] body...)\tBind a value and explicit boolean result from a multi-return expression. Run the body only when the boolean is true. Expands to a destructuring let plus when.\n"), true)
+}
+
+@(test)
 compile_eval_source_can_emit_statement_runner :: proc(t: ^testing.T) {
     source := `(package main)
 (import "core:fmt")
