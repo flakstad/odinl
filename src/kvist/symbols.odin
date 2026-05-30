@@ -338,6 +338,25 @@ odin_decl_rank :: proc(file, name: string) -> int {
     return rank
 }
 
+odin_symbol_visible_to_tooling :: proc(file, name: string) -> bool {
+    if name == "" || name == "main" {
+        return false
+    }
+    if strings.contains(file, "/example.odin") || strings.contains(file, "/old/") {
+        return false
+    }
+    if strings.has_suffix(file, "_js.odin") || strings.has_suffix(file, "_wasm.odin") {
+        return false
+    }
+    if len(name) > 0 && name[0] == '_' {
+        return false
+    }
+    if strings.contains(name, "_") && len(name) > 0 && name[0] >= 'a' && name[0] <= 'z' {
+        return false
+    }
+    return true
+}
+
 imported_symbols_scan_odin_dir :: proc(builder: ^strings.Builder, alias, import_path, dir: string) {
     if !os.exists(dir) {
         return
@@ -378,6 +397,9 @@ imported_symbols_scan_odin_dir :: proc(builder: ^strings.Builder, alias, import_
             }
             name := strings.trim_space(trimmed_left[:name_end])
             if name == "" || name[0] == '_' || strings.contains(name, " ") || strings.contains(name, "\t") {
+                continue
+            }
+            if !odin_symbol_visible_to_tooling(path, name) {
                 continue
             }
             signature := odin_signature_at_line(source, idx+1)

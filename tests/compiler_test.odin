@@ -299,6 +299,15 @@ imported_symbols_source_indexes_odin_imports :: proc(t: ^testing.T) {
 }
 
 @(test)
+odin_symbol_visible_to_tooling_filters_internal_noise :: proc(t: ^testing.T) {
+    testing.expect_value(t, kvist.odin_symbol_visible_to_tooling("/tmp/fmt/fmt_os.odin", "println"), true)
+    testing.expect_value(t, kvist.odin_symbol_visible_to_tooling("/tmp/fmt/fmt.odin", "fmt_arg"), false)
+    testing.expect_value(t, kvist.odin_symbol_visible_to_tooling("/tmp/fmt/example.odin", "SomeType"), false)
+    testing.expect_value(t, kvist.odin_symbol_visible_to_tooling("/tmp/fmt/fmt_js.odin", "stderr"), false)
+    testing.expect_value(t, kvist.odin_symbol_visible_to_tooling("/tmp/fmt/fmt_os.odin", "main"), false)
+}
+
+@(test)
 editor_symbols_source_merges_context_surfaces :: proc(t: ^testing.T) {
     source := `(package main)
 (import fmt "core:fmt")
