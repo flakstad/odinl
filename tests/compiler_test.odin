@@ -853,6 +853,30 @@ reader_classifies_core_literals :: proc(t: ^testing.T) {
 }
 
 @(test)
+reader_classifies_inline_collection_literals :: proc(t: ^testing.T) {
+    old_allocator := context.allocator
+    temp_scope := runtime.default_temp_allocator_temp_begin()
+    defer runtime.default_temp_allocator_temp_end(temp_scope)
+    context.allocator = context.temp_allocator
+    defer context.allocator = old_allocator
+
+    source := `(defconst xs [1 2 3])
+(defconst lookup {:one "1" :two "2"})
+(defconst tags #{:math :lisp})`
+
+    forms, err, ok := kvist.read_top_forms(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+
+    testing.expect_value(t, forms[0].form.items[2].kind, kvist.CST_Form_Kind.Vector)
+    testing.expect_value(t, forms[1].form.items[2].kind, kvist.CST_Form_Kind.Brace)
+    testing.expect_value(t, forms[2].form.items[2].kind, kvist.CST_Form_Kind.Set)
+}
+
+@(test)
 compile_source_with_declaration_source_map :: proc(t: ^testing.T) {
     source := `(package main)
 
@@ -4212,6 +4236,100 @@ main :: proc() {
 }
 `
     testing.expect_value(t, output, expected)
+}
+
+@(test)
+compile_inline_collection_literals :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc score [] -> int
+  (let [xs [1 2 3] defer
+        lookup {:one 1 :two 2} defer
+        tags #{:math :lisp} defer]
+    (println tags)
+    (+ (arr/count xs)
+       (get lookup :one))))`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `#+feature dynamic-literals
+package main
+
+import "core:fmt"
+
+score :: proc() -> int {
+    xs := [dynamic]int{1, 2, 3}
+    defer delete(xs)
+    lookup := map[string]int{":one" = 1, ":two" = 2}
+    defer delete(lookup)
+    tags := map[string]bool{":math" = true, ":lisp" = true}
+    defer delete(tags)
+    fmt.println(tags)
+    return (len(xs)) + (lookup[":one"])
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+compile_typed_empty_inline_collection_literals :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc score [] -> int
+  (let [xs: [dynamic]int [] defer
+        lookup: map[string]int {} defer
+        tags: set[string] #{} defer]
+    (println lookup tags)
+    (arr/count xs)))`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    expected := `#+feature dynamic-literals
+package main
+
+import "core:fmt"
+
+score :: proc() -> int {
+    xs: [dynamic]int = [dynamic]int{}
+    defer delete(xs)
+    lookup: map[string]int = map[string]int{}
+    defer delete(lookup)
+    tags: map[string]bool = map[string]bool{}
+    defer delete(tags)
+    fmt.println(lookup, tags)
+    return len(xs)
+}
+`
+    testing.expect_value(t, output, expected)
+}
+
+@(test)
+compile_inline_map_literal_rejects_mixed_values :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(proc main []
+  (let [profile {:name "Ada" :age 36}]
+    (return)))`
+
+    _, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, false)
+    if ok {
+        return
+    }
+    defer delete(err.message)
+    testing.expect_value(t, strings.contains(err.message, "map literal values must be homogeneous"), true)
 }
 
 @(test)

@@ -540,6 +540,8 @@ parse_enum_variants :: proc(form: CST_Form) -> (variants: [dynamic]Enum_Variant,
             i += 2
         }
         return variants, {}, true
+    case .Set:
+        return variants, Compile_Error{message = "expected enum variant vector or brace form", span = form.span}, false
     case:
         return variants, Compile_Error{message = "expected enum variant vector or brace form", span = form.span}, false
     }
