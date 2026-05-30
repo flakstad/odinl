@@ -318,6 +318,25 @@
                 (list :file source-file :tick tick :symbols symbols)))
         symbols))))
 
+(defun kvist--lookup-symbols (identifier &optional file)
+  "Return matching file-context symbols for IDENTIFIER via the CLI."
+  (let* ((source-file (or file buffer-file-name))
+         (temp (if file nil (kvist--source-temp-file)))
+         (input (or temp source-file))
+         (program (kvist--executable source-file)))
+    (unwind-protect
+        (pcase-let ((`(,exit-code . ,output)
+                      (kvist--call-string program (list "editor-symbols" input identifier))))
+          (unless (zerop exit-code)
+            (user-error "%s" (string-trim output)))
+          (let ((lines (cdr (split-string output "\n" t))))
+            (delq nil
+                  (mapcar (lambda (line)
+                            (kvist--parse-symbol-line line source-file))
+                          lines))))
+      (when temp
+        (ignore-errors (delete-file temp))))))
+
 (defun kvist--symbol-bounds ()
   "Return bounds of the Kvist symbol-like token at point."
   (let ((chars "-[:alnum:]_?!+*/<>=.:"))
@@ -431,11 +450,12 @@
   (kvist--identifier-at-point))
 
 (cl-defmethod xref-backend-definitions ((_backend (eql kvist)) identifier)
-  (let* ((editor-symbols (ignore-errors (kvist--editor-symbols)))
-         (editor-matches (seq-filter (lambda (symbol)
-                                       (kvist--symbol-matches-identifier-p symbol identifier))
-                                     editor-symbols))
-         (matches editor-matches))
+  (let* ((matches (or (ignore-errors (kvist--lookup-symbols identifier))
+                      (let* ((editor-symbols (ignore-errors (kvist--editor-symbols)))
+                             (editor-matches (seq-filter (lambda (symbol)
+                                                           (kvist--symbol-matches-identifier-p symbol identifier))
+                                                         editor-symbols)))
+                        editor-matches))))
     (mapcar
      (lambda (symbol)
        (let ((file (or (plist-get symbol :file) (buffer-file-name)))
@@ -531,10 +551,11 @@
 
 (defun kvist--symbol-doc-candidates (identifier)
   "Return documentation candidates for IDENTIFIER."
-  (let* ((symbols (ignore-errors (kvist--editor-symbols)))
-         (matches (seq-filter (lambda (symbol)
-                                (kvist--symbol-matches-identifier-p symbol identifier))
-                              symbols)))
+  (let* ((matches (or (ignore-errors (kvist--lookup-symbols identifier))
+                      (let* ((symbols (ignore-errors (kvist--editor-symbols))))
+                        (seq-filter (lambda (symbol)
+                                      (kvist--symbol-matches-identifier-p symbol identifier))
+                                    symbols)))))
     (seq-filter (lambda (symbol)
                   (or (not (string-empty-p (or (plist-get symbol :doc) "")))
                       (not (string-empty-p (or (plist-get symbol :signature) "")))))
