@@ -139,6 +139,9 @@
 (defvar kvist--builtin-symbol-cache nil
   "Cached CLI metadata for compiler-defined Kvist built-ins.")
 
+(defvar-local kvist--editor-symbol-cache nil
+  "Cached full file-context symbol metadata for the current buffer.")
+
 (defvar-local kvist--imported-symbol-cache nil
   "Cached imported symbol metadata for the current buffer.")
 
@@ -387,6 +390,36 @@
                 (list :file source-file :tick tick :symbols symbols)))
         symbols))))
 
+(defun kvist--editor-symbols (&optional file)
+  "Return full file-context symbols from `kvist editor-symbols'."
+  (let* ((source-file (or file buffer-file-name))
+         (tick (and (null file) (buffer-chars-modified-tick))))
+    (if (and (null file)
+             kvist--editor-symbol-cache
+             (equal (plist-get kvist--editor-symbol-cache :file) source-file)
+             (equal (plist-get kvist--editor-symbol-cache :tick) tick))
+        (plist-get kvist--editor-symbol-cache :symbols)
+      (let* ((temp (if file nil (kvist--source-temp-file)))
+             (input (or temp source-file))
+             (program (kvist--executable source-file))
+             (symbols
+              (unwind-protect
+                  (pcase-let ((`(,exit-code . ,output)
+                                (kvist--call-string program (list "editor-symbols" input))))
+                    (unless (zerop exit-code)
+                      (user-error "%s" (string-trim output)))
+                    (let ((lines (cdr (split-string output "\n" t))))
+                      (delq nil
+                            (mapcar (lambda (line)
+                                      (kvist--parse-symbol-line line source-file))
+                                    lines))))
+                (when temp
+                  (ignore-errors (delete-file temp))))))
+        (when (null file)
+          (setq kvist--editor-symbol-cache
+                (list :file source-file :tick tick :symbols symbols)))
+        symbols))))
+
 (defun kvist--symbol-bounds ()
   "Return bounds of the Kvist symbol-like token at point."
   (let ((chars "-[:alnum:]_?!+*/<>=.:"))
@@ -556,10 +589,10 @@
 (defun kvist--package-symbols-for-current-buffer ()
   "Return imported Odin package symbols for current buffer imports."
   (kvist--dedupe-symbols-by-name
-   (append
-    (kvist--canonical-kvist-package-symbols)
-    (kvist--explicit-kvist-package-symbols)
-    (ignore-errors (kvist--imported-symbols)))))
+   (seq-filter (lambda (symbol)
+                 (or (equal (plist-get symbol :kind) "kvist package")
+                     (equal (plist-get symbol :kind) "odin")))
+               (ignore-errors (kvist--editor-symbols)))))
 
 (defun kvist--package-definitions (identifier)
   "Return package definitions matching alias-qualified IDENTIFIER."
@@ -762,7 +795,7 @@
   (kvist--identifier-at-point))
 
 (cl-defmethod xref-backend-definitions ((_backend (eql kvist)) identifier)
-  (let* ((symbols (append (ignore-errors (kvist--symbols))
+  (let* ((symbols (append (ignore-errors (kvist--editor-symbols))
                           (ignore-errors (kvist--package-definitions identifier))
                           (kvist--builtin-definitions identifier)))
          (matches (seq-filter (lambda (symbol)
@@ -813,8 +846,7 @@
       (delete-dups
        (append kvist-completion-builtins
                (mapcar (lambda (symbol) (plist-get symbol :name))
-                       (ignore-errors (append (kvist--symbols)
-                                              (kvist--package-symbols-for-current-buffer)))))))))
+                       (ignore-errors (kvist--editor-symbols))))))))
 
 (defun kvist--completion-exit (completed status)
   "Handle completion of COMPLETED with STATUS."
@@ -836,8 +868,7 @@
                                              (plist-get symbol :name))))
                          (ignore-errors (kvist--package-symbols-for-current-buffer))))
                     (append (ignore-errors (kvist--symbols))
-                            (ignore-errors (kvist--package-symbols-for-current-buffer))
-                            (ignore-errors (kvist--builtin-symbols))))))
+                            (ignore-errors (kvist--editor-symbols))))))
     (let (table)
       (dolist (symbol symbols)
         (let* ((name (plist-get symbol :name))
@@ -865,9 +896,8 @@
 
 (defun kvist--symbol-doc-candidates (identifier)
   "Return documentation candidates for IDENTIFIER."
-  (let* ((symbols (append (ignore-errors (kvist--symbols))
-                          (ignore-errors (kvist--package-definitions identifier))
-                          (ignore-errors (kvist--builtin-symbols))))
+  (let* ((symbols (append (ignore-errors (kvist--editor-symbols))
+                          (ignore-errors (kvist--package-definitions identifier))))
          (matches (seq-filter (lambda (symbol)
                                 (kvist--symbol-matches-identifier-p symbol identifier))
                               symbols)))

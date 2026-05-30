@@ -17,6 +17,14 @@ Imported_Symbol_Record :: struct {
     rank:   int,
 }
 
+KVIST_CANONICAL_IMPORTS_FOR_EDITOR :: [5]Imported_Symbol_Entry{
+    {alias = "arr", path = "kvist:arr"},
+    {alias = "str", path = "kvist:str"},
+    {alias = "map", path = "kvist:map"},
+    {alias = "set", path = "kvist:set"},
+    {alias = "struct", path = "kvist:struct"},
+}
+
 import_path_text :: proc(form: CST_Form) -> string {
     if form.kind != .String {
         return ""
@@ -435,6 +443,39 @@ symbols_escape_doc_text :: proc(text: string) -> string {
     return strings.to_string(builder)
 }
 
+symbols_record_name :: proc(line: string) -> string {
+    first_tab := strings.index(line, "\t")
+    if first_tab < 0 {
+        return ""
+    }
+    rest := line[first_tab+1:]
+    second_tab := strings.index(rest, "\t")
+    if second_tab < 0 {
+        return ""
+    }
+    return rest[:second_tab]
+}
+
+symbols_append_unique_records :: proc(builder: ^strings.Builder, seen: ^map[string]bool, output: string) {
+    lines := strings.split_lines(output, context.allocator)
+    defer delete(lines)
+    for line, idx in lines {
+        if idx == 0 || line == "" {
+            continue
+        }
+        name := symbols_record_name(line)
+        if name == "" {
+            continue
+        }
+        if seen[name] {
+            continue
+        }
+        seen[name] = true
+        strings.write_string(builder, line)
+        strings.write_byte(builder, '\n')
+    }
+}
+
 imported_symbols_source :: proc(path, source: string) -> (output: string, err: Compile_Error, ok: bool) {
     result_allocator := context.allocator
     old_allocator := context.allocator
@@ -471,6 +512,62 @@ imported_symbols_source :: proc(path, source: string) -> (output: string, err: C
         delete(dir)
     }
     return strings.clone(strings.to_string(builder), result_allocator), {}, true
+}
+
+editor_symbols_source :: proc(path, source: string) -> (output: string, err: Compile_Error, ok: bool) {
+    forms, err_forms, ok_forms := read_top_forms(source)
+    if !ok_forms {
+        return "", clone_compile_error(err_forms, context.allocator), false
+    }
+
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+    strings.write_string(&builder, "kind\tname\tline\tcolumn\tdetail\tsignature\tdoc\tfile\n")
+
+    seen := make(map[string]bool)
+    defer delete(seen)
+
+    local_output, local_err, ok_local := symbols_source(source)
+    if !ok_local {
+        return "", local_err, false
+    }
+    symbols_append_unique_records(&builder, &seen, local_output)
+    delete(local_output)
+
+    for entry in KVIST_CANONICAL_IMPORTS_FOR_EDITOR {
+        package_output, ok_package := package_symbols_source(entry.path, entry.alias)
+        if !ok_package {
+            continue
+        }
+        symbols_append_unique_records(&builder, &seen, package_output)
+        delete(package_output)
+    }
+
+    for top in forms {
+        entry, ok_import := import_entry_from_form(top.form)
+        if !ok_import || !strings.has_prefix(entry.path, "kvist:") {
+            continue
+        }
+        package_output, ok_package := package_symbols_source(entry.path, entry.alias)
+        if !ok_package {
+            continue
+        }
+        symbols_append_unique_records(&builder, &seen, package_output)
+        delete(package_output)
+    }
+
+    imported_output, imported_err, ok_imported := imported_symbols_source(path, source)
+    if !ok_imported {
+        return "", imported_err, false
+    }
+    symbols_append_unique_records(&builder, &seen, imported_output)
+    delete(imported_output)
+
+    builtin_output := builtin_symbols_source()
+    symbols_append_unique_records(&builder, &seen, builtin_output)
+    delete(builtin_output)
+
+    return strings.clone(strings.to_string(builder)), {}, true
 }
 
 package_symbols_write_entry :: proc(builder: ^strings.Builder, alias, import_path, member, signature, doc: string) {

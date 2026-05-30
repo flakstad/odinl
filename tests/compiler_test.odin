@@ -299,6 +299,32 @@ imported_symbols_source_indexes_odin_imports :: proc(t: ^testing.T) {
 }
 
 @(test)
+editor_symbols_source_merges_context_surfaces :: proc(t: ^testing.T) {
+    source := `(package main)
+(import fmt "core:fmt")
+
+(defstruct Greeting {:message string})
+
+(defn main []
+  (println (:message (Greeting {:message "hi"}))))`
+
+    output, err, ok := kvist.editor_symbols_source("/tmp/editor-symbols-test.kvist", source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, "kind\tname\tline\tcolumn\tdetail\tsignature\tdoc\tfile\n"), true)
+    testing.expect_value(t, strings.contains(output, "struct\tGreeting\t"), true)
+    testing.expect_value(t, strings.contains(output, "proc\tmain\t"), true)
+    testing.expect_value(t, strings.contains(output, "kvist package\tarr/push!\t"), true)
+    testing.expect_value(t, strings.contains(output, "kvist core\tprintln\t"), true)
+    testing.expect_value(t, strings.contains(output, "odin\tfmt.println\t"), true)
+}
+
+@(test)
 compile_eval_source_can_emit_statement_runner :: proc(t: ^testing.T) {
     source := `(package main)
 (import "core:fmt")
