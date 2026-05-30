@@ -2040,6 +2040,10 @@ Top-level macros may now expand into multiple top-level forms by returning
           ((unquote name) {}))))))
 ```
 
+Macros may also invoke other package-local macros during expansion. That makes
+recursive declaration DSLs possible, for example emitting one constructor helper
+per union variant from a single top-level form.
+
 ### `with-*` forms
 
 Allocator-oriented `with-*` forms should behave like macro-expanded resource

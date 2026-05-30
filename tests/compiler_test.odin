@@ -2499,6 +2499,49 @@ compile_source_with_top_level_macro_dsl :: proc(t: ^testing.T) {
 }
 
 @(test)
+compile_source_with_recursive_macro_dsl :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defmacro emit-union-ctors [union-name variants]
+  (if (= (count variants) 0)
+    (forms)
+    (let [tag (first variants)
+          value-type (nth variants 1)
+          ctor-name (symbol (str "make-" (name union-name) "-" (name tag)))]
+      (forms
+        (quasiquote
+          (defn (unquote ctor-name) [value: (unquote value-type)] -> (unquote union-name)
+            ((unquote union-name) {(unquote tag) value})))
+        (emit-union-ctors union-name (rest (rest variants)))))))
+
+(defmacro defunion+ctors [name variants]
+  (forms
+    (quasiquote
+      (defunion (unquote name) (unquote variants)))
+    (emit-union-ctors name variants)))
+
+(defunion+ctors Value {
+  :i int
+  :s string
+  :ok bool
+})`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, `Value :: union {`), true)
+    testing.expect_value(t, strings.contains(output, `make_Value_i :: proc(value: int) -> Value`), true)
+    testing.expect_value(t, strings.contains(output, `make_Value_s :: proc(value: string) -> Value`), true)
+    testing.expect_value(t, strings.contains(output, `make_Value_ok :: proc(value: bool) -> Value`), true)
+    testing.expect_value(t, strings.contains(output, `return Value(value)`), true)
+}
+
+@(test)
 compile_proc_types_and_literals :: proc(t: ^testing.T) {
     source := `(package main)
 
