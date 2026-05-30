@@ -1063,19 +1063,28 @@
         (format "%s -- %s" signature doc-line)
       signature)))
 
+(defun kvist--eldoc-from-completion-prefix (identifier)
+  "Return Eldoc text from a unique completion match for IDENTIFIER."
+  (let* ((candidates (all-completions identifier (kvist--completion-candidates)))
+         (metadata (kvist--completion-metadata identifier)))
+    (when (= (length candidates) 1)
+      (when-let ((entry (assoc (car candidates) metadata)))
+        (cdr entry)))))
+
 (defun kvist-eldoc-function ()
   "Return Eldoc text for the Kvist symbol at point."
-  (when-let* ((identifier (kvist--identifier-at-point))
-              (matches (kvist--symbol-doc-candidates identifier)))
-    (let* ((normalized (kvist--normalize-qualified-identifier identifier))
-           (exact (seq-find (lambda (symbol)
-                              (string=
-                               (kvist--normalize-qualified-identifier
-                                (plist-get symbol :name))
-                               normalized))
-                            matches))
-           (symbol (or exact (car matches))))
-      (kvist--eldoc-string symbol))))
+  (when-let ((identifier (kvist--identifier-at-point)))
+    (if-let ((matches (kvist--symbol-doc-candidates identifier)))
+        (let* ((normalized (kvist--normalize-qualified-identifier identifier))
+               (exact (seq-find (lambda (symbol)
+                                  (string=
+                                   (kvist--normalize-qualified-identifier
+                                    (plist-get symbol :name))
+                                   normalized))
+                                matches))
+               (symbol (or exact (car matches))))
+          (kvist--eldoc-string symbol))
+      (kvist--eldoc-from-completion-prefix identifier))))
 
 ;;;###autoload
 (defun kvist-doc-at-point ()
