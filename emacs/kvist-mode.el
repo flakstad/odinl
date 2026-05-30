@@ -472,9 +472,11 @@
                 (let ((member (match-string-no-properties 1))
                       (line (line-number-at-pos (match-beginning 1)))
                       (column (1+ (- (match-beginning 1) (line-beginning-position))))
+                      (signature (kvist--odin-signature-at-point))
                       (doc (kvist--preceding-odin-doc (match-beginning 0))))
                   (push (list :kind "odin"
                               :name (concat alias "." member)
+                              :signature signature
                               :line line
                               :column column
                               :detail import-path
@@ -483,13 +485,68 @@
                         symbols)
                   (push (list :kind "odin"
                               :name (concat alias "/" member)
+                              :signature signature
                               :line line
                               :column column
                               :detail import-path
                               :doc doc
                               :file file)
                         symbols))))))
-        (nreverse symbols))))
+        (kvist--dedupe-odin-package-symbols (nreverse symbols)))))
+
+(defun kvist--odin-signature-at-point ()
+  "Return a scraped Odin declaration signature from the current line."
+  (save-excursion
+    (beginning-of-line)
+    (let ((line (string-trim-right
+                 (buffer-substring-no-properties
+                  (line-beginning-position)
+                  (line-end-position)))))
+      (cond
+       ((string-match "::[[:space:]]*proc[[:space:]]*{" line)
+        (let ((parts (list (string-trim line)))
+              (done nil))
+          (while (and (not done) (= 0 (forward-line 1)))
+            (let ((next-line (string-trim
+                              (buffer-substring-no-properties
+                               (line-beginning-position)
+                               (line-end-position)))))
+              (push next-line parts)
+              (when (string-match-p "^[[:space:]]*}[[:space:]]*$" next-line)
+                (setq done t))))
+          (replace-regexp-in-string
+           "[[:space:]\n]+"
+           " "
+           (string-join (nreverse parts) " "))))
+       ((string-match "::" line)
+        (replace-regexp-in-string
+         "[[:space:]]+"
+         " "
+         (replace-regexp-in-string "[[:space:]]*{.*\\'" "" (string-trim line))))
+       (t nil)))))
+
+(defun kvist--odin-symbol-rank (symbol)
+  "Return a preference rank for imported Odin SYMBOL. Lower is better."
+  (let ((file (or (plist-get symbol :file) "")))
+    (+ (if (string-match-p "/old/" file) 100 0)
+       (if (string-match-p "_js\\.odin\\'" file) 10 0)
+       (if (string-match-p "/example\\.odin\\'" file) 200 0))))
+
+(defun kvist--dedupe-odin-package-symbols (symbols)
+  "Deduplicate imported Odin SYMBOLS by name, keeping the best-ranked entry."
+  (let ((best (make-hash-table :test #'equal))
+        order)
+    (dolist (symbol symbols)
+      (let* ((name (plist-get symbol :name))
+             (current (gethash name best)))
+        (unless current
+          (push name order))
+        (when (or (null current)
+                  (< (kvist--odin-symbol-rank symbol)
+                     (kvist--odin-symbol-rank current)))
+          (puthash name symbol best))))
+    (mapcar (lambda (name) (gethash name best))
+            (nreverse order))))
 
 (defun kvist--clean-doc-comment-line (line)
   "Return LINE with a leading line-comment marker removed."
