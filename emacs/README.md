@@ -23,6 +23,9 @@ language forms and sequence helpers, `M-.` jumps to the compiler
 implementation. Completion includes Kvist forms, sequence helpers, current-file
 declarations, and imported package members. When point is inside a qualified
 package prefix such as `map/` or `fmt.`, completion is limited to that package.
+Typing or completing a canonical Kvist package prefix such as `arr/`, `str/`,
+`map/`, `set/`, or `struct/` automatically inserts the matching top-level
+`(import ... "kvist:...")` form when it is missing.
 
 `C-c C-.`, `C-c d`, and `C-c C-d` show docs for the symbol at point without jumping. Kvist declaration
 docs come from contiguous `//`, `;`, or `/* ... */` comments immediately

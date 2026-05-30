@@ -149,6 +149,14 @@
                  "Return source-level field types for a struct type or value."))))
   "Static package members for compiler-provided Kvist packages.")
 
+(defconst kvist--kvist-canonical-imports
+  '(("arr" . "kvist:arr")
+    ("str" . "kvist:str")
+    ("map" . "kvist:map")
+    ("set" . "kvist:set")
+    ("struct" . "kvist:struct"))
+  "Canonical explicit imports for compiler-provided Kvist packages.")
+
 (defun kvist--inside-string-on-line-p (pos)
   "Return non-nil if POS is inside a simple string on its current line."
   (save-excursion
@@ -557,6 +565,62 @@
                 (equal (plist-get symbol :kind) "import"))
               (ignore-errors (kvist--symbols))))
 
+(defun kvist--import-present-p (alias path)
+  "Return non-nil when current buffer already imports ALIAS from PATH."
+  (save-excursion
+    (goto-char (point-min))
+    (let ((quoted-path (regexp-quote path))
+          (quoted-alias (regexp-quote alias)))
+      (or (re-search-forward
+           (format "^[[:space:]]*(import[[:space:]]+%s[[:space:]]+\"%s\")[[:space:]]*$"
+                   quoted-alias quoted-path)
+           nil t)
+          (re-search-forward
+           (format "^[[:space:]]*(import[[:space:]]+\"%s\")[[:space:]]*$"
+                   quoted-path)
+           nil t)))))
+
+(defun kvist--import-insertion-point ()
+  "Return buffer position where a new top-level import should be inserted."
+  (save-excursion
+    (goto-char (point-min))
+    (let ((last-import-end nil)
+          (package-end nil))
+      (while (re-search-forward "^[[:space:]]*(\\(package\\|import\\)\\_>" nil t)
+        (beginning-of-line)
+        (let ((head (match-string 1)))
+          (condition-case nil
+              (let ((end (save-excursion
+                           (forward-sexp 1)
+                           (point))))
+                (if (string= head "package")
+                    (setq package-end end)
+                  (setq last-import-end end))
+                (goto-char end))
+            (error
+             (goto-char (line-end-position))))))
+      (or last-import-end package-end (point-min)))))
+
+(defun kvist--ensure-kvist-package-import (alias)
+  "Ensure current buffer imports the canonical Kvist package ALIAS."
+  (when-let ((path (cdr (assoc alias kvist--kvist-canonical-imports))))
+    (unless (kvist--import-present-p alias path)
+      (save-excursion
+        (goto-char (kvist--import-insertion-point))
+        (unless (bolp)
+          (insert "\n"))
+        (insert (format "(import %s \"%s\")\n" alias path))
+        (unless (looking-at-p "\n")
+          (insert "\n"))))))
+
+(defun kvist--maybe-auto-import-qualified-symbol (&optional identifier)
+  "Insert a canonical Kvist package import for IDENTIFIER when appropriate."
+  (let* ((identifier (or identifier (kvist--identifier-at-point)))
+         (normalized (and identifier (kvist--normalize-qualified-identifier identifier))))
+    (when (and normalized
+               (string-match "\\`\\([^/]+\\)/" normalized))
+      (kvist--ensure-kvist-package-import (match-string 1 normalized)))))
+
 (defun kvist--package-symbols-for-current-buffer ()
   "Return imported Odin package symbols for current buffer imports."
   (append
@@ -823,6 +887,11 @@
                        (ignore-errors (append (kvist--symbols)
                                               (kvist--package-symbols-for-current-buffer)))))))))
 
+(defun kvist--completion-exit (completed status)
+  "Handle completion of COMPLETED with STATUS."
+  (when (eq status 'finished)
+    (kvist--maybe-auto-import-qualified-symbol completed)))
+
 (defun kvist--symbol-doc-candidates (identifier)
   "Return documentation candidates for IDENTIFIER."
   (let* ((symbols (append (ignore-errors (kvist--symbols))
@@ -895,7 +964,15 @@
     (list (car bounds)
           (cdr bounds)
           (kvist--completion-candidates)
+          :exit-function #'kvist--completion-exit
           :exclusive 'no)))
+
+(defun kvist--post-self-insert-auto-import ()
+  "Auto-import canonical Kvist packages after typing a qualified prefix."
+  (when (and (memq last-command-event '(?/ ?.))
+             (not (nth 3 (syntax-ppss)))
+             (not (nth 4 (syntax-ppss))))
+    (kvist--maybe-auto-import-qualified-symbol)))
 
 ;;;###autoload
 (define-derived-mode kvist-mode clojure-mode "Kvist"
@@ -911,6 +988,7 @@
               "\\(\\(^\\|[^\\\\\n]\\)\\(\\\\\\\\\\)*\\)\\(;+\\|//+\\|/\\*+\\|#|\\) *")
   (add-hook 'xref-backend-functions #'kvist--xref-backend nil t)
   (add-hook 'completion-at-point-functions #'kvist-completion-at-point nil t)
+  (add-hook 'post-self-insert-hook #'kvist--post-self-insert-auto-import nil t)
   (font-lock-add-keywords nil kvist-font-lock-keywords)
   (kvist--setup-indentation))
 
