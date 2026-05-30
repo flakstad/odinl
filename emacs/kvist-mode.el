@@ -935,6 +935,13 @@
     (when-let ((entry (assoc candidate metadata)))
       (format "  %s" (cdr entry)))))
 
+(defun kvist--completion-table (candidates metadata)
+  "Return a completion table for CANDIDATES with completion METADATA."
+  (lambda (string pred action)
+    (if (eq action 'metadata)
+        `(metadata (annotation-function . ,(kvist--completion-annotation metadata)))
+      (complete-with-action action candidates string pred))))
+
 (defun kvist--symbol-doc-candidates (identifier)
   "Return documentation candidates for IDENTIFIER."
   (let* ((symbols (append (ignore-errors (kvist--symbols))
@@ -1011,9 +1018,9 @@
     (let ((metadata (kvist--completion-metadata (kvist--identifier-at-point))))
       (list (car bounds)
             (cdr bounds)
-            (completion-table-with-metadata
+            (kvist--completion-table
              (kvist--completion-candidates)
-             `((annotation-function . ,(kvist--completion-annotation metadata))))
+             metadata)
             :exit-function #'kvist--completion-exit
             :exclusive 'no))))
 
