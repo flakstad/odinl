@@ -25,7 +25,9 @@ declarations, and imported package members. When point is inside a qualified
 package prefix such as `map/` or `fmt.`, completion is limited to that package.
 Typing or completing a canonical Kvist package prefix such as `arr/`, `str/`,
 `map/`, `set/`, or `struct/` automatically inserts the matching top-level
-`(import ... "kvist:...")` form when it is missing.
+`(import ... "kvist:...")` form when it is missing. Compiler-provided Kvist
+package members and built-in forms also show signatures in completion
+annotations and in the doc buffer.
 
 `C-c C-.`, `C-c d`, and `C-c C-d` show docs for the symbol at point without jumping. Kvist declaration
 docs come from contiguous `//`, `;`, or `/* ... */` comments immediately
