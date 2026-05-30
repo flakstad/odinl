@@ -1,0 +1,79 @@
+(package hiccup)
+(import arr "kvist:arr")
+
+(defstruct Attr {
+  :name string
+  :value string
+})
+
+(defstruct Element {
+  :tag string
+  :attrs (slice Attr)
+  :children (slice Node)
+})
+
+(defunion Node {
+  :text string
+  :element Element
+})
+
+(defmacro emit-attr-items [items]
+  (if (= (count items) 0)
+    (forms)
+    (let [key (nth items 0)
+          value (nth items 1)]
+      (forms
+        (quasiquote
+          (Attr {:name (unquote (text key))
+                 :value (unquote (text value))}))
+        (emit-attr-items (rest (rest items)))))))
+
+(defmacro emit-child-items [items]
+  (if (= (count items) 0)
+    (forms)
+    (forms
+      (emit-node (first items))
+      (emit-child-items (rest items)))))
+
+(defmacro emit-node [form]
+  (if (vector? form)
+    (let [tag (first form)
+          tail (rest form)]
+      (if (= (count tail) 0)
+        (quasiquote
+          (Node {:element (Element {:tag (unquote (text tag))
+                                    :attrs (new (slice Attr) [])
+                                    :children (new (slice Node) [])})}))
+        (let [candidate (first tail)]
+          (if (brace? candidate)
+            (quasiquote
+              (Node {:element (Element {:tag (unquote (text tag))
+                                        :attrs [(splice (emit-attr-items candidate))]
+                                        :children [(splice (emit-child-items (rest tail)))]} )}))
+            (quasiquote
+              (Node {:element (Element {:tag (unquote (text tag))
+                                        :attrs (new (slice Attr) [])
+                                        :children [(splice (emit-child-items tail))]})}))))))
+    (quasiquote
+      (Node {:text (unquote (text form))}))))
+
+(defmacro html [form]
+  (emit-node form))
+
+(defn tag [node: Node] -> string
+  (switch [value node]
+    Element (:tag value)
+    string ""
+    :else ""))
+
+(defn attr-count [node: Node] -> int
+  (switch [value node]
+    Element (arr/count (:attrs value))
+    string 0
+    :else 0))
+
+(defn child-count [node: Node] -> int
+  (switch [value node]
+    Element (arr/count (:children value))
+    string 0
+    :else 0))

@@ -58,6 +58,9 @@ append_import_form_unique :: proc(forms: ^[dynamic]CST_Top_Form, seen: ^[dynamic
 }
 
 is_source_import_path :: proc(path: string) -> bool {
+    if path == "kvist:hiccup" {
+        return true
+    }
     for ch in path {
         if ch == ':' {
             return false
@@ -66,7 +69,32 @@ is_source_import_path :: proc(path: string) -> bool {
     return true
 }
 
+resolve_shipped_source_import_path :: proc(importer_path, import_path: string) -> (string, Compile_Error, bool) {
+    if import_path != "kvist:hiccup" {
+        return "", Compile_Error{}, false
+    }
+    root, ok_root := repo_root_for_path(importer_path)
+    if !ok_root {
+        root, ok_root = repo_root_for_path(".")
+    }
+    if !ok_root {
+        return "", Compile_Error{message = fmt.tprintf("could not resolve shipped source import: %s", import_path)}, false
+    }
+    candidate, join_err := os.join_path({root, "packages", "hiccup", "package.kvist"}, context.allocator)
+    if join_err != nil || !os.exists(candidate) {
+        if join_err == nil {
+            delete(candidate)
+        }
+        return "", Compile_Error{message = fmt.tprintf("could not resolve shipped source import: %s", import_path)}, false
+    }
+    return candidate, Compile_Error{}, true
+}
+
 resolve_source_import_path :: proc(importer_path, import_path: string) -> (string, Compile_Error, bool) {
+    shipped, err_shipped, ok_shipped := resolve_shipped_source_import_path(importer_path, import_path)
+    if ok_shipped || err_shipped.message != "" {
+        return shipped, err_shipped, ok_shipped
+    }
     base_dir, _ := os.split_path(importer_path)
     base := import_path
     if base_dir != "" {

@@ -123,6 +123,8 @@ compile_all_examples :: proc(t: ^testing.T) {
         "examples/error-handling.kvist",
         "examples/hello.kvist",
         "examples/higher-order.kvist",
+        "examples/hiccup-demo.kvist",
+        "examples/inline-literals.kvist",
         "examples/interop-directives.kvist",
         "examples/pointers-and-raw.kvist",
         "examples/proc-values.kvist",

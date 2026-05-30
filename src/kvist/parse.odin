@@ -168,6 +168,8 @@ parse_defstruct_type_meta :: proc(form: CST_Form) -> (text: string, err: Compile
         case:
             return "", Compile_Error{message = "invalid defstruct field type metadata", span = form.span}, false
         }
+    case .List:
+        return parse_type_text(form)
     case:
         return "", Compile_Error{message = "invalid defstruct field type metadata", span = form.span}, false
     }

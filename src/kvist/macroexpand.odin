@@ -1163,6 +1163,70 @@ macro_eval_expr :: proc(form: CST_Form, macros: []User_Macro, bindings: []Macro_
                     return Macro_Value{}, err_value, false
                 }
                 return macro_bool_value(value.kind == .Form), Compile_Error{}, true
+            case "vector?":
+                if len(form.items) != 2 {
+                    return Macro_Value{}, Compile_Error{message = "vector? expects one argument", span = form.span}, false
+                }
+                value, err_value, ok_value := macro_eval_expr(form.items[1], macros, bindings)
+                if !ok_value {
+                    return Macro_Value{}, err_value, false
+                }
+                if value.kind != .Form {
+                    return macro_bool_value(false), Compile_Error{}, true
+                }
+                return macro_bool_value(value.form.kind == .Vector), Compile_Error{}, true
+            case "brace?":
+                if len(form.items) != 2 {
+                    return Macro_Value{}, Compile_Error{message = "brace? expects one argument", span = form.span}, false
+                }
+                value, err_value, ok_value := macro_eval_expr(form.items[1], macros, bindings)
+                if !ok_value {
+                    return Macro_Value{}, err_value, false
+                }
+                if value.kind != .Form {
+                    return macro_bool_value(false), Compile_Error{}, true
+                }
+                return macro_bool_value(value.form.kind == .Brace), Compile_Error{}, true
+            case "text":
+                if len(form.items) != 2 {
+                    return Macro_Value{}, Compile_Error{message = "text expects one argument", span = form.span}, false
+                }
+                value, err_value, ok_value := macro_eval_expr(form.items[1], macros, bindings)
+                if !ok_value {
+                    return Macro_Value{}, err_value, false
+                }
+                if value.kind == .String {
+                    return macro_string_value(value.string_value), Compile_Error{}, true
+                }
+                if value.kind == .Int {
+                    return macro_string_value(macro_int_text(value.int_value)), Compile_Error{}, true
+                }
+                if value.kind == .Bool {
+                    if value.bool_value {
+                        return macro_string_value("true"), Compile_Error{}, true
+                    }
+                    return macro_string_value("false"), Compile_Error{}, true
+                }
+                if value.kind == .Nil {
+                    return macro_string_value("nil"), Compile_Error{}, true
+                }
+                if value.kind == .Form {
+                    #partial switch value.form.kind {
+                    case .String:
+                        return macro_string_value(unquote_string(value.form.text)), Compile_Error{}, true
+                    case .Symbol:
+                        return macro_string_value(value.form.text), Compile_Error{}, true
+                    case .Keyword:
+                        if len(value.form.text) > 0 && value.form.text[0] == ':' {
+                            return macro_string_value(value.form.text[1:]), Compile_Error{}, true
+                        }
+                        return macro_string_value(value.form.text), Compile_Error{}, true
+                    case .Number, .Bool, .Nil:
+                        return macro_string_value(value.form.text), Compile_Error{}, true
+                    case:
+                    }
+                }
+                return Macro_Value{}, Compile_Error{message = "text expects a scalar literal, symbol, or keyword", span = form.items[1].span}, false
             }
         }
         if head.kind == .Symbol {
