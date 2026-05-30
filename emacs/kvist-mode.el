@@ -498,14 +498,6 @@
                (string-match "\\`\\([^/]+\\)/" normalized))
       (kvist--ensure-kvist-package-import (match-string 1 normalized)))))
 
-(defun kvist--package-symbols-for-current-buffer ()
-  "Return imported Odin package symbols for current buffer imports."
-  (kvist--dedupe-symbols-by-name
-   (seq-filter (lambda (symbol)
-                 (or (equal (plist-get symbol :kind) "kvist package")
-                     (equal (plist-get symbol :kind) "odin")))
-               (ignore-errors (kvist--editor-symbols)))))
-
 (defun kvist--xref-backend () 'kvist)
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql kvist)))
@@ -539,12 +531,16 @@
              (string-match "\\`\\([^./]+\\)\\([./]\\)\\([^./]*\\)\\'" identifier))
     (cons (match-string 1 identifier) (match-string 2 identifier))))
 
+(defun kvist--completion-symbols (&optional identifier)
+  "Return completion symbols for IDENTIFIER context."
+  (or (ignore-errors (kvist--complete-symbols identifier))
+      (ignore-errors (kvist--editor-symbols))))
+
 (defun kvist--completion-candidates ()
   "Return completion candidates appropriate for the symbol at point."
   (let* ((identifier (kvist--identifier-at-point))
          (package-prefix (kvist--package-prefix identifier))
-         (symbols (or (ignore-errors (kvist--complete-symbols identifier))
-                      (ignore-errors (kvist--editor-symbols)))))
+         (symbols (kvist--completion-symbols identifier)))
     (delete-dups
      (mapcar
       (lambda (symbol)
@@ -564,9 +560,9 @@
   "Return symbol metadata alist keyed by display name for IDENTIFIER context."
   (let* ((identifier (or identifier (kvist--identifier-at-point)))
          (package-prefix (kvist--package-prefix identifier))
-         (symbols (or (ignore-errors (kvist--complete-symbols identifier))
-                      (append (ignore-errors (kvist--symbols))
-                              (ignore-errors (kvist--editor-symbols))))))
+         (symbols (or (kvist--completion-symbols identifier)
+                      (ignore-errors (kvist--symbols))
+                      (ignore-errors (kvist--editor-symbols)))))
     (let (table)
       (dolist (symbol symbols)
         (let* ((name (plist-get symbol :name))
@@ -656,8 +652,19 @@
 
 (defun kvist--eldoc-from-completion-prefix (identifier)
   "Return Eldoc text from a unique completion match for IDENTIFIER."
-  (let* ((candidates (all-completions identifier (kvist--completion-candidates)))
-         (metadata (kvist--completion-metadata identifier)))
+  (let* ((symbols (kvist--completion-symbols identifier))
+         (metadata (kvist--completion-metadata identifier))
+         (package-prefix (kvist--package-prefix identifier))
+         (candidates
+          (delete-dups
+           (mapcar
+            (lambda (symbol)
+              (let ((name (plist-get symbol :name)))
+                (if (and package-prefix
+                         (string= (cdr package-prefix) "."))
+                    (replace-regexp-in-string "/" "." name t t)
+                  (replace-regexp-in-string "\\." "/" name t t))))
+            symbols))))
     (when (= (length candidates) 1)
       (when-let ((entry (assoc (car candidates) metadata)))
         (cdr entry)))))
