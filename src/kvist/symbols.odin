@@ -17,12 +17,69 @@ Imported_Symbol_Record :: struct {
     rank:   int,
 }
 
+Builtin_Source_Entry :: struct {
+    name:     string,
+    relative: string,
+    snippet:  string,
+}
+
+Package_Source_Entry :: struct {
+    import_path: string,
+    member:      string,
+    relative:    string,
+    snippet:     string,
+}
+
 KVIST_CANONICAL_IMPORTS_FOR_EDITOR :: [5]Imported_Symbol_Entry{
     {alias = "arr", path = "kvist:arr"},
     {alias = "str", path = "kvist:str"},
     {alias = "map", path = "kvist:map"},
     {alias = "set", path = "kvist:set"},
     {alias = "struct", path = "kvist:struct"},
+}
+
+BUILTIN_SOURCE_ENTRIES :: []Builtin_Source_Entry{
+    {name = "when-let", relative = "src/kvist/macroexpand.odin", snippet = "expand_when_let_form :: proc"},
+    {name = "if-let", relative = "src/kvist/macroexpand.odin", snippet = "expand_if_let_form :: proc"},
+    {name = "when-ok", relative = "src/kvist/macroexpand.odin", snippet = "expand_when_ok_form :: proc"},
+    {name = "if-ok", relative = "src/kvist/macroexpand.odin", snippet = "expand_if_ok_form :: proc"},
+    {name = "println", relative = "src/kvist/emit.odin", snippet = "if form.items[0].text == \"println\" || form.items[0].text == \"doc\""},
+    {name = "doc", relative = "src/kvist/emit.odin", snippet = "case \"doc\":"},
+    {name = "update!", relative = "src/kvist/emit.odin", snippet = "case \"update!\":"},
+    {name = "update", relative = "src/kvist/emit.odin", snippet = "case \"update\":"},
+    {name = "type", relative = "src/kvist/parse.odin", snippet = "if is_symbol(form.items[0], \"type\")"},
+}
+
+PACKAGE_SOURCE_ENTRIES :: []Package_Source_Entry{
+    {import_path = "kvist:arr", member = "count", relative = "src/kvist/emit.odin", snippet = "if head.text == \"arr/count\" || head.text == \"str/count\""},
+    {import_path = "kvist:arr", member = "empty", relative = "src/kvist/emit.odin", snippet = "if head.text == \"arr/empty\""},
+    {import_path = "kvist:arr", member = "dynamic", relative = "src/kvist/emit.odin", snippet = "if head.text == \"arr/dynamic\""},
+    {import_path = "kvist:arr", member = "fixed", relative = "src/kvist/emit.odin", snippet = "if head.text == \"arr/fixed\""},
+    {import_path = "kvist:arr", member = "get", relative = "src/kvist/emit.odin", snippet = "if head.text == \"arr/get\" || head.text == \"str/get\" || head.text == \"map/get\""},
+    {import_path = "kvist:arr", member = "slice", relative = "src/kvist/emit.odin", snippet = "if head.text == \"arr/slice\" || head.text == \"str/slice\""},
+    {import_path = "kvist:arr", member = "push!", relative = "src/kvist/emit.odin", snippet = "if head.text == \"arr/push!\""},
+    {import_path = "kvist:arr", member = "map", relative = "src/kvist/emit.odin", snippet = "emit_core_map_helper :: proc"},
+    {import_path = "kvist:arr", member = "filter", relative = "src/kvist/emit.odin", snippet = "emit_core_filter_helper :: proc"},
+    {import_path = "kvist:arr", member = "map!", relative = "src/kvist/emit.odin", snippet = "emit_core_map_in_place_helper :: proc"},
+    {import_path = "kvist:arr", member = "filter!", relative = "src/kvist/emit.odin", snippet = "emit_core_filter_in_place_helper :: proc"},
+    {import_path = "kvist:arr", member = "take", relative = "src/kvist/emit.odin", snippet = "emit_core_take_helper :: proc"},
+    {import_path = "kvist:arr", member = "drop", relative = "src/kvist/emit.odin", snippet = "emit_core_drop_helper :: proc"},
+    {import_path = "kvist:arr", member = "sort", relative = "src/kvist/emit.odin", snippet = "emit_core_sort_helper :: proc"},
+    {import_path = "kvist:arr", member = "sort!", relative = "src/kvist/emit.odin", snippet = "emit_core_sort_in_place_helper :: proc"},
+    {import_path = "kvist:str", member = "count", relative = "src/kvist/emit.odin", snippet = "if head.text == \"arr/count\" || head.text == \"str/count\""},
+    {import_path = "kvist:str", member = "get", relative = "src/kvist/emit.odin", snippet = "if head.text == \"arr/get\" || head.text == \"str/get\" || head.text == \"map/get\""},
+    {import_path = "kvist:str", member = "slice", relative = "src/kvist/emit.odin", snippet = "if head.text == \"arr/slice\" || head.text == \"str/slice\""},
+    {import_path = "kvist:str", member = "contains?", relative = "src/kvist/emit.odin", snippet = "if head.text == \"str/contains?\""},
+    {import_path = "kvist:map", member = "empty", relative = "src/kvist/emit.odin", snippet = "if head.text == \"map/empty\""},
+    {import_path = "kvist:map", member = "of", relative = "src/kvist/emit.odin", snippet = "if head.text == \"map/of\""},
+    {import_path = "kvist:map", member = "get", relative = "src/kvist/emit.odin", snippet = "if head.text == \"arr/get\" || head.text == \"str/get\" || head.text == \"map/get\""},
+    {import_path = "kvist:map", member = "contains?", relative = "src/kvist/emit.odin", snippet = "if head.text == \"map/contains?\" || head.text == \"set/contains?\""},
+    {import_path = "kvist:set", member = "empty", relative = "src/kvist/emit.odin", snippet = "if head.text == \"set/empty\""},
+    {import_path = "kvist:set", member = "of", relative = "src/kvist/emit.odin", snippet = "if head.text == \"set/of\""},
+    {import_path = "kvist:set", member = "contains?", relative = "src/kvist/emit.odin", snippet = "if head.text == \"map/contains?\" || head.text == \"set/contains?\""},
+    {import_path = "kvist:set", member = "add!", relative = "src/kvist/emit.odin", snippet = "if head.text == \"set/add!\""},
+    {import_path = "kvist:struct", member = "fields", relative = "src/kvist/emit.odin", snippet = "if head.text == \"struct/fields\" || head.text == \"struct/types\""},
+    {import_path = "kvist:struct", member = "types", relative = "src/kvist/emit.odin", snippet = "if head.text == \"struct/fields\" || head.text == \"struct/types\""},
 }
 
 import_path_text :: proc(form: CST_Form) -> string {
@@ -498,6 +555,160 @@ symbols_append_unique_records :: proc(builder: ^strings.Builder, seen: ^map[stri
     }
 }
 
+repo_root_for_path :: proc(path: string) -> (string, bool) {
+    current := path
+    if !os.is_dir(current) {
+        dir, _ := os.split_path(current)
+        current = dir
+    }
+    for current != "" {
+        marker, err := os.join_path({current, "cmd", "kvist", "main.odin"}, context.allocator)
+        if err == nil {
+            if os.exists(marker) {
+                delete(marker)
+                return current, true
+            }
+            delete(marker)
+        }
+        parent, _ := os.split_path(strings.trim_right(current, "/"))
+        if parent == "" || parent == current {
+            break
+        }
+        current = parent
+    }
+    return "", false
+}
+
+file_location_for_snippet :: proc(root, relative, snippet: string) -> (file: string, line, column: int, ok: bool) {
+    path, join_err := os.join_path({root, relative}, context.allocator)
+    if join_err != nil {
+        return "", 0, 0, false
+    }
+    data, read_err := os.read_entire_file_from_path(path, context.allocator)
+    if read_err != nil {
+        delete(path)
+        return "", 0, 0, false
+    }
+    source := string(data)
+    idx := strings.index(source, snippet)
+    if idx < 0 {
+        delete(data)
+        delete(path)
+        return "", 0, 0, false
+    }
+    line, column, _, _ = source_position(source, idx)
+    delete(data)
+    return path, line, column, true
+}
+
+symbols_write_record_doc_file :: proc(builder: ^strings.Builder, kind, name: string, line, column: int, detail, signature: string, doc_lines: []string, file: string) {
+    fmt.sbprintf(builder, "%s\t%s\t%d\t%d\t%s\t%s\t", kind, name, line, column, detail, signature)
+    symbols_write_escaped_doc(builder, doc_lines)
+    fmt.sbprintf(builder, "\t%s\n", file)
+}
+
+editor_builtin_symbols_append :: proc(builder: ^strings.Builder, seen: ^map[string]bool, repo_root: string) {
+    for entry in BUILTIN_SOURCE_ENTRIES {
+        temp := strings.builder_make()
+        defer strings.builder_destroy(&temp)
+        file, line, column, ok := file_location_for_snippet(repo_root, entry.relative, entry.snippet)
+        if !ok {
+            continue
+        }
+        switch entry.name {
+        case "when-let":
+            symbols_write_record_doc_file(&temp, "kvist macro", entry.name, line, column, "", "(when-let [value bool expr] body...)", symbols_doc_lines_from_string("Bind a value and explicit boolean result from a multi-return expression. Run the body only when the boolean is true. Expands to a destructuring let plus when.")[:], file)
+        case "if-let":
+            symbols_write_record_doc_file(&temp, "kvist macro", entry.name, line, column, "", "(if-let [value bool expr] then else)", symbols_doc_lines_from_string("Bind a value and explicit boolean result from a multi-return expression. Evaluate the then branch when the boolean is true, otherwise the else branch. Expands to a destructuring let plus if.")[:], file)
+        case "when-ok":
+            symbols_write_record_doc_file(&temp, "kvist macro", entry.name, line, column, "", "(when-ok [value err expr] body...)", symbols_doc_lines_from_string("Bind a value and Odin error result from a multi-return expression. Run the body only when the error equals Odin's zero value {}. Expands to a destructuring let plus when.")[:], file)
+        case "if-ok":
+            symbols_write_record_doc_file(&temp, "kvist macro", entry.name, line, column, "", "(if-ok [value err expr] then else)", symbols_doc_lines_from_string("Bind a value and Odin error result from a multi-return expression. Evaluate the then branch when the error equals Odin's zero value {}, otherwise the else branch. Expands to a destructuring let plus if.")[:], file)
+        case "println":
+            symbols_write_record_doc_file(&temp, "kvist core", entry.name, line, column, "", "(println value...)", symbols_doc_lines_from_string("Print one or more values. Kvist lowers this to fmt output and auto-imports core:fmt when needed.")[:], file)
+        case "doc":
+            symbols_write_record_doc_file(&temp, "kvist core", entry.name, line, column, "", "(doc 'symbol)", symbols_doc_lines_from_string("Print the stored docstring for a declaration name.")[:], file)
+        case "update!":
+            symbols_write_record_doc_file(&temp, "kvist form", entry.name, line, column, "", "(update! target key-or-field value-or-updater ...)", symbols_doc_lines_from_string("Mutate a struct field, array/slice slot, or map key in place. Supports replacement and updater forms such as inc or +.")[:], file)
+        case "update":
+            symbols_write_record_doc_file(&temp, "kvist form", entry.name, line, column, "", "(update target key-or-field value-or-updater ...)", symbols_doc_lines_from_string("Return an updated copy. Currently supported for struct fields.")[:], file)
+        case "type":
+            symbols_write_record_doc_file(&temp, "kvist form", entry.name, line, column, "", "(type Head Arg...)", symbols_doc_lines_from_string("Instantiate an Odin polymorphic type constructor. For example, (type chan.Chan int) lowers to chan.Chan(int) in both type and value positions.")[:], file)
+        case:
+        }
+        symbols_append_unique_records(builder, seen, strings.to_string(temp))
+        delete(file)
+    }
+}
+
+editor_package_symbols_append :: proc(builder: ^strings.Builder, seen: ^map[string]bool, repo_root, import_path, alias: string) {
+    for entry in PACKAGE_SOURCE_ENTRIES {
+        if entry.import_path != import_path {
+            continue
+        }
+        file, line, column, ok := file_location_for_snippet(repo_root, entry.relative, entry.snippet)
+        if !ok {
+            continue
+        }
+        signature := ""
+        doc := ""
+        switch import_path {
+        case "kvist:arr":
+            switch entry.member {
+            case "count": signature = "(arr/count xs)"; doc = "Count elements in an array, fixed array, or slice."
+            case "empty": signature = "(arr/empty T [capacity])"; doc = "Construct an empty dynamic array, optionally with capacity."
+            case "dynamic": signature = "(arr/dynamic T [v1 v2 ...])"; doc = "Construct a dynamic array from a vector literal."
+            case "fixed": signature = "(arr/fixed T [v1 v2 ...])"; doc = "Construct a fixed array from a vector literal."
+            case "get": signature = "(arr/get xs index)"; doc = "Index into an array-family value."
+            case "slice": signature = "(arr/slice xs start [end])"; doc = "Take a slice view over an array-family value."
+            case "push!": signature = "(arr/push! xs value...)"; doc = "Append one or more values to a dynamic array."
+            case "map": signature = "(arr/map f xs)"; doc = "Map over an array-family input and return an owned dynamic array."
+            case "filter": signature = "(arr/filter pred xs)"; doc = "Filter an array-family input and return an owned dynamic array."
+            case "map!": signature = "(arr/map! f xs)"; doc = "Map in place over a dynamic array."
+            case "filter!": signature = "(arr/filter! pred xs)"; doc = "Filter in place over a dynamic array."
+            case "take": signature = "(arr/take n xs)"; doc = "Take a leading slice or owned result from an array-family input."
+            case "drop": signature = "(arr/drop n xs)"; doc = "Drop a leading prefix from an array-family input."
+            case "sort": signature = "(arr/sort xs)"; doc = "Return a sorted owned array."
+            case "sort!": signature = "(arr/sort! xs)"; doc = "Sort a dynamic array in place."
+            }
+        case "kvist:str":
+            switch entry.member {
+            case "count": signature = "(str/count s)"; doc = "Count characters or bytes in a string."
+            case "get": signature = "(str/get s index)"; doc = "Index into a string."
+            case "slice": signature = "(str/slice s start [end])"; doc = "Take a string slice."
+            case "contains?": signature = "(str/contains? s needle)"; doc = "Return true when the string contains the needle."
+            }
+        case "kvist:map":
+            switch entry.member {
+            case "empty": signature = "(map/empty K V [capacity])"; doc = "Construct an empty map, optionally with capacity."
+            case "of": signature = "(map/of K V {k1 v1 ...})"; doc = "Construct a map from a brace literal."
+            case "get": signature = "(map/get m key [default])"; doc = "Look up a key in a map, optionally with a default."
+            case "contains?": signature = "(map/contains? m key)"; doc = "Return true when the map contains the key."
+            }
+        case "kvist:set":
+            switch entry.member {
+            case "empty": signature = "(set/empty T [capacity])"; doc = "Construct an empty set, optionally with capacity."
+            case "of": signature = "(set/of T [v1 v2 ...])"; doc = "Construct a set from a vector literal."
+            case "contains?": signature = "(set/contains? s value)"; doc = "Return true when the set contains the value."
+            case "add!": signature = "(set/add! s value)"; doc = "Insert a value into a set."
+            }
+        case "kvist:struct":
+            switch entry.member {
+            case "fields": signature = "(struct/fields target)"; doc = "Return source-level field names for a struct type or value."
+            case "types": signature = "(struct/types target)"; doc = "Return source-level field types for a struct type or value."
+            }
+        }
+        doc_lines := symbols_doc_lines_from_string(doc)
+        defer delete(doc_lines)
+        temp := strings.builder_make()
+        defer strings.builder_destroy(&temp)
+        symbols_write_record_doc_file(&temp, "kvist package", fmt.tprintf("%s/%s", alias, entry.member), line, column, import_path, signature, doc_lines[:], file)
+        symbols_write_record_doc_file(&temp, "kvist package", fmt.tprintf("%s.%s", alias, entry.member), line, column, import_path, signature, doc_lines[:], file)
+        symbols_append_unique_records(builder, seen, strings.to_string(temp))
+        delete(file)
+    }
+}
+
 imported_symbols_source :: proc(path, source: string) -> (output: string, err: Compile_Error, ok: bool) {
     result_allocator := context.allocator
     old_allocator := context.allocator
@@ -548,6 +759,7 @@ editor_symbols_source :: proc(path, source: string) -> (output: string, err: Com
 
     seen := make(map[string]bool)
     defer delete(seen)
+    repo_root, _ := repo_root_for_path(path)
 
     local_output, local_err, ok_local := symbols_source(source)
     if !ok_local {
@@ -557,12 +769,16 @@ editor_symbols_source :: proc(path, source: string) -> (output: string, err: Com
     delete(local_output)
 
     for entry in KVIST_CANONICAL_IMPORTS_FOR_EDITOR {
-        package_output, ok_package := package_symbols_source(entry.path, entry.alias)
-        if !ok_package {
-            continue
+        if repo_root != "" {
+            editor_package_symbols_append(&builder, &seen, repo_root, entry.path, entry.alias)
+        } else {
+            package_output, ok_package := package_symbols_source(entry.path, entry.alias)
+            if !ok_package {
+                continue
+            }
+            symbols_append_unique_records(&builder, &seen, package_output)
+            delete(package_output)
         }
-        symbols_append_unique_records(&builder, &seen, package_output)
-        delete(package_output)
     }
 
     for top in forms {
@@ -570,12 +786,16 @@ editor_symbols_source :: proc(path, source: string) -> (output: string, err: Com
         if !ok_import || !strings.has_prefix(entry.path, "kvist:") {
             continue
         }
-        package_output, ok_package := package_symbols_source(entry.path, entry.alias)
-        if !ok_package {
-            continue
+        if repo_root != "" {
+            editor_package_symbols_append(&builder, &seen, repo_root, entry.path, entry.alias)
+        } else {
+            package_output, ok_package := package_symbols_source(entry.path, entry.alias)
+            if !ok_package {
+                continue
+            }
+            symbols_append_unique_records(&builder, &seen, package_output)
+            delete(package_output)
         }
-        symbols_append_unique_records(&builder, &seen, package_output)
-        delete(package_output)
     }
 
     imported_output, imported_err, ok_imported := imported_symbols_source(path, source)
@@ -585,9 +805,13 @@ editor_symbols_source :: proc(path, source: string) -> (output: string, err: Com
     symbols_append_unique_records(&builder, &seen, imported_output)
     delete(imported_output)
 
-    builtin_output := builtin_symbols_source()
-    symbols_append_unique_records(&builder, &seen, builtin_output)
-    delete(builtin_output)
+    if repo_root != "" {
+        editor_builtin_symbols_append(&builder, &seen, repo_root)
+    } else {
+        builtin_output := builtin_symbols_source()
+        symbols_append_unique_records(&builder, &seen, builtin_output)
+        delete(builtin_output)
+    }
 
     return strings.clone(strings.to_string(builder)), {}, true
 }

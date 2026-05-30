@@ -626,12 +626,14 @@
   (kvist--identifier-at-point))
 
 (cl-defmethod xref-backend-definitions ((_backend (eql kvist)) identifier)
-  (let* ((symbols (append (ignore-errors (kvist--editor-symbols))
-                          (ignore-errors (kvist--package-definitions identifier))
-                          (kvist--builtin-definitions identifier)))
-         (matches (seq-filter (lambda (symbol)
-                                (kvist--symbol-matches-identifier-p symbol identifier))
-                              symbols)))
+  (let* ((editor-symbols (append (ignore-errors (kvist--editor-symbols))
+                                 (ignore-errors (kvist--package-definitions identifier))))
+         (editor-matches (seq-filter (lambda (symbol)
+                                       (kvist--symbol-matches-identifier-p symbol identifier))
+                                     editor-symbols))
+         (matches (if editor-matches
+                      editor-matches
+                    (kvist--builtin-definitions identifier))))
     (mapcar
      (lambda (symbol)
        (let ((file (or (plist-get symbol :file) (buffer-file-name)))
