@@ -1616,8 +1616,10 @@ query :: proc() -> (value: int, found: bool) {
 main :: proc() {
     value, found := query()
     if found {
-        if (value) > (40) {
-            return
+        {
+            if (value) > (40) {
+                return
+            }
         }
     }
 }

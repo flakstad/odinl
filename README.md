@@ -651,7 +651,7 @@ foreign_call :: proc(handle: Foreign_Handle) ---
 - `(defmacro name [arg ...] body...)`
   - package-local for now
   - expands over Kvist forms before ordinary parse/lowering
-  - core compiler-defined macros still exist alongside it during bootstrap
+  - resource-scope bootstrap macros still exist alongside it during bootstrap
 - top-level and statement `(odin "...")` raw escape hatches
 - `(let [binding value ...] body...)` scoped expression/block, including
   multi-return and struct-field destructuring; a local binding may be followed

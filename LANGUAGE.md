@@ -1985,15 +1985,18 @@ Current rules:
 - expansion stays in source space; there is no runtime macro world
 - no hygiene yet
 
-The current compiler also still carries an explicit built-in macro registry for
-bootstrap forms such as `with-allocator`, `with-temp-allocator`, `with-delete`,
-`when-let`, `if-let`, `when-ok`, and `if-ok`.
+The current compiler still carries an explicit built-in macro registry for the
+resource-scope bootstrap forms `with-allocator`, `with-temp-allocator`, and
+`with-delete`. The simpler binding forms `when-let`, `if-let`, `when-ok`, and
+`if-ok` now come through the ordinary compile-time macro path as core
+package-local macros.
 
 That split is deliberate:
 
 - user-defined `defmacro` already works for package-local source transforms
-- bootstrap built-ins stay compiler-owned until they can be moved cleanly onto
-  the same user-visible mechanism without losing existing checks
+- the remaining resource-scope bootstrap forms stay compiler-owned until they
+  can be moved cleanly onto the same user-visible mechanism without losing
+  existing checks
 
 ### `defmacro`
 

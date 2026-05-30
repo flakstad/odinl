@@ -321,7 +321,7 @@ load_path_expanded_forms :: proc(path: string) -> (expanded: [dynamic]CST_Top_Fo
     for form in loaded.decls {
         append(&combined, form)
     }
-    expanded_forms, expanded_macros, err_expand, ok_expand := macroexpand_top_forms(combined[:])
+    expanded_forms, expanded_macros, err_expand, ok_expand := macroexpand_top_forms(combined[:], true)
     if !ok_expand {
         return expanded, macros, err_expand, false
     }
@@ -626,7 +626,7 @@ compile_source_with_map :: proc(source: string) -> (result: Emit_Result, err: Co
     if !ok_forms {
         return result, clone_compile_error(err_forms, result_allocator), false
     }
-    expanded, _, err_expand, ok_expand := macroexpand_top_forms(forms[:])
+    expanded, _, err_expand, ok_expand := macroexpand_top_forms(forms[:], true)
     if !ok_expand {
         return result, clone_compile_error(err_expand, result_allocator), false
     }
@@ -701,7 +701,7 @@ compile_eval_source_with_map :: proc(source, eval_source: string, no_print: bool
     if !ok_forms {
         return result, clone_compile_error(err_forms, result_allocator), false
     }
-    expanded, macros, err_expand, ok_expand := macroexpand_top_forms(forms[:])
+    expanded, macros, err_expand, ok_expand := macroexpand_top_forms(forms[:], true)
     if !ok_expand {
         return result, clone_compile_error(err_expand, result_allocator), false
     }

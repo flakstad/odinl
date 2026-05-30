@@ -197,6 +197,62 @@ is_defmacro_form :: proc(form: CST_Form) -> bool {
     return form.kind == .List && len(form.items) > 0 && is_symbol(form.items[0], "defmacro")
 }
 
+core_macro_decl_from_source :: proc(source: string) -> (User_Macro, Compile_Error, bool) {
+    forms, err_forms, ok_forms := read_top_forms(source)
+    if !ok_forms {
+        return User_Macro{}, err_forms, false
+    }
+    if len(forms) != 1 {
+        return User_Macro{}, Compile_Error{message = "internal core macro definition must contain exactly one form"}, false
+    }
+    return parse_user_macro_decl(forms[0])
+}
+
+core_package_local_macros :: proc() -> ([]User_Macro, Compile_Error, bool) {
+    sources := []string{
+        `(defmacro when-let [binding & body]
+  (list (quote let)
+        (vector (vector (first binding) (nth binding 1))
+                (nth binding 2))
+        (list (quote when)
+              (nth binding 1)
+              (list (quote do) body))))`,
+        `(defmacro if-let [binding then else]
+  (list (quote let)
+        (vector (vector (first binding) (nth binding 1))
+                (nth binding 2))
+        (list (quote if)
+              (nth binding 1)
+              then
+              else)))`,
+        `(defmacro when-ok [binding & body]
+  (list (quote let)
+        (vector (vector (first binding) (nth binding 1))
+                (nth binding 2))
+        (list (quote when)
+              (list (quote ==) (nth binding 1) (brace))
+              (list (quote do) body))))`,
+        `(defmacro if-ok [binding then else]
+  (list (quote let)
+        (vector (vector (first binding) (nth binding 1))
+                (nth binding 2))
+        (list (quote if)
+              (list (quote ==) (nth binding 1) (brace))
+              then
+              else)))`,
+    }
+
+    macros: [dynamic]User_Macro
+    for source in sources {
+        macro_decl, err_macro, ok_macro := core_macro_decl_from_source(source)
+        if !ok_macro {
+            return nil, err_macro, false
+        }
+        append(&macros, macro_decl)
+    }
+    return macros[:], Compile_Error{}, true
+}
+
 builtin_macro_kind :: proc(head: string) -> Builtin_Macro_Kind {
     switch head {
     case "with-allocator":
@@ -1316,7 +1372,16 @@ macroexpand_source_with_map :: proc(source: string) -> (result: Emit_Result, err
     return result, {}, true
 }
 
-macroexpand_top_forms :: proc(forms: []CST_Top_Form) -> (expanded: [dynamic]CST_Top_Form, macros: [dynamic]User_Macro, err: Compile_Error, ok: bool) {
+macroexpand_top_forms :: proc(forms: []CST_Top_Form, include_core_macros: bool = false) -> (expanded: [dynamic]CST_Top_Form, macros: [dynamic]User_Macro, err: Compile_Error, ok: bool) {
+    if include_core_macros {
+        initial_macros, err_core, ok_core := core_package_local_macros()
+        if !ok_core {
+            return expanded, macros, err_core, false
+        }
+        for macro_decl in initial_macros {
+            append(&macros, macro_decl)
+        }
+    }
     for top in forms {
         if is_defmacro_form(top.form) {
             macro_decl, err_macro, ok_macro := parse_user_macro_decl(top)
