@@ -2017,13 +2017,25 @@ call forms.
 Supported macro-evaluator building blocks are intentionally small in v1:
 
 - control: `quote`, `if`, `do`, `let`
-- form builders: `list`, `vector`, `brace`
+- form builders: `list`, `vector`, `brace`, `forms`
 - sequence/form helpers: `first`, `rest`, `nth`, `count`, `concat`
-- symbol helpers: `symbol`, `keyword`, `name`
+- string/symbol helpers: `str`, `symbol`, `keyword`, `name`
 - predicates/comparisons: `=`, `form?`
 
 That is enough for real source transforms and small DSLs, without pretending the
 macro evaluator is already a full second language.
+
+Top-level macros may now expand into multiple top-level forms by returning
+`forms`, for example:
+
+```clojure
+(defmacro defentity [name fields]
+  (let [make-name (symbol (str "make-" (name name)))]
+    (forms
+      (list (quote defstruct) name fields)
+      (list (quote defn) make-name (vector) (quote ->) name
+            (list name (brace))))))
+```
 
 ### `with-*` forms
 

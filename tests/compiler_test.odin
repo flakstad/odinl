@@ -2464,6 +2464,37 @@ compile_source_with_user_macro :: proc(t: ^testing.T) {
 }
 
 @(test)
+compile_source_with_top_level_macro_dsl :: proc(t: ^testing.T) {
+    source := `(package main)
+
+(defmacro defentity [name fields]
+  (let [make-name (symbol (str "make-" (name name)))]
+    (forms
+      (list (quote defstruct) name fields)
+      (list (quote defn) make-name (vector) (quote ->) name
+            (list name (brace))))))
+
+(defentity Point {:x float :y float})
+
+(defn point-origin? [point: Point] -> bool
+  (and (== (:x point) 0.0)
+       (== (:y point) 0.0)))`
+
+    output, err, ok := kvist.compile_source(source)
+    testing.expect_value(t, ok, true)
+    if !ok {
+        testing.expect_value(t, err.message, "")
+        return
+    }
+    defer delete(output)
+
+    testing.expect_value(t, strings.contains(output, `Point :: struct {`), true)
+    testing.expect_value(t, strings.contains(output, `make_Point :: proc() -> Point`), true)
+    testing.expect_value(t, strings.contains(output, `return Point{}`), true)
+    testing.expect_value(t, strings.contains(output, `point_origin_p :: proc(point: Point) -> bool`), true)
+}
+
+@(test)
 compile_proc_types_and_literals :: proc(t: ^testing.T) {
     source := `(package main)
 

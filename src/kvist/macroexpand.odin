@@ -184,6 +184,39 @@ macro_value_to_forms :: proc(value: Macro_Value, span: Span) -> ([]CST_Form, Com
     }
 }
 
+macro_value_to_string :: proc(value: Macro_Value, span: Span) -> (string, Compile_Error, bool) {
+    switch value.kind {
+    case .String:
+        return value.string_value, Compile_Error{}, true
+    case .Form:
+        #partial switch value.form.kind {
+        case .Symbol:
+            return value.form.text, Compile_Error{}, true
+        case .Keyword:
+            if len(value.form.text) > 0 && value.form.text[0] == ':' {
+                return value.form.text[1:], Compile_Error{}, true
+            }
+            return value.form.text, Compile_Error{}, true
+        case .String:
+            return unquote_string(value.form.text), Compile_Error{}, true
+        case:
+            return "", Compile_Error{message = "expected string-like macro value", span = span}, false
+        }
+    case .Nil:
+        return "", Compile_Error{}, true
+    case .Int:
+        return macro_int_text(value.int_value), Compile_Error{}, true
+    case .Bool:
+        if value.bool_value {
+            return "true", Compile_Error{}, true
+        }
+        return "false", Compile_Error{}, true
+    case .Forms:
+        return "", Compile_Error{message = "expected string-like macro value", span = span}, false
+    }
+    return "", Compile_Error{message = "expected string-like macro value", span = span}, false
+}
+
 macro_lookup_binding :: proc(bindings: []Macro_Binding, name: string) -> (Macro_Value, bool) {
     for i := len(bindings) - 1; i >= 0; i -= 1 {
         if bindings[i].name == name {
@@ -800,6 +833,37 @@ macro_eval_expr :: proc(form: CST_Form, macros: []User_Macro, bindings: []Macro_
                     }
                 }
                 return macro_forms_value(out[:]), Compile_Error{}, true
+            case "forms":
+                out: [dynamic]CST_Form
+                for arg in form.items[1:] {
+                    value, err_value, ok_value := macro_eval_expr(arg, macros, bindings)
+                    if !ok_value {
+                        return Macro_Value{}, err_value, false
+                    }
+                    forms, err_forms, ok_forms := macro_value_to_forms(value, arg.span)
+                    if !ok_forms {
+                        return Macro_Value{}, err_forms, false
+                    }
+                    for item in forms {
+                        append(&out, item)
+                    }
+                }
+                return macro_forms_value(out[:]), Compile_Error{}, true
+            case "str":
+                builder := strings.builder_make()
+                defer strings.builder_destroy(&builder)
+                for arg in form.items[1:] {
+                    value, err_value, ok_value := macro_eval_expr(arg, macros, bindings)
+                    if !ok_value {
+                        return Macro_Value{}, err_value, false
+                    }
+                    text, err_text, ok_text := macro_value_to_string(value, arg.span)
+                    if !ok_text {
+                        return Macro_Value{}, err_text, false
+                    }
+                    strings.write_string(&builder, text)
+                }
+                return macro_string_value(strings.clone(strings.to_string(builder))), Compile_Error{}, true
             case "symbol":
                 if len(form.items) != 2 {
                     return Macro_Value{}, Compile_Error{message = "symbol expects one string argument", span = form.span}, false
@@ -893,6 +957,18 @@ expand_user_macro_call :: proc(macro_decl: User_Macro, call: CST_Form, macros: [
         expanded.span = call.span
     }
     return expanded, Compile_Error{}, true
+}
+
+expand_user_macro_call_to_forms :: proc(macro_decl: User_Macro, call: CST_Form, macros: []User_Macro) -> ([]CST_Form, Compile_Error, bool) {
+    bindings, err_bindings, ok_bindings := macro_collect_call_bindings(macro_decl, call)
+    if !ok_bindings {
+        return nil, err_bindings, false
+    }
+    value, err_value, ok_value := macro_eval_sequence(macro_decl.body[:], macros, bindings[:])
+    if !ok_value {
+        return nil, err_value, false
+    }
+    return macro_value_to_forms(value, call.span)
 }
 
 macro_emit_expanded_form :: proc(e: ^Macro_Expander, indent: string, form: CST_Form, macros: []User_Macro, suffix: string = "") -> (Compile_Error, bool) {
@@ -1463,6 +1539,26 @@ macroexpand_top_forms :: proc(forms: []CST_Top_Form, include_core_macros: bool =
             }
             append(&macros, macro_decl)
             continue
+        }
+        if top.form.kind == .List && len(top.form.items) > 0 && top.form.items[0].kind == .Symbol {
+            if user_macro, ok_user := find_user_macro(macros[:], top.form.items[0].text); ok_user {
+                forms_out, err_user, ok_user_expand := expand_user_macro_call_to_forms(user_macro, top.form, macros[:])
+                if !ok_user_expand {
+                    return expanded, macros, err_user, false
+                }
+                for form_out in forms_out {
+                    rewritten, err_expand, ok_expand := macroexpand_cst_form_with_macros(form_out, macros[:])
+                    if !ok_expand {
+                        return expanded, macros, err_expand, false
+                    }
+                    append(&expanded, CST_Top_Form{
+                        form      = rewritten,
+                        doc_lines = top.doc_lines,
+                        source    = top.source,
+                    })
+                }
+                continue
+            }
         }
         rewritten, err_expand, ok_expand := macroexpand_cst_form_with_macros(top.form, macros[:])
         if !ok_expand {
