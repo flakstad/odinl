@@ -108,6 +108,26 @@ symbols_proc_signature :: proc(name: string, decl: Proc_Decl) -> string {
     return strings.to_string(builder)
 }
 
+symbols_struct_signature :: proc(name: string, fields: []Struct_Field) -> string {
+    builder := strings.builder_make()
+    defer strings.builder_destroy(&builder)
+
+    strings.write_string(&builder, "(")
+    strings.write_string(&builder, name)
+    strings.write_string(&builder, " {")
+    for field, idx in fields {
+        if idx > 0 {
+            strings.write_string(&builder, " ")
+        }
+        strings.write_string(&builder, ":")
+        strings.write_string(&builder, field.source_name)
+        strings.write_string(&builder, " ")
+        strings.write_string(&builder, field.ty)
+    }
+    strings.write_string(&builder, "})")
+    return strings.to_string(builder)
+}
+
 symbols_doc_lines_from_string :: proc(text: string) -> (lines: [dynamic]string) {
     start := 0
     for i := 0; i <= len(text); i += 1 {
@@ -249,7 +269,14 @@ symbols_source :: proc(source: string) -> (output: string, err: Compile_Error, o
         case "struct":
             if len(form.items) == 3 && form.items[1].kind == .Symbol {
                 name := form.items[1].text
-                symbols_write_record_doc(&builder, "struct", name, source, form.items[1].span, "", "", top.doc_lines[:])
+                signature := ""
+                fields, err_fields, ok_fields := parse_struct_fields(form.items[2])
+                if ok_fields {
+                    signature = symbols_struct_signature(name, fields[:])
+                } else {
+                    _ = err_fields
+                }
+                symbols_write_record_doc(&builder, "struct", name, source, form.items[1].span, "", signature, top.doc_lines[:])
                 symbols_write_fields(&builder, source, name, form.items[2])
             }
         case "defstruct":
@@ -261,7 +288,14 @@ symbols_source :: proc(source: string) -> (output: string, err: Compile_Error, o
                     doc_lines = symbols_append_doc_lines(doc_lines[:], symbols_doc_lines_from_string(unquote_string(form.items[2].text))[:])
                     field_index = 3
                 }
-                symbols_write_record_doc(&builder, "struct", name, source, form.items[1].span, "", "", doc_lines[:])
+                signature := ""
+                fields_sig, err_fields, ok_fields_sig := parse_defstruct_fields(form.items[field_index])
+                if ok_fields_sig {
+                    signature = symbols_struct_signature(name, fields_sig[:])
+                } else {
+                    _ = err_fields
+                }
+                symbols_write_record_doc(&builder, "struct", name, source, form.items[1].span, "", signature, doc_lines[:])
                 symbols_write_fields(&builder, source, name, form.items[field_index])
             }
         case "enum":
