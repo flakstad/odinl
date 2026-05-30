@@ -71,6 +71,10 @@
                   "Bind a value and Odin error result from a multi-return expression. Run the body only when the error equals Odin's zero value {}. Expands to a destructuring let plus when."))
     ("if-ok" . ("kvist macro" "[value err expr] then else"
                 "Bind a value and Odin error result from a multi-return expression. Evaluate the then branch when the error equals Odin's zero value {}, otherwise the else branch. Expands to a destructuring let plus if."))
+    ("println" . ("kvist core" "value..."
+                  "Print one or more values. Kvist lowers this to fmt output and auto-imports core:fmt when needed."))
+    ("doc" . ("kvist core" "'symbol"
+              "Print the stored docstring for a declaration name."))
     ("type" . ("kvist form" "Head Arg..."
                "Instantiate an Odin polymorphic type constructor. For example, (type chan.Chan int) lowers to chan.Chan(int) in both type and value positions.")))
   "Static documentation for compiler-defined Kvist forms.")
@@ -429,6 +433,15 @@
                          :file file)))))
             members))))
 
+(defun kvist--canonical-kvist-package-symbols ()
+  "Return built-in Kvist package symbols under their canonical aliases."
+  (apply #'append
+         (mapcar (lambda (entry)
+                   (kvist--package-member-symbols
+                    (substring (car entry) (1+ (string-match ":" (car entry))))
+                    (car entry)))
+                 kvist--kvist-package-member-map)))
+
 (defun kvist--package-definition-symbols (alias import-path)
   "Return exported-looking symbols for ALIAS from IMPORT-PATH."
   (or (kvist--package-member-symbols alias import-path)
@@ -542,12 +555,14 @@
 
 (defun kvist--package-symbols-for-current-buffer ()
   "Return imported Odin package symbols for current buffer imports."
-  (apply #'append
-         (mapcar (lambda (symbol)
-                   (kvist--package-definition-symbols
-                    (plist-get symbol :name)
-                    (plist-get symbol :detail)))
-                 (kvist--import-symbols))))
+  (append
+   (apply #'append
+          (mapcar (lambda (symbol)
+                    (kvist--package-definition-symbols
+                     (plist-get symbol :name)
+                     (plist-get symbol :detail)))
+                  (kvist--import-symbols)))
+   (kvist--canonical-kvist-package-symbols)))
 
 (defun kvist--package-definitions (identifier)
   "Return package definitions matching alias-qualified IDENTIFIER."
@@ -730,7 +745,17 @@
   "Return built-in Kvist definitions matching IDENTIFIER."
   (delq nil
         (list (kvist--language-form-definition identifier)
-              (kvist--core-helper-definition identifier))))
+              (kvist--core-helper-definition identifier)
+              (when (string= identifier "println")
+                (kvist--mapped-implementation-definition
+                 "println"
+                 '(("println" . ("src/kvist/emit.odin" "if form.items[0].text == \"println\" || form.items[0].text == \"doc\"" "kvist core")))
+                 nil))
+              (when (string= identifier "doc")
+                (kvist--mapped-implementation-definition
+                 "doc"
+                 '(("doc" . ("src/kvist/emit.odin" "case \"doc\":" "kvist core")))
+                 nil)))))
 
 (defun kvist--xref-backend () 'kvist)
 
